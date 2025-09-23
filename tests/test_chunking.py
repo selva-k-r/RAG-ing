@@ -34,9 +34,14 @@ def test_chunk_documents_respects_size_and_overlap(sample_document):
     for chunk in chunks:
         assert len(chunk.page_content) <= 30
 
-    # Check for overlap by seeing if the start of the next chunk is in the previous one
+    # Check for overlap by comparing the last `chunk_overlap` characters of the previous chunk
+    overlap = config.chunk_overlap
     for i in range(len(chunks) - 1):
-        assert chunks[i+1].page_content[:5] in chunks[i].page_content
+        prev_chunk = chunks[i].page_content
+        next_chunk = chunks[i+1].page_content
+        # Only check if both chunks are long enough for the overlap
+        if len(prev_chunk) >= overlap and len(next_chunk) >= overlap:
+            assert prev_chunk[-overlap:] == next_chunk[:overlap]
 
 
 def test_chunk_empty_document():
