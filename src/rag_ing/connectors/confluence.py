@@ -89,7 +89,8 @@ class ConfluenceConnector(BaseConnector):
             }
             
             if self.space_key:
-                params["cql"] = f"space = '{self.space_key}'"
+                safe_space_key = self.space_key.replace("'", "''")
+                params["cql"] = f"space = '{safe_space_key}'"
             
             try:
                 url = urljoin(self.base_url, "/rest/api/content/search" if self.space_key else "/rest/api/content")
