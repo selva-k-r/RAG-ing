@@ -7,7 +7,7 @@ import argparse
 import logging
 
 # Add src to path for development
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from rag_ing.ui.streamlit_app import main as streamlit_main
 
