@@ -51,8 +51,8 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/selva-k-r/RAG-ing"
-Repository = "https://github.com/selva-k-r/RAG-ing"
+Homepage = "https://github.com/<your-github-username>/<your-repo-name>"
+Repository = "https://github.com/<your-github-username>/<your-repo-name>"
 
 [project.scripts]
 rag-ing = "rag_ing.cli:main"
