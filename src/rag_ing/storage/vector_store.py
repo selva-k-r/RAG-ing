@@ -230,7 +230,7 @@ class VectorStoreManager:
             else:
                 # Create empty store
                 store = FAISS.from_texts(["dummy"], embeddings)
-                store.delete([0])  # Remove dummy document
+                store.delete(['0'])  # Remove dummy document
             
             self._stores[store_key] = store
         
