@@ -5,7 +5,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter, CharacterTex
 from langchain.docstore.document import Document
 import logging
 
-from ..config.settings import ChunkingConfig
+from .config.settings import ChunkingConfig
 
 logger = logging.getLogger(__name__)
 
