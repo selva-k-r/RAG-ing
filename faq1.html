@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iConnect - Pipeline Issue Response</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #ffffff;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #1e88e5;
+            position: relative;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex: 1;
+        }
+        
+        .header-center {
+            text-align: left;
+        }
+        
+        .main-title {
+            text-align: left;
+        }
+        
+        .subtitle {
+            text-align: left;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+        }
+        
+        .home-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 12px;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            width: 56px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .home-btn:hover {
+            background: rgba(30,136,229,0.1);
+            transform: scale(1.05);
+        }
+        
+        .home-icon {
+            width: 32px;
+            height: 32px;
+            fill: #1e88e5;
+            transition: all 0.3s ease;
+        }
+        
+        .home-btn:hover .home-icon {
+            fill: #1565c0;
+        }
+        
+        .mini-search {
+            width: 280px;
+            position: relative;
+        }
+        
+        .mini-search-input {
+            width: 100%;
+            padding: 8px 35px 8px 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 20px;
+            font-size: 13px;
+            outline: none;
+            background: #fafafa;
+            transition: all 0.3s ease;
+        }
+        
+        .mini-search-input:focus {
+            border-color: #1e88e5;
+            background: #ffffff;
+            box-shadow: 0 2px 8px rgba(30,136,229,0.1);
+        }
+        
+        .mini-search-btn {
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #1e88e5;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 6px 8px;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            width: 26px;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .mini-search-btn:hover {
+            transform: translateY(-50%) scale(1.05);
+            background: #1565c0;
+        }
+        
+        @keyframes searchGlow {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        
+        .main-title {
+            font-size: 24px;
+            background: linear-gradient(135deg, #1e88e5, #26a69a);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 300;
+            letter-spacing: 1px;
+            margin-bottom: 1px;
+            position: relative;
+            display: inline-block;
+        }
+        
+        .main-title::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30px;
+            height: 1.5px;
+            background: linear-gradient(90deg, #1e88e5, #26a69a);
+            border-radius: 1px;
+        }
+        
+        .subtitle {
+            font-size: 11px;
+            color: #888;
+            font-weight: 400;
+            margin-top: 4px;
+        }
+        
+        .search-query {
+            padding: 25px 30px;
+            margin-bottom: 30px;
+            background: linear-gradient(90deg, rgba(30,136,229,0.05) 0%, rgba(30,136,229,0.02) 50%, transparent 100%);
+            border-radius: 12px;
+            border-left: 4px solid rgba(30,136,229,0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .search-query::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent 0%, rgba(30,136,229,0.1) 50%, transparent 100%);
+            animation: questionShimmer 4s ease-in-out infinite;
+        }
+        
+        .query-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .query-text {
+            font-size: 20px;
+            color: #333;
+            font-weight: 600;
+            line-height: 1.4;
+            position: relative;
+            z-index: 1;
+        }
+        
+        @keyframes questionShimmer {
+            0%, 100% { left: -100%; }
+            50% { left: 100%; }
+        }
+        
+        .response-section {
+            margin-bottom: 40px;
+        }
+        
+        .response-header {
+            font-size: 13px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+        }
+        
+        .response-content {
+            padding: 25px 30px;
+            background: linear-gradient(270deg, rgba(38,166,154,0.05) 0%, rgba(38,166,154,0.02) 50%, transparent 100%);
+            border-radius: 12px;
+            border-right: 4px solid rgba(38,166,154,0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .response-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(270deg, transparent 0%, rgba(38,166,154,0.1) 50%, transparent 100%);
+            animation: answerShimmer 4s ease-in-out infinite 2s;
+        }
+        
+        .ai-response {
+            font-size: 18px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            color: #333;
+            font-weight: 500;
+            position: relative;
+            z-index: 1;
+        }
+        
+        @keyframes answerShimmer {
+            0%, 100% { right: -100%; }
+            50% { right: 100%; }
+        }
+        
+        .ticket-template {
+            background: rgba(255,255,255,0.7);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid rgba(30,136,229,0.2);
+            backdrop-filter: blur(10px);
+            position: relative;
+            z-index: 1;
+        }
+        
+        .template-header {
+            font-weight: 600;
+            color: #1e88e5;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        
+        .template-field {
+            margin-bottom: 12px;
+        }
+        
+        .field-label {
+            font-weight: 500;
+            color: #666;
+            margin-bottom: 4px;
+            font-size: 13px;
+        }
+        
+        .field-value {
+            color: #444;
+            line-height: 1.5;
+            font-size: 14px;
+        }
+        
+        .create-ticket-btn {
+            background: linear-gradient(135deg, #1e88e5, #26a69a);
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 15px;
+            box-shadow: 0 3px 8px rgba(30,136,229,0.3);
+            position: relative;
+            z-index: 1;
+        }
+        
+        .create-ticket-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(30,136,229,0.4);
+        }
+        
+        .sources-section {
+            margin-top: 50px;
+            border-top: 1px solid #e8e8e8;
+            padding-top: 30px;
+        }
+        
+        .sources-header {
+            font-size: 12px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+        }
+        
+        .source-item {
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .source-item:last-child {
+            border-bottom: none;
+        }
+        
+        .source-info {
+            flex: 1;
+        }
+        
+        .source-title {
+            font-weight: 500;
+            color: #555;
+            margin-bottom: 2px;
+            font-size: 14px;
+        }
+        
+        .source-description {
+            font-size: 12px;
+            color: #888;
+            line-height: 1.4;
+        }
+        
+        .source-link {
+            color: #1e88e5;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .source-link:hover {
+            text-decoration: underline;
+        }
+        
+        .confidence-badge {
+            background: rgba(38,166,154,0.1);
+            color: #26a69a;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(38,166,154,0.2);
+            font-weight: 600;
+            position: relative;
+            z-index: 1;
+        }
+        
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <button class="home-btn" onclick="goHome()">
+                    <svg class="home-icon" viewBox="0 0 24 24">
+                        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+                    </svg>
+                </button>
+                <div class="header-center">
+                    <div class="main-title">iConnect</div>
+                    <div class="subtitle">IntegraConnect AI-Powered Search</div>
+                </div>
+            </div>
+            
+            <div class="header-right">
+                <div class="mini-search">
+                    <input type="text" class="mini-search-input" placeholder="Search..." />
+                    <button class="mini-search-btn">⌕</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="search-query">
+            <div class="query-label">Your Question</div>
+            <div class="query-text">While running Pipeline, I am getting xyz issue?</div>
+        </div>
+        
+        <div class="response-section">
+            <div class="response-header">
+                Answer
+            </div>
+            <div class="response-content">
+                <div class="confidence-badge">95% Confidence</div>
+                
+                <div class="ai-response">
+                    Here is what I found: I have a similar issue resolved in <strong>Devops-1234</strong>. It seems you need to raise a devops ticket to get the access. Do you want me to create the template for you?
+                    <br><br>
+                    This information was documented by <strong>Sarah Chen</strong> from the DevOps team, which helped to uncover this solution pattern.
+                </div>
+                
+                <div class="ticket-template">
+                    <div class="template-header">
+                        DevOps Ticket Template
+                    </div>
+                    
+                    <div class="template-field">
+                        <div class="field-label">Title:</div>
+                        <div class="field-value">Pipeline xyz issue - Access Request</div>
+                    </div>
+                    
+                    <div class="template-field">
+                        <div class="field-label">Priority:</div>
+                        <div class="field-value">Medium</div>
+                    </div>
+                    
+                    <div class="template-field">
+                        <div class="field-label">Category:</div>
+                        <div class="field-value">Access Management</div>
+                    </div>
+                    
+                    <div class="template-field">
+                        <div class="field-label">Description:</div>
+                        <div class="field-value">
+                            I am experiencing an xyz issue while running the pipeline. Based on similar resolved ticket Devops-1234, this appears to be an access-related issue. Please provide the necessary permissions to resolve this pipeline error.
+                            <br><br>
+                            <strong>Steps to Reproduce:</strong><br>
+                            1. Run pipeline<br>
+                            2. Encounter xyz error<br>
+                            <br>
+                            <strong>Expected Result:</strong> Pipeline runs successfully<br>
+                            <strong>Actual Result:</strong> xyz error occurs<br>
+                            <br>
+                            <strong>Reference Ticket:</strong> Devops-1234 (similar issue resolved)
+                        </div>
+                    </div>
+                    
+                    <button class="create-ticket-btn" onclick="createTicket()">
+                        Create DevOps Ticket
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="sources-section">
+            <div class="sources-header">
+                Sources
+            </div>
+            
+            <div class="source-item">
+                <div class="source-info">
+                    <div class="source-title">DevOps-1234: Pipeline Access Issue Resolution</div>
+                    <div class="source-description">Similar pipeline xyz issue resolved by granting database access permissions • Created by Sarah Chen</div>
+                </div>
+                <a href="#" class="source-link">View Ticket</a>
+            </div>
+            
+            <div class="source-item">
+                <div class="source-info">
+                    <div class="source-title">Confluence: Pipeline Troubleshooting Guide</div>
+                    <div class="source-description">Common pipeline issues and resolution steps including access-related problems • Created by DevOps Team</div>
+                </div>
+                <a href="#" class="source-link">View Guide</a>
+            </div>
+        </div>
+        
+
+    </div>
+    
+    <script>
+        function goHome() {
+            window.location.href = 'home.html';
+        }
+        
+        function createTicket() {
+            alert('DevOps ticket template copied to clipboard!\n\nIn the full application, this would:\n• Open your DevOps ticketing system\n• Pre-fill the ticket with the template\n• Allow you to submit directly');
+        }
+        
+        // Mini search functionality
+        document.querySelector('.mini-search-btn').addEventListener('click', function() {
+            const query = document.querySelector('.mini-search-input').value.trim();
+            if (query) {
+                alert(`Searching for: "${query}"\n\nThis would take you to search results in the full application.`);
+            } else {
+                alert('Please enter a search query!');
+            }
+        });
+        
+        document.querySelector('.mini-search-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.querySelector('.mini-search-btn').click();
+            }
+        });
+    </script>
+</body>
+</html>
