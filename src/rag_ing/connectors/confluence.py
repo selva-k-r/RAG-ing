@@ -9,6 +9,7 @@ from urllib.parse import urljoin
 import time
 
 from .base import BaseConnector
+from ..utils.exceptions import ConnectionError, AuthenticationError, APIError, DocumentProcessingError
 
 logger = logging.getLogger(__name__)
 
@@ -45,27 +46,34 @@ class ConfluenceConnector(BaseConnector):
             
             # Test connection
             return self.test_connection()
-        except Exception as e:
+        except requests.exceptions.RequestException as e:
             logger.error(f"Failed to connect to Confluence: {e}")
-            return False
+            raise ConnectionError(f"Unable to connect to Confluence at {self.base_url}") from e
     
     def test_connection(self) -> bool:
         """Test Confluence connection."""
         if not self.session:
-            return False
+            raise ConnectionError("Session not established.")
         
         try:
             url = urljoin(self.base_url, "/rest/api/space")
             response = self.session.get(url, timeout=30)
-            return response.status_code == 200
-        except Exception as e:
+
+            if response.status_code == 200:
+                return True
+            elif response.status_code in [401, 403]:
+                raise AuthenticationError("Authentication failed. Please check your username and API token.")
+            else:
+                raise APIError(f"Confluence API returned status {response.status_code}: {response.text}")
+
+        except requests.exceptions.RequestException as e:
             logger.error(f"Confluence connection test failed: {e}")
-            return False
+            raise ConnectionError(f"Connection test to {self.base_url} failed.") from e
     
     def fetch_documents(self, limit: int = 50, include_attachments: bool = False) -> List[Document]:
         """Fetch documents from Confluence."""
         if not self.session:
-            raise ValueError("Not connected to Confluence. Call connect() first.")
+            self.connect()
         
         documents = []
         start = 0
@@ -81,10 +89,11 @@ class ConfluenceConnector(BaseConnector):
             }
             
             if self.space_key:
-                params["spaceKey"] = self.space_key
+                safe_space_key = self.space_key.replace("'", "''")
+                params["cql"] = f"space = '{safe_space_key}'"
             
             try:
-                url = urljoin(self.base_url, "/rest/api/content")
+                url = urljoin(self.base_url, "/rest/api/content/search" if self.space_key else "/rest/api/content")
                 response = self.session.get(url, params=params, timeout=60)
                 response.raise_for_status()
                 
@@ -104,9 +113,13 @@ class ConfluenceConnector(BaseConnector):
                 # Rate limiting
                 time.sleep(0.5)
                 
-            except Exception as e:
-                logger.error(f"Error fetching Confluence documents: {e}")
-                break
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code in [401, 403]:
+                    raise AuthenticationError("Authentication failed during document fetch.") from e
+                else:
+                    raise APIError(f"Error fetching Confluence documents: {e.response.status_code}") from e
+            except requests.exceptions.RequestException as e:
+                raise ConnectionError("Connection error during document fetch.") from e
         
         logger.info(f"Fetched {len(documents)} documents from Confluence")
         return documents[:limit]
@@ -148,12 +161,12 @@ class ConfluenceConnector(BaseConnector):
             
         except Exception as e:
             logger.error(f"Error converting Confluence item to document: {e}")
-            return None
+            raise DocumentProcessingError(f"Failed to process document {item.get('id')}") from e
     
     def search_documents(self, query: str, limit: int = 25) -> List[Document]:
         """Search for specific documents in Confluence."""
         if not self.session:
-            raise ValueError("Not connected to Confluence. Call connect() first.")
+            self.connect()
         
         try:
             # Use Confluence search API
@@ -164,7 +177,7 @@ class ConfluenceConnector(BaseConnector):
             }
             
             if self.space_key:
-                params["cql"] = f"space = {self.space_key} AND {params['cql']}"
+                params["cql"] = f"space = '{self.space_key}' AND {params['cql']}"
             
             url = urljoin(self.base_url, "/rest/api/content/search")
             response = self.session.get(url, params=params, timeout=60)
@@ -183,6 +196,10 @@ class ConfluenceConnector(BaseConnector):
             logger.info(f"Found {len(documents)} documents for query: {query}")
             return documents
             
-        except Exception as e:
-            logger.error(f"Error searching Confluence documents: {e}")
-            return []
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code in [401, 403]:
+                raise AuthenticationError("Authentication failed during search.") from e
+            else:
+                raise APIError(f"Error searching Confluence documents: {e.response.status_code}") from e
+        except requests.exceptions.RequestException as e:
+            raise ConnectionError("Connection error during search.") from e
