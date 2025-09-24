@@ -1,15 +1,12 @@
-# gitignore template for LangChain products, e.g., LangGraph, LangSmith
-# website: https://www.langchain.com/
-# website: https://www.langchain.com/langgraph
-
-# LangGraph
-.langgraph_api/
-
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
+
+# C extensions
 *.so
+
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -28,7 +25,32 @@ wheels/
 *.egg
 MANIFEST
 
-# Virtual environments
+# PyInstaller
+#  Usually these files are created by a PyInstaller script from a 'spec' file
+#  in a subdirectory. But if you run PyInstaller less formally, these files
+#  may be created in project root.
+#
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Environments
 .env
 .venv
 env/
@@ -37,70 +59,12 @@ ENV/
 env.bak/
 venv.bak/
 
-# IDE
-.vscode/
+# IDEs
 .idea/
-*.swp
-*.swo
-*~
+.vscode/
 
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# pyenv
-.python-version
-
-# pipenv
-Pipfile.lock
-
-# pytest
-.pytest_cache/
-
-# Coverage reports
-htmlcov/
-.tox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Streamlit
-.streamlit/
-
-# Vector databases
-*.faiss
-chroma_db/
-*.db
-*.sqlite
-
-# Logs
-*.log
-logs/
-
-# Temporary files
-tmp/
-temp/
-.tmp/
-
-# OS generated files
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
-
-# API keys and secrets
-.env
-secrets/
-*.key
-*.pem
+# Generated data
+/data_tmp/
+/index/
+/test_index/
+test_config.yaml
