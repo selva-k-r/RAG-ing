@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iConnect - PopHealth Setup Guide</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #ffffff;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #1e88e5;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex: 1;
+        }
+        
+        .header-center {
+            text-align: left;
+        }
+        
+        .main-title {
+            text-align: left;
+        }
+        
+        .subtitle {
+            text-align: left;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+        }
+        
+        .home-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 12px;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            width: 56px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .home-btn:hover {
+            background: rgba(30,136,229,0.1);
+            transform: scale(1.05);
+        }
+        
+        .home-icon {
+            width: 32px;
+            height: 32px;
+            fill: #1e88e5;
+            transition: all 0.3s ease;
+        }
+        
+        .home-btn:hover .home-icon {
+            fill: #1565c0;
+        }
+        
+        .mini-search {
+            width: 280px;
+            position: relative;
+        }
+        
+        .mini-search-input {
+            width: 100%;
+            padding: 8px 35px 8px 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 20px;
+            font-size: 13px;
+            outline: none;
+            background: #fafafa;
+            transition: all 0.3s ease;
+        }
+        
+        .mini-search-input:focus {
+            border-color: #1e88e5;
+            background: #ffffff;
+            box-shadow: 0 2px 8px rgba(30,136,229,0.1);
+        }
+        
+        .mini-search-btn {
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #1e88e5;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 6px 8px;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            width: 26px;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .mini-search-btn:hover {
+            transform: translateY(-50%) scale(1.05);
+            background: #1565c0;
+        }
+        
+        @keyframes searchGlow {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        
+        .main-title {
+            font-size: 24px;
+            background: linear-gradient(135deg, #1e88e5, #26a69a);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 300;
+            letter-spacing: 1px;
+            margin-bottom: 1px;
+            position: relative;
+            display: inline-block;
+        }
+        
+        .main-title::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30px;
+            height: 1.5px;
+            background: linear-gradient(90deg, #1e88e5, #26a69a);
+            border-radius: 1px;
+        }
+        
+        .subtitle {
+            font-size: 11px;
+            color: #888;
+            font-weight: 400;
+            margin-top: 4px;
+        }
+        
+        .search-query {
+            padding: 25px 30px;
+            margin-bottom: 30px;
+            background: linear-gradient(90deg, rgba(30,136,229,0.05) 0%, rgba(30,136,229,0.02) 50%, transparent 100%);
+            border-radius: 12px;
+            border-left: 4px solid rgba(30,136,229,0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .search-query::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent 0%, rgba(30,136,229,0.1) 50%, transparent 100%);
+            animation: questionShimmer 4s ease-in-out infinite;
+        }
+        
+        .query-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .query-text {
+            font-size: 20px;
+            color: #333;
+            font-weight: 600;
+            line-height: 1.4;
+            position: relative;
+            z-index: 1;
+        }
+        
+        @keyframes questionShimmer {
+            0%, 100% { left: -100%; }
+            50% { left: 100%; }
+        }
+        
+        .response-section {
+            margin-bottom: 40px;
+        }
+        
+        .response-header {
+            font-size: 13px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+        }
+        
+        .response-content {
+            padding: 25px 30px;
+            background: linear-gradient(270deg, rgba(38,166,154,0.05) 0%, rgba(38,166,154,0.02) 50%, transparent 100%);
+            border-radius: 12px;
+            border-right: 4px solid rgba(38,166,154,0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .response-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(270deg, transparent 0%, rgba(38,166,154,0.1) 50%, transparent 100%);
+            animation: answerShimmer 4s ease-in-out infinite 2s;
+        }
+        
+        .ai-response {
+            font-size: 18px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            color: #333;
+            font-weight: 500;
+            position: relative;
+            z-index: 1;
+        }
+        
+        @keyframes answerShimmer {
+            0%, 100% { right: -100%; }
+            50% { right: 100%; }
+        }
+        
+        .welcome-message {
+            background: #e8f5e8;
+            border: 1px solid #4caf50;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
+        .welcome-text {
+            font-size: 18px;
+            color: #2e7d32;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .welcome-subtext {
+            color: #388e3c;
+            font-size: 14px;
+        }
+        
+        .setup-steps {
+            background: rgba(255,255,255,0.7);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid rgba(30,136,229,0.2);
+            backdrop-filter: blur(10px);
+            position: relative;
+            z-index: 1;
+        }
+        
+        .steps-header {
+            font-weight: 600;
+            color: #1e88e5;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        
+        .step-item {
+            background: white;
+            border-left: 4px solid #9c27b0;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 0 8px 8px 0;
+        }
+        
+        .step-number {
+            background: #9c27b0;
+            color: white;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+            font-size: 14px;
+        }
+        
+        .step-title {
+            font-weight: 600;
+            color: #4a148c;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .step-description {
+            color: #6a1b9a;
+            font-size: 14px;
+            margin-left: 45px;
+        }
+        
+        .code-snippet {
+            background: #263238;
+            color: #00e676;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            margin: 8px 0;
+            overflow-x: auto;
+        }
+        
+        .devops-ticket {
+            background: #e3f2fd;
+            border: 1px solid #1e88e5;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .ticket-header {
+            font-weight: bold;
+            color: #1e88e5;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .ticket-content {
+            color: #1565c0;
+            font-size: 14px;
+        }
+        
+        .sources-section {
+            margin-top: 50px;
+            border-top: 1px solid #e8e8e8;
+            padding-top: 30px;
+        }
+        
+        .sources-header {
+            font-size: 12px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+        }
+        
+        .source-item {
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .source-item:last-child {
+            border-bottom: none;
+        }
+        
+        .source-info {
+            flex: 1;
+        }
+        
+        .source-title {
+            font-weight: 500;
+            color: #555;
+            margin-bottom: 2px;
+            font-size: 14px;
+        }
+        
+        .source-description {
+            font-size: 12px;
+            color: #888;
+            line-height: 1.4;
+        }
+        
+        .source-link {
+            color: #1e88e5;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .source-link:hover {
+            text-decoration: underline;
+        }
+        
+        .confidence-badge {
+            background: rgba(38,166,154,0.1);
+            color: #26a69a;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(38,166,154,0.2);
+            font-weight: 600;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .back-link {
+            text-align: center;
+            margin-top: 30px;
+        }
+        
+        .back-btn {
+            color: #1e88e5;
+            text-decoration: none;
+            font-weight: 500;
+            padding: 10px 20px;
+            border: 2px solid #1e88e5;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+        
+        .back-btn:hover {
+            background: #1e88e5;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <button class="home-btn" onclick="goHome()">
+                    <svg class="home-icon" viewBox="0 0 24 24">
+                        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+                    </svg>
+                </button>
+                <div class="header-center">
+                    <div class="main-title">iConnect</div>
+                    <div class="subtitle">IntegraConnect AI-Powered Search</div>
+                </div>
+            </div>
+            
+            <div class="header-right">
+                <div class="mini-search">
+                    <input type="text" class="mini-search-input" placeholder="Search..." />
+                    <button class="mini-search-btn">⌕</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="search-query">
+            <div class="query-label">Your Question</div>
+            <div class="query-text">Can you help me setup my system for PopHealth Team?</div>
+        </div>
+        
+        <div class="response-section">
+            <div class="response-header">
+                Answer
+            </div>
+            <div class="response-content">
+                <div class="confidence-badge">97% Confidence</div>
+                
+                <div class="ai-response">
+                    Here's what I found for your setup: Please follow the steps below. Welcome to the team, All the best!!
+                    <br><br>
+                    This comprehensive onboarding guide was created by <strong>Alex Thompson</strong> from the PopHealth Engineering team, which helped to uncover the complete setup process.
+                </div>
+                
+                <div class="welcome-message">
+                    <div class="welcome-text">🎉 Welcome to the PopHealth Team!</div>
+                    <div class="welcome-subtext">We're excited to have you aboard. Let's get your system set up for success.</div>
+                </div>
+                
+                <div class="setup-steps">
+                    <div class="steps-header">
+                        Setup Instructions
+                    </div>
+                    
+                    <div class="step-item">
+                        <div class="step-title">
+                            <span class="step-number">1</span>
+                            Install DBT (Data Build Tool)
+                        </div>
+                        <div class="step-description">
+                            Install DBT for data transformation and modeling:
+                            <div class="code-snippet">pip install dbt-snowflake</div>
+                            <div class="code-snippet">dbt --version</div>
+                        </div>
+                    </div>
+                    
+                    <div class="step-item">
+                        <div class="step-title">
+                            <span class="step-number">2</span>
+                            Configure DBT Profile
+                        </div>
+                        <div class="step-description">
+                            Set up your DBT profile for PopHealth environment:
+                            <div class="code-snippet">dbt init pophealth_project</div>
+                            Configure ~/.dbt/profiles.yml with Snowflake connection details
+                        </div>
+                    </div>
+                    
+                    <div class="step-item">
+                        <div class="step-title">
+                            <span class="step-number">3</span>
+                            Clone PopHealth Repository
+                        </div>
+                        <div class="step-description">
+                            Get access to our DBT PopHealth repository:
+                            <div class="code-snippet">git clone https://github.com/integraconnect/dbt-pophealth.git</div>
+                            <div class="code-snippet">cd dbt-pophealth</div>
+                        </div>
+                    </div>
+                    
+                    <div class="step-item">
+                        <div class="step-title">
+                            <span class="step-number">4</span>
+                            Request Snowflake Access
+                        </div>
+                        <div class="step-description">
+                            Raise DevOps ticket to get Snowflake database access:
+                            
+                            <div class="devops-ticket">
+                                <div class="ticket-header">
+                                    🎫 DevOps Ticket Required
+                                </div>
+                                <div class="ticket-content">
+                                    <strong>Title:</strong> New PopHealth Team Member - Snowflake Access Request<br>
+                                    <strong>Description:</strong> Please grant Snowflake access for new PopHealth team member including read/write permissions to development schemas and read access to production data.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="step-item">
+                        <div class="step-title">
+                            <span class="step-number">5</span>
+                            Install Development Tools
+                        </div>
+                        <div class="step-description">
+                            Set up your development environment:
+                            <div class="code-snippet">pip install -r requirements.txt</div>
+                            <div class="code-snippet">pre-commit install</div>
+                            Install VSCode DBT extension for better development experience
+                        </div>
+                    </div>
+                    
+                    <div class="step-item">
+                        <div class="step-title">
+                            <span class="step-number">6</span>
+                            Join Team Channels
+                        </div>
+                        <div class="step-description">
+                            Connect with the team:
+                            • Join #pophealth-team Teams channel<br>
+                            • Subscribe to PopHealth Confluence space<br>
+                            • Get added to recurring team meetings
+                            • Request to add yourself to Titans@ic.com
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="sources-section">
+            <div class="sources-header">
+                Sources
+            </div>
+            
+            <div class="source-item">
+                <div class="source-info">
+                    <div class="source-title">Confluence: PopHealth Team Onboarding Guide</div>
+                    <div class="source-description">Complete onboarding documentation including system setup and team processes • Created by Alex Thompson</div>
+                </div>
+                <a href="#" class="source-link">View Guide</a>
+            </div>
+            
+            <div class="source-item">
+                <div class="source-info">
+                    <div class="source-title">GitHub: DBT PopHealth Repository</div>
+                    <div class="source-description">Main codebase with installation instructions and development guidelines • Created by PopHealth Engineering Team</div>
+                </div>
+                <a href="#" class="source-link">View Repo</a>
+            </div>
+            
+            <div class="source-item">
+                <div class="source-info">
+                    <div class="source-title">Confluence: Development Environment Setup</div>
+                    <div class="source-description">Step-by-step guide for configuring DBT, Snowflake, and development tools • Created by DevOps Team</div>
+                </div>
+                <a href="#" class="source-link">View Setup</a>
+            </div>
+        </div>
+        
+
+    </div>
+    
+    <script>
+        function goHome() {
+            window.location.href = 'home.html';
+        }
+        
+        // Mini search functionality
+        document.querySelector('.mini-search-btn').addEventListener('click', function() {
+            const query = document.querySelector('.mini-search-input').value.trim();
+            if (query) {
+                alert(`Searching for: "${query}"\n\nThis would take you to search results in the full application.`);
+            } else {
+                alert('Please enter a search query!');
+            }
+        });
+        
+        document.querySelector('.mini-search-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.querySelector('.mini-search-btn').click();
+            }
+        });
+    </script>
+</body>
+</html>

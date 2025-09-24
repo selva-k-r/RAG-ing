@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>iConnect - Anthem Quality Measure Response</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #ffffff;
+            color: #333;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #1e88e5;
+        }
+        
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex: 1;
+        }
+        
+        .header-center {
+            text-align: left;
+        }
+        
+        .main-title {
+            text-align: left;
+        }
+        
+        .subtitle {
+            text-align: left;
+        }
+        
+        .header-right {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+        }
+        
+        .home-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 12px;
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            width: 56px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .home-btn:hover {
+            background: rgba(30,136,229,0.1);
+            transform: scale(1.05);
+        }
+        
+        .home-icon {
+            width: 32px;
+            height: 32px;
+            fill: #1e88e5;
+            transition: all 0.3s ease;
+        }
+        
+        .home-btn:hover .home-icon {
+            fill: #1565c0;
+        }
+        
+        .mini-search {
+            width: 280px;
+            position: relative;
+        }
+        
+        .mini-search-input {
+            width: 100%;
+            padding: 8px 35px 8px 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 20px;
+            font-size: 13px;
+            outline: none;
+            background: #fafafa;
+            transition: all 0.3s ease;
+        }
+        
+        .mini-search-input:focus {
+            border-color: #1e88e5;
+            background: #ffffff;
+            box-shadow: 0 2px 8px rgba(30,136,229,0.1);
+        }
+        
+        .mini-search-btn {
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #1e88e5;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 12px;
+            padding: 6px 8px;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+            width: 26px;
+            height: 26px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .mini-search-btn:hover {
+            transform: translateY(-50%) scale(1.05);
+            background: #1565c0;
+        }
+        
+        @keyframes searchGlow {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        
+        .main-title {
+            font-size: 24px;
+            background: linear-gradient(135deg, #1e88e5, #26a69a);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 300;
+            letter-spacing: 1px;
+            margin-bottom: 1px;
+            position: relative;
+            display: inline-block;
+        }
+        
+        .main-title::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30px;
+            height: 1.5px;
+            background: linear-gradient(90deg, #1e88e5, #26a69a);
+            border-radius: 1px;
+        }
+        
+        .subtitle {
+            font-size: 11px;
+            color: #888;
+            font-weight: 400;
+            margin-top: 4px;
+        }
+        
+        .search-query {
+            padding: 25px 30px;
+            margin-bottom: 30px;
+            background: linear-gradient(90deg, rgba(30,136,229,0.05) 0%, rgba(30,136,229,0.02) 50%, transparent 100%);
+            border-radius: 12px;
+            border-left: 4px solid rgba(30,136,229,0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .search-query::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent 0%, rgba(30,136,229,0.1) 50%, transparent 100%);
+            animation: questionShimmer 4s ease-in-out infinite;
+        }
+        
+        .query-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .query-text {
+            font-size: 20px;
+            color: #333;
+            font-weight: 600;
+            line-height: 1.4;
+            position: relative;
+            z-index: 1;
+        }
+        
+        @keyframes questionShimmer {
+            0%, 100% { left: -100%; }
+            50% { left: 100%; }
+        }
+        
+        .response-section {
+            margin-bottom: 40px;
+        }
+        
+        .response-header {
+            font-size: 13px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+        }
+        
+        .response-content {
+            padding: 25px 30px;
+            background: linear-gradient(270deg, rgba(38,166,154,0.05) 0%, rgba(38,166,154,0.02) 50%, transparent 100%);
+            border-radius: 12px;
+            border-right: 4px solid rgba(38,166,154,0.3);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .response-content::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(270deg, transparent 0%, rgba(38,166,154,0.1) 50%, transparent 100%);
+            animation: answerShimmer 4s ease-in-out infinite 2s;
+        }
+        
+        .ai-response {
+            font-size: 18px;
+            line-height: 1.6;
+            margin-bottom: 20px;
+            color: #333;
+            font-weight: 500;
+            position: relative;
+            z-index: 1;
+        }
+        
+        @keyframes answerShimmer {
+            0%, 100% { right: -100%; }
+            50% { right: 100%; }
+        }
+        
+        .data-flow {
+            background: rgba(255,255,255,0.7);
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 1px solid rgba(30,136,229,0.2);
+            backdrop-filter: blur(10px);
+            position: relative;
+            z-index: 1;
+        }
+        
+        .flow-header {
+            font-weight: 600;
+            color: #1e88e5;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        
+        .flow-diagram {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+        
+        .flow-step {
+            background: white;
+            border: 2px solid #4caf50;
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-weight: 600;
+            color: #2e7d32;
+            min-width: 140px;
+            text-align: center;
+        }
+        
+        .flow-arrow {
+            font-size: 20px;
+            color: #4caf50;
+            font-weight: bold;
+        }
+        
+        .highlight-text {
+            background: #fff3e0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #e65100;
+            font-weight: 600;
+        }
+        
+        .sources-section {
+            margin-top: 50px;
+            border-top: 1px solid #e8e8e8;
+            padding-top: 30px;
+        }
+        
+        .sources-header {
+            font-size: 12px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 20px;
+        }
+        
+        .source-item {
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .source-item:last-child {
+            border-bottom: none;
+        }
+        
+        .source-info {
+            flex: 1;
+        }
+        
+        .source-title {
+            font-weight: 500;
+            color: #555;
+            margin-bottom: 2px;
+            font-size: 14px;
+        }
+        
+        .source-description {
+            font-size: 12px;
+            color: #888;
+            line-height: 1.4;
+        }
+        
+        .source-link {
+            color: #1e88e5;
+            text-decoration: none;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .source-link:hover {
+            text-decoration: underline;
+        }
+        
+        .confidence-badge {
+            background: rgba(38,166,154,0.1);
+            color: #26a69a;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(38,166,154,0.2);
+            font-weight: 600;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .back-link {
+            text-align: center;
+            margin-top: 30px;
+        }
+        
+        .back-btn {
+            color: #1e88e5;
+            text-decoration: none;
+            font-weight: 500;
+            padding: 10px 20px;
+            border: 2px solid #1e88e5;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+        
+        .back-btn:hover {
+            background: #1e88e5;
+            color: white;
+        }
+        
+        .technical-details {
+            background: #f3e5f5;
+            border: 1px solid #9c27b0;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .tech-header {
+            font-weight: bold;
+            color: #7b1fa2;
+            margin-bottom: 10px;
+        }
+        
+        .tech-content {
+            color: #4a148c;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-left">
+                <button class="home-btn" onclick="goHome()">
+                    <svg class="home-icon" viewBox="0 0 24 24">
+                        <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+                    </svg>
+                </button>
+                <div class="header-center">
+                    <div class="main-title">iConnect</div>
+                    <div class="subtitle">IntegraConnect AI-Powered Search</div>
+                </div>
+            </div>
+            
+            <div class="header-right">
+                <div class="mini-search">
+                    <input type="text" class="mini-search-input" placeholder="Search..." />
+                    <button class="mini-search-btn">⌕</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="search-query">
+            <div class="query-label">Your Question</div>
+            <div class="query-text">Can you find what is the source of Anthem quality Measure 1?</div>
+        </div>
+        
+        <div class="response-section">
+            <div class="response-header">
+                Answer
+            </div>
+            <div class="response-content">
+                <div class="confidence-badge">92% Confidence</div>
+                
+                <div class="ai-response">
+                    I found this information: Anthem quality measure is derived from <span class="highlight-text">Treatment plan data</span>.
+                    <br><br>
+                    It is evaluating <span class="highlight-text">Treatment plan approved flag</span>.
+                    <br><br>
+                    This documentation was created by <strong>John Doe</strong> from the PopHealth Analytics team, which helped to uncover these data relationships.
+                </div>
+                
+                <div class="data-flow">
+                    <div class="flow-header">
+                        Data Flow Diagram
+                    </div>
+                    
+                    <div class="flow-diagram">
+                        <div class="flow-step">Treatment Plan Data</div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">ApprovalFlag</div>
+                        <div class="flow-arrow">→</div>
+                        <div class="flow-step">QM1 (Anthem Quality Measure)</div>
+                    </div>
+                </div>
+                
+                <div class="technical-details">
+                    <div class="tech-header">🔧 Technical Details</div>
+                    <div class="tech-content">
+                        • <strong>Source Table:</strong> treatment_plans<br>
+                        • <strong>Key Field:</strong> approval_flag (Boolean)<br>
+                        • <strong>Transformation:</strong> ApprovalFlag → QM1 mapping<br>
+                        • <strong>Quality Measure Code:</strong> QM1 - Anthem Provider Quality Metric
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="sources-section">
+            <div class="sources-header">
+                Sources
+            </div>
+            
+            <div class="source-item">
+                <div class="source-info">
+                    <div class="source-title">Confluence: Anthem Quality Measures Documentation</div>
+                    <div class="source-description">Comprehensive guide to Anthem quality measures including data sources and calculation methods • Created by Dr. Michael Rodriguez</div>
+                </div>
+                <a href="#" class="source-link">View Page</a>
+            </div>
+            
+            <div class="source-item">
+                <div class="source-info">
+                    <div class="source-title">Data Model: Treatment Plan Schema</div>
+                    <div class="source-description">Database schema documentation showing approval_flag field and its relationship to quality measures • Created by Data Engineering Team</div>
+                </div>
+                <a href="#" class="source-link">View Schema</a>
+            </div>
+            
+            <div class="source-item">
+                <div class="source-info">
+                    <div class="source-title">DBT Model: dim_quality_measures</div>
+                    <div class="source-description">Transformation logic for converting treatment plan data into quality measure metrics • Created by Analytics Team</div>
+                </div>
+                <a href="#" class="source-link">View Code</a>
+            </div>
+        </div>
+        
+
+    </div>
+    
+    <script>
+        function goHome() {
+            window.location.href = 'home.html';
+        }
+        
+        // Mini search functionality
+        document.querySelector('.mini-search-btn').addEventListener('click', function() {
+            const query = document.querySelector('.mini-search-input').value.trim();
+            if (query) {
+                alert(`Searching for: "${query}"\n\nThis would take you to search results in the full application.`);
+            } else {
+                alert('Please enter a search query!');
+            }
+        });
+        
+        document.querySelector('.mini-search-input').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                document.querySelector('.mini-search-btn').click();
+            }
+        });
+    </script>
+</body>
+</html>
