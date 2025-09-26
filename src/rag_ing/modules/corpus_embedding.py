@@ -17,8 +17,8 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 from langchain.docstore.document import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain.embeddings.huggingface import HuggingFaceEmbeddings
-from langchain.vectorstores import Chroma, FAISS
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import Chroma, FAISS
 import chromadb
 
 # Import connectors and utilities

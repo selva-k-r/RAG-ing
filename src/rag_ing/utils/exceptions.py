@@ -4,6 +4,9 @@ class RAGingError(Exception):
     """Base exception class for all custom exceptions in this application."""
     pass
 
+# Add RAGError as an alias for compatibility
+RAGError = RAGingError
+
 class ConnectionError(RAGingError):
     """Raised when there is an issue connecting to an external service."""
     pass

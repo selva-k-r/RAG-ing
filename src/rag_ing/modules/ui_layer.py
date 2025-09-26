@@ -85,7 +85,8 @@ class UILayerModule:
         st.subheader("📋 Response")
         
         # Main response
-        response_text = response_data.get("response", "")\n        st.markdown(response_text)
+        response_text = response_data.get("response", "")
+        st.markdown(response_text)
         
         # Source attribution
         if "retrieval_summary" in response_data:

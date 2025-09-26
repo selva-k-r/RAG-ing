@@ -13,14 +13,13 @@ from .llm_orchestration import LLMOrchestrationModule
 from .ui_layer import UILayerModule
 from .evaluation_logging import EvaluationLoggingModule
 
-# Import orchestrator from parent directory
-from ..orchestrator import RAGOrchestrator
+# Note: RAGOrchestrator removed to prevent circular import
+# Import RAGOrchestrator directly from orchestrator module when needed
 
 __all__ = [
     "CorpusEmbeddingModule",
     "QueryRetrievalModule", 
     "LLMOrchestrationModule",
     "UILayerModule",
-    "EvaluationLoggingModule",
-    "RAGOrchestrator"
+    "EvaluationLoggingModule"
 ]
