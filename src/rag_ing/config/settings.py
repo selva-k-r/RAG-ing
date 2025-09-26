@@ -118,6 +118,7 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = False
+        extra = "ignore"  # Ignore extra fields instead of forbidding them
     
     @classmethod
     def from_yaml(cls, config_path: str = "config.yaml") -> "Settings":
@@ -162,5 +163,12 @@ class Settings(BaseSettings):
         return key_mapping.get(provider.lower())
 
 
-# Global settings instance
-settings = Settings.from_yaml()
+# Global settings instance - will be initialized on first use
+settings = None
+
+def get_settings(config_path: str = "config.yaml") -> "Settings":
+    """Get global settings instance, creating it if necessary."""
+    global settings
+    if settings is None:
+        settings = Settings.from_yaml(config_path)
+    return settings
