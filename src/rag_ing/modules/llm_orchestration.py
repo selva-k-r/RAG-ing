@@ -327,12 +327,18 @@ Response:'''
         """Invoke Azure OpenAI API."""
         try:
             # Use max_completion_tokens for newer Azure OpenAI models
-            response = self.client.chat.completions.create(
-                model=self.llm_config.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=self.llm_config.temperature,
-                max_completion_tokens=self.llm_config.max_tokens
-            )
+            # Some models like gpt-5-nano don't support custom temperature
+            params = {
+                "model": self.llm_config.model,
+                "messages": [{"role": "user", "content": prompt}],
+                "max_completion_tokens": self.llm_config.max_tokens
+            }
+            
+            # Only add temperature if it's not the default (1.0) for gpt-5-nano compatibility
+            if self.llm_config.temperature != 1.0 and "nano" not in self.llm_config.model.lower():
+                params["temperature"] = self.llm_config.temperature
+            
+            response = self.client.chat.completions.create(**params)
             
             generated_text = response.choices[0].message.content
             
