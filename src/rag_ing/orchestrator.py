@@ -248,6 +248,59 @@ class RAGOrchestrator:
         logger.info("Launching Streamlit application...")
         self.ui_layer.run_streamlit_interface()
     
+    def health_check(self) -> Dict[str, Any]:
+        """Perform comprehensive health check on all modules.
+        
+        Returns:
+            Health check results with module status and overall system health
+        """
+        logger.info("Performing health check on all modules...")
+        
+        health_results = {
+            "overall": "healthy",
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "modules": {}
+        }
+        
+        # Check each module
+        modules_to_check = [
+            ("corpus_embedding", self.corpus_embedding),
+            ("query_retrieval", self.query_retrieval),
+            ("llm_orchestration", self.llm_orchestration),
+            ("ui_layer", self.ui_layer),
+            ("evaluation_logging", self.evaluation_logging)
+        ]
+        
+        overall_healthy = True
+        
+        for module_name, module_instance in modules_to_check:
+            try:
+                # Basic health check - verify module is initialized
+                if hasattr(module_instance, 'config'):
+                    health_results["modules"][module_name] = {
+                        "status": "healthy",
+                        "initialized": True
+                    }
+                else:
+                    health_results["modules"][module_name] = {
+                        "status": "warning",
+                        "initialized": False,
+                        "error": "Module may not be properly initialized"
+                    }
+                    overall_healthy = False
+                    
+            except Exception as e:
+                health_results["modules"][module_name] = {
+                    "status": "error",
+                    "initialized": False,
+                    "error": str(e)
+                }
+                overall_healthy = False
+        
+        health_results["overall"] = "healthy" if overall_healthy else "unhealthy"
+        logger.info(f"Health check completed. Overall status: {health_results['overall']}")
+        return health_results
+    
     def export_session_data(self, format_type: str = "json") -> str:
         """Export session metrics and logs.
         

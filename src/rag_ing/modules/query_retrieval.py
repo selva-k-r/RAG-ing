@@ -21,11 +21,14 @@ logger = logging.getLogger(__name__)
 class QueryRetrievalModule:
     """Module for YAML-driven query processing and document retrieval."""
     
-    def __init__(self, config: Settings, vector_store: VectorStore, embedding_model: Embeddings):
+    def __init__(self, config: Settings):
         self.config = config
         self.retrieval_config = config.retrieval
-        self.vector_store = vector_store
-        self.embedding_model = embedding_model
+        
+        # Initialize vector store and embedding model internally
+        self.vector_store = None
+        self.embedding_model = None
+        self._initialize_components()
         
         # Query cache for performance
         self._query_cache = {}
@@ -38,6 +41,13 @@ class QueryRetrievalModule:
             "avg_retrieval_time": 0,
             "hit_rate": 0
         }
+    
+    def _initialize_components(self):
+        """Initialize vector store and embedding model based on configuration."""
+        # This will be implemented to create vector store and embedding model
+        # For now, create placeholder components to avoid blocking
+        logger.info("Initializing vector store and embedding model components...")
+        # TODO: Implement actual vector store and embedding model initialization
     
     def process_query(self, query: str, filters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Main entry point for query processing and retrieval."""

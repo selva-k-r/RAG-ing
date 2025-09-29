@@ -147,7 +147,7 @@ def main():
         settings = load_configuration(args.config)
         print(f"🏗️  Initializing RAG Orchestrator with 5 modules...")
         
-        orchestrator = RAGOrchestrator(settings)
+        orchestrator = RAGOrchestrator(args.config)
         print("✅ RAG Orchestrator initialized successfully")
         
     except Exception as e:
@@ -161,7 +161,7 @@ def main():
     try:
         if args.ingest:
             print("\n📚 Starting corpus ingestion...")
-            results = orchestrator.process_corpus()
+            results = orchestrator.ingest_corpus()
             print("✅ Corpus ingestion completed successfully")
             print(f"📊 Processing time: {results['processing_time']:.2f}s")
             if 'statistics' in results:
@@ -261,11 +261,6 @@ def main():
     
     finally:
         print("\n👋 Thank you for using RAG-ing Modular PoC!")
-
-
-if __name__ == "__main__":
-    main()
-
 
 if __name__ == "__main__":
     main()

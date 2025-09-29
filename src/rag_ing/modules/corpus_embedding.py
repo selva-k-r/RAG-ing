@@ -467,8 +467,25 @@ class CorpusEmbeddingModule:
         
         try:
             if self.vector_store_config.type == "chroma":
+                # Clean metadata for ChromaDB compatibility (no lists, complex objects)
+                cleaned_chunks = []
+                for chunk in chunks:
+                    cleaned_metadata = {}
+                    for key, value in chunk.metadata.items():
+                        if isinstance(value, list):
+                            # Convert lists to comma-separated strings
+                            cleaned_metadata[key] = ", ".join(str(v) for v in value)
+                        elif isinstance(value, (str, int, float, bool)) or value is None:
+                            cleaned_metadata[key] = value
+                        else:
+                            # Convert complex objects to strings
+                            cleaned_metadata[key] = str(value)
+                    
+                    cleaned_chunk = Document(page_content=chunk.page_content, metadata=cleaned_metadata)
+                    cleaned_chunks.append(cleaned_chunk)
+                
                 # Add documents to ChromaDB
-                self.vector_store.add_documents(chunks)
+                self.vector_store.add_documents(cleaned_chunks)
                 
             elif self.vector_store_config.type == "faiss":
                 # Create FAISS index from documents
