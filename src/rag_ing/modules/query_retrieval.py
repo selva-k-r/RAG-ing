@@ -174,11 +174,6 @@ class QueryRetrievalModule:
                 del self._query_cache[query_hash]
         
 
-        """Module 2: Query Processing & Retrieval
-
-        Objective: Convert user query to embedding and retrieve relevant chunks.
-        """
-
         import logging
         import time
         import hashlib
