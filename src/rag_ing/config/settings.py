@@ -47,7 +47,7 @@ class RetrievalConfig(BaseModel):
 class LLMConfig(BaseModel):
     """LLM orchestration configuration."""
     model: str = Field(default="biomistral", description="Model name")
-    provider: str = Field(default="koboldcpp", description="Provider: koboldcpp, openai, anthropic")
+    provider: str = Field(default="koboldcpp", description="Provider: koboldcpp, openai, azure_openai, anthropic")
     api_url: str = Field(default="http://localhost:5000/v1", description="API endpoint")
     prompt_template: str = Field(default="./prompts/oncology.txt", description="Prompt template path")
     system_instruction: str = Field(
@@ -111,6 +111,9 @@ class Settings(BaseSettings):
     # Environment variables
     confluence_token: Optional[str] = Field(default=None, alias="CONFLUENCE_TOKEN")
     openai_api_key: Optional[str] = Field(default=None, alias="OPENAI_API_KEY")
+    azure_openai_api_key: Optional[str] = Field(default=None, alias="AZURE_OPENAI_API_KEY")
+    azure_openai_endpoint: Optional[str] = Field(default=None, alias="AZURE_OPENAI_ENDPOINT")
+    azure_openai_api_version: Optional[str] = Field(default="2024-02-01", alias="AZURE_OPENAI_API_VERSION")
     anthropic_api_key: Optional[str] = Field(default=None, alias="ANTHROPIC_API_KEY")
     huggingface_api_key: Optional[str] = Field(default=None, alias="HUGGINGFACE_API_KEY")
     
@@ -157,6 +160,7 @@ class Settings(BaseSettings):
         """Get API key for a specific provider."""
         key_mapping = {
             "openai": self.openai_api_key,
+            "azure_openai": self.azure_openai_api_key,
             "anthropic": self.anthropic_api_key,
             "huggingface": self.huggingface_api_key,
         }

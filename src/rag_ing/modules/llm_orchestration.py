@@ -40,6 +40,8 @@ class LLMOrchestrationModule:
                 return self._initialize_koboldcpp()
             elif provider == "openai":
                 return self._initialize_openai()
+            elif provider == "azure_openai":
+                return self._initialize_azure_openai()
             elif provider == "anthropic":
                 return self._initialize_anthropic()
             else:
@@ -86,6 +88,33 @@ class LLMOrchestrationModule:
             
         except Exception as e:
             logger.error(f"Failed to initialize OpenAI client: {e}")
+            return False
+    
+    def _initialize_azure_openai(self) -> bool:
+        """Initialize Azure OpenAI client."""
+        try:
+            # Import and initialize Azure OpenAI client
+            from openai import AzureOpenAI
+            
+            api_key = self.config.get_api_key("azure_openai")
+            endpoint = self.config.azure_openai_endpoint
+            api_version = self.config.azure_openai_api_version
+            
+            if not api_key:
+                raise ValueError("Azure OpenAI API key not found")
+            if not endpoint:
+                raise ValueError("Azure OpenAI endpoint not found")
+            
+            self.client = AzureOpenAI(
+                api_key=api_key,
+                azure_endpoint=endpoint,
+                api_version=api_version
+            )
+            logger.info("Azure OpenAI client initialized successfully")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize Azure OpenAI client: {e}")
             return False
     
     def _initialize_anthropic(self) -> bool:
@@ -216,6 +245,8 @@ Response:'''
                     return self._invoke_koboldcpp(prompt)
                 elif provider == "openai":
                     return self._invoke_openai(prompt)
+                elif provider == "azure_openai":
+                    return self._invoke_azure_openai(prompt)
                 elif provider == "anthropic":
                     return self._invoke_anthropic(prompt)
                 else:
@@ -278,6 +309,28 @@ Response:'''
             
         except Exception as e:
             logger.error(f"OpenAI invocation failed: {e}")
+            raise
+    
+    def _invoke_azure_openai(self, prompt: str) -> str:
+        """Invoke Azure OpenAI API."""
+        try:
+            response = self.client.chat.completions.create(
+                model=self.llm_config.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=self.llm_config.temperature,
+                max_tokens=self.llm_config.max_tokens
+            )
+            
+            generated_text = response.choices[0].message.content
+            
+            # Track token usage
+            if hasattr(response, 'usage'):
+                self._stats["total_tokens_used"] += response.usage.total_tokens
+            
+            return generated_text.strip()
+            
+        except Exception as e:
+            logger.error(f"Azure OpenAI invocation failed: {e}")
             raise
     
     def _invoke_anthropic(self, prompt: str) -> str:
