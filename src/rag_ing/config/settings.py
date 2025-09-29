@@ -113,7 +113,7 @@ class Settings(BaseSettings):
     openai_api_key: Optional[str] = Field(default=None, alias="OPENAI_API_KEY")
     azure_openai_api_key: Optional[str] = Field(default=None, alias="AZURE_OPENAI_API_KEY")
     azure_openai_endpoint: Optional[str] = Field(default=None, alias="AZURE_OPENAI_ENDPOINT")
-    azure_openai_api_version: Optional[str] = Field(default="2024-02-01", alias="AZURE_OPENAI_API_VERSION")
+    azure_openai_api_version: Optional[str] = Field(default="2024-10-21", alias="AZURE_OPENAI_API_VERSION")
     anthropic_api_key: Optional[str] = Field(default=None, alias="ANTHROPIC_API_KEY")
     huggingface_api_key: Optional[str] = Field(default=None, alias="HUGGINGFACE_API_KEY")
     
