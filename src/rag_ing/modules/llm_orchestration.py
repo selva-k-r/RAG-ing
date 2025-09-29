@@ -28,6 +28,11 @@ class LLMOrchestrationModule:
             "total_tokens_used": 0,
             "successful_requests": 0
         }
+        
+        # Initialize the LLM client
+        logger.info(f"Initializing LLM orchestration with provider: {self.llm_config.provider}")
+        if not self.initialize_model():
+            logger.warning("LLM client initialization failed, will attempt lazy initialization")
     
     def initialize_model(self) -> bool:
         """Initialize the LLM model based on configuration."""
@@ -100,6 +105,11 @@ class LLMOrchestrationModule:
             endpoint = self.config.azure_openai_endpoint
             api_version = self.config.azure_openai_api_version
             
+            logger.info(f"Azure OpenAI initialization attempt:")
+            logger.info(f"  API Key: {'*' * (len(api_key) if api_key else 0) if api_key else 'None'}")
+            logger.info(f"  Endpoint: {endpoint}")
+            logger.info(f"  API Version: {api_version}")
+            
             if not api_key:
                 raise ValueError("Azure OpenAI API key not found")
             if not endpoint:
@@ -115,6 +125,8 @@ class LLMOrchestrationModule:
             
         except Exception as e:
             logger.error(f"Failed to initialize Azure OpenAI client: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             return False
     
     def _initialize_anthropic(self) -> bool:

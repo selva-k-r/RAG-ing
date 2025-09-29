@@ -30,7 +30,7 @@ retrieval:
 
 # Module 3: LLM Orchestration Configuration
 llm:
-  model: "gpt-4"  # For Azure OpenAI, use your deployment name
+  model: "gpt-4.1"  # For Azure OpenAI, use your deployment name
   provider: "azure_openai"  # Options: koboldcpp, openai, azure_openai, anthropic
   api_url: "http://localhost:5000/v1"  # Only used for koboldcpp
   prompt_template: "./prompts/oncology.txt"
