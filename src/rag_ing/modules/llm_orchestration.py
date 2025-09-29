@@ -326,11 +326,12 @@ Response:'''
     def _invoke_azure_openai(self, prompt: str) -> str:
         """Invoke Azure OpenAI API."""
         try:
+            # Use max_completion_tokens for newer Azure OpenAI models
             response = self.client.chat.completions.create(
                 model=self.llm_config.model,
                 messages=[{"role": "user", "content": prompt}],
                 temperature=self.llm_config.temperature,
-                max_tokens=self.llm_config.max_tokens
+                max_completion_tokens=self.llm_config.max_tokens
             )
             
             generated_text = response.choices[0].message.content
