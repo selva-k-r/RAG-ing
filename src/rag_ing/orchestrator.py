@@ -140,7 +140,7 @@ class RAGOrchestrator:
                 response=llm_response["response"],
                 sources=retrieved_docs,
                 generation_time=generation_time,
-                model_name=llm_response.get("model", "unknown")  # Fixed: "model" not "model_used"
+                model_name=llm_response.get("model") or llm_response.get("model_used", "unknown")  # Support both "model" and "model_used"
             )
             
             # Calculate safety score
