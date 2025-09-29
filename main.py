@@ -174,7 +174,7 @@ def main():
             print(f"\n🔍 Processing query for {args.audience} audience...")
             print(f"❓ Query: {args.query}")
             
-            result = orchestrator.query_system(
+            result = orchestrator.query_documents(
                 query=args.query,
                 audience=args.audience
             )

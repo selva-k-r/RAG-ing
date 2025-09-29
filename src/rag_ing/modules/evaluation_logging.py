@@ -331,7 +331,7 @@ class EvaluationLoggingModule:
         # Group by source
         sources = {}
         for doc in retrieved_docs:
-            source = doc.get('source', 'unknown')
+            source = doc.metadata.get('source', 'unknown')
             if source not in sources:
                 sources[source] = []
             sources[source].append(doc)

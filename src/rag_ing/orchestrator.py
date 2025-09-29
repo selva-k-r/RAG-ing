@@ -124,11 +124,14 @@ class RAGOrchestrator:
             
             # Module 3: LLM Orchestration
             generation_start = time.time()
+            
+            # Convert retrieved documents to context string
+            context = "\n\n".join([doc.page_content for doc in retrieved_docs])
+            
             llm_response = self.llm_orchestration.generate_response(
                 query=query,
-                context_documents=retrieved_docs,
-                audience=audience,
-                user_context=user_context
+                context=context,
+                audience=audience
             )
             generation_time = time.time() - generation_start
             
@@ -137,7 +140,7 @@ class RAGOrchestrator:
                 response=llm_response["response"],
                 sources=retrieved_docs,
                 generation_time=generation_time,
-                model_name=llm_response.get("model_used", "unknown")
+                model_name=llm_response.get("model", "unknown")  # Fixed: "model" not "model_used"
             )
             
             # Calculate safety score
