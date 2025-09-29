@@ -174,19 +174,6 @@ class QueryRetrievalModule:
                 del self._query_cache[query_hash]
         
 
-        import logging
-        import time
-        import hashlib
-        from typing import List, Dict, Any, Optional, Tuple
-        from datetime import datetime, timedelta
-        from langchain.docstore.document import Document
-        from langchain.embeddings.base import Embeddings
-        from langchain.vectorstores.base import VectorStore
-        from ..config.settings import Settings, RetrievalConfig
-        from ..utils.exceptions import RetrievalError
-
-        logger = logging.getLogger(__name__)
-
         class QueryRetrievalModule:
             """Module for YAML-driven query processing and document retrieval."""
             def __init__(self, config: Settings, vector_store: VectorStore, embedding_model: Embeddings):
