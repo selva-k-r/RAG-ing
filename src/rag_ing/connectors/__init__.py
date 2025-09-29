@@ -1,16 +1,5 @@
-"""Document connectors package."""
+"""Connectors package for external data source integrations."""
 
-from .base import BaseConnector
-from .confluence import ConfluenceConnector
-from .medium import MediumConnector
-from .social_media import TwitterConnector, RedditConnector, ConnectorManager, social_connector_manager
+from .confluence_connector import ConfluenceConnector
 
-__all__ = [
-    "BaseConnector",
-    "ConfluenceConnector",
-    "MediumConnector", 
-    "TwitterConnector",
-    "RedditConnector",
-    "ConnectorManager",
-    "social_connector_manager"
-]
+__all__ = ["ConfluenceConnector"]

@@ -1,0 +1,636 @@
+# RAG-ing: Modular RAG PoC
+
+A comprehensive, modular RAG (Retrieval-Augmented Generation) system specifically designed for oncology applications. Built with 5 core modules for maximum flexibility and scalability.
+
+## 🏗️ Architecture Overview
+
+This system implements a **5-module architecture** as specified in the requirements:
+
+### Module 1: Corpus & Embedding Lifecycle 📚
+- **Purpose**: Document ingestion, chunking, and embedding generation
+- **Features**:
+  - YAML-driven data source configuration
+  - Semantic chunking with ontology code extraction (ICD-O, SNOMED-CT)
+  - PubMedBERT and Bio_ClinicalBERT support for biomedical text
+  - ChromaDB and FAISS vector storage options
+  - Batch processing with progress tracking
+
+### Module 2: Query Processing & Retrieval 🔍
+- **Purpose**: Query embedding, similarity search, and document retrieval
+- **Features**:
+  - Advanced similarity search with metadata filtering
+  - Re-ranking with cross-encoder models
+  - Query result caching for performance
+  - Context packaging for LLM consumption
+  - Retrieval statistics and metrics
+
+### Module 3: LLM Orchestration 🤖
+- **Purpose**: Language model integration and response generation  
+- **Features**:
+  - Multi-provider support (KoboldCpp, OpenAI, Anthropic, Ollama)
+  - Audience-specific prompt templates (Clinical vs Technical)
+  - Medical safety and disclaimer handling
+  - Retry logic and error handling
+  - Token counting and cost tracking
+
+### Module 4: UI Layer 💻
+- **Purpose**: User interface with audience toggle and feedback collection
+- **Features**:
+  - Streamlit-based responsive interface
+  - Clinical/Technical audience toggle
+  - Multi-scale feedback collection (clarity, safety, citation quality)
+  - Query history with session persistence
+  - Real-time processing status
+
+### Module 5: Evaluation & Logging 📊
+- **Purpose**: Performance tracking and structured logging
+- **Features**:
+  - Precision@k retrieval metrics
+  - Citation coverage analysis
+  - Medical safety compliance scoring
+  - Structured JSON logging (JSONL format)
+  - Session analytics and export capabilities
+
+## 🎯 Domain Focus: Oncology
+
+This RAG system is specifically optimized for **oncology and biomedical applications**:
+
+- **Biomedical Models**: PubMedBERT, Bio_ClinicalBERT for domain-specific embeddings
+- **Ontology Integration**: Automatic extraction of ICD-O, SNOMED-CT, UMLS codes
+- **Medical Safety**: Automated disclaimer injection and safety scoring
+- **Clinical Workflows**: Audience-specific interfaces for clinicians vs researchers
+- **Regulatory Compliance**: GDPR-compliant logging and data retention policies
+
+## 🚀 Quick Start
+
+### 1. Installation
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd RAG-ing
+
+# Install dependencies  
+pip install -r requirements.txt
+# OR using poetry
+poetry install
+
+# Install additional biomedical models
+python -c "from transformers import AutoModel; AutoModel.from_pretrained('microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext')"
+```
+
+### 2. Configuration
+
+The system is configured via YAML. Copy and customize the configuration:
+
+```bash
+cp config.yaml my_config.yaml
+# Edit my_config.yaml with your settings
+```
+
+Key configuration sections:
+- **data_sources**: Specify document directories and file patterns
+- **embedding_model**: Choose biomedical models (PubMedBERT recommended)
+- **llm**: Configure LLM provider (KoboldCpp, OpenAI, Anthropic)
+- **ui**: Set audience preferences and feedback collection
+- **evaluation**: Enable metrics and logging
+
+### 3. Data Ingestion
+
+Ingest your documents into the vector database:
+
+```bash
+# Using main.py
+python main.py --config my_config.yaml --ingest
+
+# Or using the CLI
+rag-ing --config my_config.yaml ingest
+```
+
+### 4. Launch the UI
+
+Start the Streamlit application:
+
+```bash
+# Using main.py
+python main.py --config my_config.yaml --ui
+
+# Or using the CLI
+rag-ing --config my_config.yaml ui
+```
+
+## 📖 Usage Examples
+
+### Basic Query Processing
+
+```python
+from rag_ing import create_rag_system
+
+# Initialize the system
+rag = create_rag_system("./config.yaml")
+
+# Ingest documents
+rag.ingest_corpus()
+
+# Query with clinical audience
+response = rag.query_documents(
+    query="What are the latest treatments for pancreatic cancer?",
+    audience="clinical"
+)
+
+print(response["response"])
+print(f"Sources: {len(response['sources'])}")
+print(f"Safety Score: {response['metadata']['safety_score']}")
+```
+
+### Advanced Module Usage
+
+```python
+from rag_ing.modules import CorpusEmbeddingModule, QueryRetrievalModule
+from rag_ing.config.settings import Settings
+
+# Load configuration
+settings = Settings.from_yaml("./config.yaml")
+
+# Use individual modules
+corpus_module = CorpusEmbeddingModule(settings)
+query_module = QueryRetrievalModule(settings)
+
+# Custom ingestion workflow
+corpus_stats = corpus_module.process_corpus()
+
+# Custom retrieval workflow  
+retrieval_result = query_module.process_query(
+    "CAR-T cell therapy mechanism of action"
+)
+```
+
+### Feedback Collection
+
+```python
+# Collect user feedback
+feedback = {
+    "ratings": {
+        "clarity": 4,
+        "citation": 5, 
+        "safety": 5,
+        "usefulness": 4
+    },
+    "comments": "Very helpful for clinical decision making"
+}
+
+rag.collect_feedback(query_hash="abc12345", feedback=feedback)
+```
+
+## 🔧 Configuration Reference
+
+### Data Sources
+```yaml
+data_sources:
+  - path: "./medical_literature"
+    type: "directory"
+    file_patterns: ["*.pdf", "*.txt"]
+    metadata:
+      domain: "oncology"
+      source_type: "research_papers"
+```
+
+### Embedding Models
+```yaml
+embedding_model:
+  provider: "huggingface"
+  models:
+    primary:
+      name: "microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext"
+      device: "cuda"  # or "cpu"
+```
+
+### LLM Configuration
+```yaml
+llm:
+  provider: "koboldcpp"  # or "openai", "anthropic"
+  koboldcpp:
+    base_url: "http://localhost:5001"
+    model_name: "medical-llama-7b"
+    generation:
+      temperature: 0.3  # Lower for medical accuracy
+      max_tokens: 2048
+```
+
+### UI & Feedback
+```yaml
+ui:
+  audience_toggle:
+    enabled: true
+    default: "clinical"
+    audiences:
+      clinical:
+        label: "Clinical Practice"
+        prompt_key: "clinical_template"
+      technical:
+        label: "Research & Development"
+        prompt_key: "technical_template"
+        
+  feedback:
+    enabled: true
+    ratings:
+      - name: "safety"
+        scale: 5
+        required: true
+```
+
+## 📊 Evaluation & Metrics
+
+The system automatically tracks multiple performance metrics:
+
+### Retrieval Metrics
+- **Precision@k**: Accuracy of top-k retrieved documents
+- **Hit Rate**: Success rate of retrieving relevant documents  
+- **Latency**: Query processing time
+- **Citation Coverage**: How well responses cite sources
+
+### Generation Metrics
+- **Safety Score**: Medical disclaimer and safety compliance
+- **Clarity Rating**: User-reported response clarity
+- **Token Usage**: Cost and efficiency tracking
+
+### System Metrics
+- **Error Rate**: System reliability
+- **Memory Usage**: Resource consumption
+- **Session Analytics**: Usage patterns
+
+View metrics:
+```bash
+python main.py --status
+```
+
+Export session data:
+```python
+rag = create_rag_system()
+metrics_json = rag.export_session_data("json")
+```
+
+## 🏥 Oncology-Specific Features
+
+### Ontology Integration
+Automatic extraction and preservation of medical codes:
+- **ICD-O**: International Classification of Diseases for Oncology
+- **SNOMED-CT**: Clinical terminology
+- **UMLS**: Unified Medical Language System
+
+### Medical Safety
+- Automated medical disclaimers
+- Safety scoring based on clinical appropriateness
+- Certainty moderation for medical advice
+
+### Clinical Workflows
+- **Clinical Audience**: Optimized for healthcare providers
+  - Emphasis on safety and disclaimers
+  - Citation of clinical guidelines
+  - Decision support language
+  
+- **Technical Audience**: Optimized for researchers
+  - Scientific terminology
+  - Methodology details
+  - Research limitations and future directions
+
+## 🔧 Development
+
+### Project Structure
+```
+RAG-ing/
+├── config.yaml                 # Main configuration file
+├── main.py                     # Entry point
+├── src/rag_ing/
+│   ├── orchestrator.py         # Main system coordinator
+│   ├── modules/                # 5 core modules
+│   │   ├── corpus_embedding.py     # Module 1
+│   │   ├── query_retrieval.py      # Module 2  
+│   │   ├── llm_orchestration.py    # Module 3
+│   │   ├── ui_layer.py             # Module 4
+│   │   └── evaluation_logging.py   # Module 5
+│   ├── config/                 # Configuration management
+│   └── utils/                  # Utilities and exceptions
+├── data/                       # Document storage
+├── logs/                       # Evaluation logs  
+└── tests/                      # Test suite
+```
+
+### Adding New Modules
+
+The modular architecture makes it easy to extend functionality:
+
+1. Create new module in `src/rag_ing/modules/`
+2. Implement required interface methods
+3. Update configuration schema in `settings.py`
+4. Register module in orchestrator
+5. Add tests in `tests/`
+
+### Testing
+```bash
+# Run all tests
+pytest tests/
+
+# Run specific module tests
+pytest tests/test_corpus_embedding.py
+
+# Run with coverage
+pytest --cov=src/rag_ing tests/
+```
+
+## 📋 Requirements
+
+### Python Dependencies
+- `langchain>=0.1.0`
+- `streamlit>=1.28.0` 
+- `transformers>=4.30.0`
+- `torch>=2.0.0`
+- `chromadb>=0.4.0`
+- `faiss-cpu>=1.7.4`
+- `pydantic>=2.0.0`
+- `PyYAML>=6.0`
+
+### Optional Dependencies  
+- `spacy>=3.6.0` (for advanced text processing)
+- `openai>=1.0.0` (for OpenAI integration)
+- `anthropic>=0.7.0` (for Anthropic integration)
+
+### Hardware Recommendations
+- **Minimum**: 8GB RAM, CPU-only operation
+- **Recommended**: 16GB+ RAM, GPU with 8GB+ VRAM for optimal performance
+- **Storage**: 10GB+ for models and vector indices
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support & Documentation
+
+- **Issues**: Report bugs and request features via GitHub Issues
+- **Documentation**: Detailed API docs available in `/docs`
+- **Examples**: Additional examples in `/examples` directory
+
+## 🙏 Acknowledgments
+
+- **PubMedBERT**: Microsoft's biomedical language model
+- **LangChain**: Framework for LLM applications  
+- **Streamlit**: UI framework for ML applications
+- **ChromaDB**: Vector database for embeddings
+
+---
+
+**RAG-ing Modular PoC** - Empowering oncology research and clinical decision-making through advanced RAG technology.
+
+### Install from source
+
+1. Clone the repository:
+```bash
+git clone https://github.com/selva-k-r/RAG-ing.git
+cd RAG-ing
+```
+
+2. Install dependencies:
+```bash
+pip install -e .
+```
+
+Or for development:
+```bash
+pip install -e ".[dev]"
+```
+
+## Quick Start
+
+1. **Set up environment variables**:
+```bash
+cp .env.example .env
+# Edit .env with your API keys and configuration
+```
+
+2. **Run the application**:
+```bash
+python main.py
+```
+
+Or directly with Streamlit:
+```bash
+streamlit run src/rag_ing/ui/streamlit_app.py
+```
+
+3. **Open your browser** to `http://localhost:8501`
+
+## Configuration
+
+### Environment Variables
+
+Create a `.env` file with your API keys and configuration:
+
+```env
+# OpenAI API Key
+OPENAI_API_KEY=your_openai_api_key_here
+
+# Anthropic API Key (for Claude models)
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
+
+# Snowflake Configuration (optional)
+SNOWFLAKE_ACCOUNT=your_account.region.snowflakecomputing.com
+SNOWFLAKE_USER=your_username
+SNOWFLAKE_PASSWORD=your_password
+SNOWFLAKE_WAREHOUSE=your_warehouse
+SNOWFLAKE_DATABASE=your_database
+SNOWFLAKE_SCHEMA=your_schema
+
+# Confluence Configuration (optional)
+CONFLUENCE_BASE_URL=https://your-domain.atlassian.net
+CONFLUENCE_USERNAME=your_email@domain.com
+CONFLUENCE_API_TOKEN=your_confluence_api_token
+```
+
+### Supported Models
+
+#### Embedding Models
+- **OpenAI**: text-embedding-ada-002, text-embedding-3-small, text-embedding-3-large
+- **HuggingFace**: sentence-transformers/all-MiniLM-L6-v2, BAAI/bge-small-en-v1.5, and more
+
+#### Language Models
+- **OpenAI**: gpt-3.5-turbo, gpt-4, gpt-4-turbo, gpt-4o
+- **Anthropic**: claude-3-sonnet, claude-3-opus, claude-3-haiku
+
+## Usage
+
+### 1. Configure Models
+- In the sidebar, select your preferred embedding and language models
+- Enter API keys
+- Click "Load Models"
+
+### 2. Connect Data Sources
+Navigate to the "Document Sources" tab and configure your connectors:
+
+#### Confluence
+- Enter your Confluence base URL, username, and API token
+- Optionally specify a space key to limit the scope
+- Click "Connect to Confluence" and then "Fetch Documents"
+
+#### Medium
+- Enter a Medium username (e.g., @your_username) or RSS URL
+- Click "Connect to Medium" and then "Fetch Articles"
+
+#### Twitter
+- Enter your Twitter Bearer Token and target username
+- Click "Connect to Twitter" and then "Fetch Tweets"
+
+#### Reddit
+- Enter your Reddit app credentials and target subreddit
+- Click "Connect to Reddit" and then "Fetch Posts"
+
+### 3. Process Documents
+Go to the "Processing" tab:
+- Configure chunking parameters (size, overlap, method)
+- Click "Chunk Documents" to split documents into smaller pieces
+- Click "Store in Vector Database" to create embeddings and store them
+
+### 4. Query Your Data
+In the "Query & Chat" tab:
+- Enter questions about your documents
+- Adjust the number of results to retrieve
+- Get AI-powered answers based on your data
+
+## API Reference
+
+### Core Components
+
+#### EmbeddingManager
+```python
+from rag_ing.models import embedding_manager, EmbeddingModelConfig
+
+config = EmbeddingModelConfig(
+    provider="openai",
+    model_name="text-embedding-ada-002",
+    api_key="your-key"
+)
+embedding_manager.load_model(config)
+```
+
+#### LLMManager
+```python
+from rag_ing.models import llm_manager, LLMConfig
+
+config = LLMConfig(
+    provider="openai",
+    model_name="gpt-3.5-turbo",
+    api_key="your-key",
+    temperature=0.1
+)
+llm_manager.load_model(config)
+```
+
+#### VectorStoreManager
+```python
+from rag_ing.storage import vector_store_manager
+
+# Create FAISS store
+store = vector_store_manager.create_faiss_store(embeddings)
+
+# Add documents
+vector_store_manager.add_documents(documents)
+
+# Search
+results = vector_store_manager.similarity_search("query", k=5)
+```
+
+### Connectors
+
+#### Confluence
+```python
+from rag_ing.connectors import ConfluenceConnector
+
+config = {
+    "base_url": "https://your-domain.atlassian.net",
+    "username": "your-email@domain.com",
+    "api_token": "your-token"
+}
+
+connector = ConfluenceConnector(config)
+connector.connect()
+documents = connector.fetch_documents(limit=50)
+```
+
+## Development
+
+### Project Structure
+```
+RAG-ing/
+├── src/rag_ing/
+│   ├── config/          # Configuration management
+│   ├── connectors/      # Document source connectors
+│   ├── models/          # LLM and embedding managers
+│   ├── storage/         # Vector store implementations
+│   ├── ui/              # Streamlit interface
+│   └── chunking.py      # Text chunking service
+├── main.py              # Main entry point
+├── pyproject.toml       # Project configuration
+└── README.md           # This file
+```
+
+### Running Tests
+```bash
+pytest
+```
+
+### Code Formatting
+```bash
+black src/
+flake8 src/
+```
+
+### Type Checking
+```bash
+mypy src/
+```
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature-name`
+3. Make your changes and add tests
+4. Run the test suite: `pytest`
+5. Commit your changes: `git commit -am 'Add feature'`
+6. Push to the branch: `git push origin feature-name`
+7. Submit a pull request
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Roadmap
+
+- [ ] Additional connectors (Slack, Discord, GitHub, etc.)
+- [ ] Advanced query techniques (hypothetical document embeddings, etc.)
+- [ ] Support for more vector databases (Pinecone, Weaviate, etc.)
+- [ ] Chat history and conversation memory
+- [ ] Document summarization features
+- [ ] API endpoints for programmatic access
+- [ ] Docker containerization
+- [ ] Cloud deployment templates
+
+## Support
+
+If you encounter any issues or have questions:
+
+1. Check the [Issues](https://github.com/selva-k-r/RAG-ing/issues) page
+2. Create a new issue with detailed information
+3. Provide logs and configuration details (without sensitive information)
+
+## Acknowledgments
+
+- Built with [LangChain](https://langchain.com/) for LLM orchestration
+- UI powered by [Streamlit](https://streamlit.io/)
+- Thanks to the open-source community for the amazing tools and libraries

@@ -1,41 +1,65 @@
-# Configuration for the RAG application
+# RAG-ing Modular PoC Configuration
+# Aligned with Requirement.md specification
 
-# Embedding model settings
-embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+# Module 1: Corpus & Embedding Lifecycle Configuration
+data_source:
+  type: "local_file"  # confluence | local_file
+  path: "./data/"
+  confluence:
+    base_url: "https://your-domain.atlassian.net/wiki"
+    auth_token: "${CONFLUENCE_TOKEN}"
+    space_key: "ONCOLOGY"
+    page_filter: ["biomarkers", "protocols"]
 
-# Vector store settings
-# Options: "snowflake", "faiss"
-vector_store: "faiss"
+chunking:
+  strategy: "recursive"  # recursive | semantic
+  chunk_size: 512
+  overlap: 64
 
-# FAISS settings
-faiss_index_path: "./index/faiss"
-faiss_metadata_path: "./index/metadata.json"
+embedding_model:
+  name: "pubmedbert"
+  device: "cpu"
 
-# Snowflake settings (placeholders)
-snowflake:
-  account: "your_account"
-  user: "your_user"
-  password: "your_password"
-  role: "your_role"
-  warehouse: "your_warehouse"
-  database: "your_database"
-  schema: "your_schema"
-  documents_table: "documents"
-  embeddings_table: "embeddings"
+# Module 2: Query Processing & Retrieval Configuration  
+retrieval:
+  top_k: 5
+  strategy: "similarity"  # similarity | hybrid
+  filters:
+    ontology_match: true
+    date_range: "last_12_months"
 
-# Retrieval settings
-retrieval_k: 5
+# Module 3: LLM Orchestration Configuration
+llm:
+  model: "biomistral"
+  provider: "koboldcpp"
+  api_url: "http://localhost:5000/v1"
+  prompt_template: "./prompts/oncology.txt"
+  system_instruction: "You are a biomedical assistant specializing in oncology. Provide evidence-based responses with proper citations."
 
-# Model provider settings
-# Options: "azure_openai", "local_llm"
-model_provider: "azure_openai"
+# Module 4: UI Layer Configuration
+ui:
+  framework: "streamlit"
+  audience_toggle: true
+  feedback_enabled: true
+  show_chunk_metadata: true
+  default_model: "biomistral"
+  default_source: "confluence"
 
-azure_openai:
-  api_key: "your_azure_api_key"
-  endpoint: "your_azure_endpoint"
-  api_version: "2023-05-15"
-  deployment_name: "your_deployment"
+# Module 5: Evaluation & Logging Configuration
+evaluation:
+  metrics:
+    precision_at_k: true
+    citation_coverage: true
+    clarity_rating: true
+    latency: true
+    safety: true
+  logging:
+    enabled: true
+    format: "json"
+    path: "./logs/"
 
-local_llm:
-  base_url: "http://localhost:1234/v1"
-  api_key: "not-needed"
+# Vector Store Configuration
+vector_store:
+  type: "chroma"
+  path: "./vector_store"
+  collection_name: "oncology_docs"
