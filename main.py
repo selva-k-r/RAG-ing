@@ -241,7 +241,7 @@ def main():
             print("\n🚀 Launching UI Layer (Module 4)...")
             print("🌐 Streamlit interface will open in your browser")
             print("🛑 Press Ctrl+C to stop the application")
-            orchestrator.run_ui()
+            orchestrator.run_streamlit_app()
             
         else:
             print("\n❓ No action specified. Use --help for available options.")

@@ -22,7 +22,7 @@ from .modules import (
     EvaluationLoggingModule
 )
 from .modules.evaluation_logging import QueryEvent, RetrievalMetrics, GenerationMetrics
-from .utils.exceptions import RAGError
+from .utils.exceptions import RAGError, UIError
 
 logger = logging.getLogger(__name__)
 
@@ -248,8 +248,32 @@ class RAGOrchestrator:
         
         This passes control to Module 4: UI Layer
         """
+        import subprocess
+        import sys
+        
         logger.info("Launching Streamlit application...")
-        self.ui_layer.run_streamlit_interface()
+        
+        try:
+            # Run streamlit app using subprocess
+            streamlit_cmd = [
+                sys.executable, "-m", "streamlit", "run", 
+                "streamlit_app.py",
+                "--server.address", "0.0.0.0",
+                "--server.port", "8501",
+                "--browser.gatherUsageStats", "false"
+            ]
+            
+            logger.info(f"Starting Streamlit with command: {' '.join(streamlit_cmd)}")
+            
+            # Run Streamlit
+            subprocess.run(streamlit_cmd, check=True)
+            
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Streamlit failed to start: {e}")
+            raise UIError(f"Streamlit failed to start: {e}")
+        except Exception as e:
+            logger.error(f"Failed to launch Streamlit: {e}")
+            raise UIError(f"Failed to launch Streamlit: {e}")
     
     def health_check(self) -> Dict[str, Any]:
         """Perform comprehensive health check on all modules.
