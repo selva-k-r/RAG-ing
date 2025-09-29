@@ -290,7 +290,17 @@ class EvaluationLoggingModule:
         relevant_count = 0
         
         for doc in top_k:
-            doc_id = doc.get('id') or doc.get('source', str(doc))
+            # Handle both Document objects and dictionaries
+            if hasattr(doc, 'metadata'):
+                # Document object from ChromaDB
+                doc_id = doc.metadata.get('id') or doc.metadata.get('source', str(doc))
+            elif isinstance(doc, dict):
+                # Dictionary
+                doc_id = doc.get('id') or doc.get('source', str(doc))
+            else:
+                # Fallback
+                doc_id = str(doc)
+                
             if doc_id in relevant_docs:
                 relevant_count += 1
         
@@ -305,12 +315,25 @@ class EvaluationLoggingModule:
         cited_sources = 0
         
         for source in sources:
-            # Check various ways sources might be cited
-            source_indicators = [
-                source.get('source', '').lower(),
-                source.get('title', '').lower(),
-                source.get('filename', '').lower(),
-            ]
+            # Handle both Document objects and dictionaries
+            if hasattr(source, 'metadata'):
+                # Document object from ChromaDB
+                metadata = source.metadata
+                source_indicators = [
+                    metadata.get('source', '').lower(),
+                    metadata.get('title', '').lower(),
+                    metadata.get('filename', '').lower(),
+                ]
+            elif isinstance(source, dict):
+                # Dictionary
+                source_indicators = [
+                    source.get('source', '').lower(),
+                    source.get('title', '').lower(),
+                    source.get('filename', '').lower(),
+                ]
+            else:
+                # Fallback
+                source_indicators = [str(source).lower()]
             
             # Remove empty strings
             source_indicators = [s for s in source_indicators if s]

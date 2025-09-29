@@ -342,11 +342,16 @@ Response:'''
             
             generated_text = response.choices[0].message.content
             
+            # Handle None or empty responses from gpt-5-nano
+            if generated_text is None:
+                logger.warning("Received None response from Azure OpenAI")
+                generated_text = "I apologize, but I wasn't able to generate a response. Please try again."
+            
             # Track token usage
             if hasattr(response, 'usage'):
                 self._stats["total_tokens_used"] += response.usage.total_tokens
             
-            return generated_text.strip()
+            return generated_text.strip() if generated_text else "No response generated."
             
         except Exception as e:
             logger.error(f"Azure OpenAI invocation failed: {e}")

@@ -35,6 +35,8 @@ llm:
   api_url: "http://localhost:5000/v1"  # Only used for koboldcpp
   prompt_template: "./prompts/oncology.txt"
   system_instruction: "You are a biomedical assistant specializing in oncology. Provide evidence-based responses with proper citations."
+  temperature: 1.0  # gpt-5-nano requires default temperature
+  max_tokens: 1000  # Increased for gpt-5-nano reasoning tokens
 
 # Module 4: UI Layer Configuration
 ui:
