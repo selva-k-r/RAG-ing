@@ -248,6 +248,11 @@ def main():
             print("\n🚀 Launching UI Layer (Module 4)...")
             print("🌐 FastAPI web interface will open in your browser")
             print("   Navigate to: http://localhost:8000")
+            print("🎯 New modular UI structure:")
+            print("   - ui/app.py: Main FastAPI application")
+            print("   - ui/api/: API routes and handlers")
+            print("   - ui/templates/: HTML templates")
+            print("   - ui/static/: CSS and JavaScript files")
             orchestrator.run_web_app()
             
         else:

@@ -16,6 +16,9 @@ This folder contains temporary and helper scripts created during development and
 ### 📚 Content Fetching Utilities
 - **`get_hl7_content.py`** - Script to fetch HL7 FHIR content from public endpoints when Confluence API was blocked
 
+### 🌐 Legacy UI Components
+- **`web_app_old.py`** - Original monolithic FastAPI application (replaced by modular ui/ structure)
+
 ### 📖 Development Documentation
 - **`PROMPT_ENGINEERING_ANALYSIS.md`** - Analysis of FAQ response patterns for prompt engineering
 - **`AZURE_OPENAI_SETUP.md`** - Azure OpenAI configuration guide and setup instructions

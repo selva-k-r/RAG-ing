@@ -446,10 +446,8 @@ docker-compose up --build
 RAG-ing/
 ├── config.yaml                 # Main configuration file
 ├── main.py                     # CLI entry point
-├── web_app.py                  # FastAPI server  
-├── src/rag_ing/
-│   ├── config/
-│   │   └── settings.py         # YAML configuration management
+├── src/rag_ing/                # Core RAG system modules
+│   ├── config/                 # YAML configuration management
 │   ├── modules/                # 5 core modules
 │   │   ├── corpus_embedding.py
 │   │   ├── query_retrieval.py
@@ -457,15 +455,18 @@ RAG-ing/
 │   │   ├── ui_layer.py
 │   │   └── evaluation_logging.py
 │   ├── orchestrator.py         # Main coordinator
-│   ├── utils/
-│   │   └── exceptions.py       # Custom exceptions
-│   └── cli.py                  # CLI interface
+│   ├── connectors/             # External integrations
+│   └── utils/                  # Shared utilities
+├── ui/                         # Modular FastAPI web interface
+│   ├── app.py                  # Main FastAPI application
+│   ├── api/                    # API routes and handlers
+│   ├── templates/              # HTML templates
+│   └── static/                 # CSS and JavaScript files
 ├── prompts/                    # AI response templates
-│   ├── iconnect_enterprise.txt # Main prompt template
-│   └── iconnect_concise.txt    # Concise responses
-├── tests/                      # Test suite
 ├── data/                       # Document storage
-└── logs/                       # Application logs
+├── tests/                      # Test suite
+├── archived/                   # Deprecated code with restoration info
+└── temp_helper_codes/          # Development and testing utilities
 ```
 
 ### Testing & Quality Assurance

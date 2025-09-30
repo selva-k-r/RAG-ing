@@ -254,9 +254,9 @@ class RAGOrchestrator:
         logger.info("Launching FastAPI web application...")
         
         try:
-            # Run FastAPI app using uvicorn
+            # Run the new modular FastAPI app
             web_cmd = [
-                sys.executable, "web_app.py"
+                sys.executable, "ui/app.py"
             ]
             
             logger.info(f"Starting web app with command: {' '.join(web_cmd)}")
