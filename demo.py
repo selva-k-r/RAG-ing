@@ -29,7 +29,7 @@ def show_project_structure():
                 "🔗 connectors/": ["Confluence", "Medium", "Twitter", "Reddit"],
                 "🤖 models/": ["Embedding manager", "LLM manager"],
                 "🗄️ storage/": ["Vector stores", "Snowflake integration"],
-                "🎨 ui/": ["Streamlit interface"],
+                "🎨 ui/": ["FastAPI web interface"],
                 "✂️ chunking.py": ["Text chunking service"]
             },
             "🧪 tests/": ["Unit tests", "Integration tests"],
@@ -81,7 +81,7 @@ def show_features():
         "   • Metadata preservation",
         "",
         "🎛️ User Interface",
-        "   • Streamlit web interface",
+        "   • FastAPI web interface",
         "   • Real-time configuration",
         "   • Interactive querying"
     ]
@@ -97,7 +97,7 @@ def show_usage_examples():
     examples = [
         "🚀 Quick Start:",
         "   python main.py",
-        "   # Opens Streamlit interface on http://localhost:8501",
+        "   # Opens FastAPI interface on http://localhost:8000",
         "",
         "🔧 Custom Configuration:",
         "   python main.py --port 8080 --host 0.0.0.0",
@@ -207,7 +207,7 @@ def show_architecture():
                             └─────────┬───────┘
                                       │
                             ┌─────────▼───────┐
-                            │   Streamlit     │
+                            │   FastAPI      │
                             │   Interface     │
                             └─────────────────┘
     """

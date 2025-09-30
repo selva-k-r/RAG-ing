@@ -236,44 +236,40 @@ class RAGOrchestrator:
             "enabled_metrics": self.evaluation_logging.get_enabled_metrics(),
             "logging_enabled": self.evaluation_logging.is_logging_enabled(),
             "configuration": {
-                "embedding_model": self.settings.embedding_model.models.primary.name,
-                "vector_store": self.settings.vector_store.provider,
+                "embedding_model": self.settings.embedding_model.name,
+                "vector_store": self.settings.vector_store.type,
                 "llm_provider": self.settings.llm.provider,
-                "ui_audience_default": self.settings.ui.audience_toggle.default
+                "ui_audience_toggle": self.settings.ui.audience_toggle
             }
         }
     
-    def run_streamlit_app(self) -> None:
-        """Launch the Streamlit UI application.
+    def run_web_app(self) -> None:
+        """Launch the FastAPI web application.
         
-        This passes control to Module 4: UI Layer
+        This passes control to Module 4: UI Layer (FastAPI implementation)
         """
         import subprocess
         import sys
         
-        logger.info("Launching Streamlit application...")
+        logger.info("Launching FastAPI web application...")
         
         try:
-            # Run streamlit app using subprocess
-            streamlit_cmd = [
-                sys.executable, "-m", "streamlit", "run", 
-                "streamlit_app.py",
-                "--server.address", "0.0.0.0",
-                "--server.port", "8501",
-                "--browser.gatherUsageStats", "false"
+            # Run FastAPI app using uvicorn
+            web_cmd = [
+                sys.executable, "web_app.py"
             ]
             
-            logger.info(f"Starting Streamlit with command: {' '.join(streamlit_cmd)}")
+            logger.info(f"Starting web app with command: {' '.join(web_cmd)}")
             
-            # Run Streamlit
-            subprocess.run(streamlit_cmd, check=True)
+            # Run FastAPI web app
+            subprocess.run(web_cmd, check=True)
             
         except subprocess.CalledProcessError as e:
-            logger.error(f"Streamlit failed to start: {e}")
-            raise UIError(f"Streamlit failed to start: {e}")
+            logger.error(f"Web app failed to start: {e}")
+            raise UIError(f"Web app failed to start: {e}")
         except Exception as e:
-            logger.error(f"Failed to launch Streamlit: {e}")
-            raise UIError(f"Failed to launch Streamlit: {e}")
+            logger.error(f"Failed to launch web app: {e}")
+            raise UIError(f"Failed to launch web app: {e}")
     
     def health_check(self) -> Dict[str, Any]:
         """Perform comprehensive health check on all modules.
@@ -388,7 +384,7 @@ def main():
         
     elif args.ui:
         print("🌐 Launching UI...")
-        rag.run_streamlit_app()
+        rag.run_web_app()
         
     else:
         print("🔍 RAG System initialized. Use --help for options.")

@@ -1,0 +1,7 @@
+You are a helpful medical assistant. Answer the question based on the provided context. Be concise and accurate.
+
+Context: {context}
+
+Question: {query}
+
+Answer:
