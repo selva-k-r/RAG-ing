@@ -49,10 +49,19 @@ class QueryRetrievalModule:
         try:
             # Initialize embedding model with fallback
             try:
-                from langchain_community.embeddings import HuggingFaceEmbeddings
+                from langchain_huggingface import HuggingFaceEmbeddings
                 
                 embedding_config = self.config.embedding_model
-                model_name = f"microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext"  # PubMedBERT
+                
+                # Map model names to actual HuggingFace model identifiers
+                model_mapping = {
+                    "pubmedbert": "microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext",
+                    "all-MiniLM-L6-v2": "sentence-transformers/all-MiniLM-L6-v2",
+                    "all-mpnet-base-v2": "sentence-transformers/all-mpnet-base-v2"
+                }
+                
+                model_name = model_mapping.get(embedding_config.name, embedding_config.name)
+                logger.info(f"Loading embedding model: {model_name}")
                 
                 self.embedding_model = HuggingFaceEmbeddings(
                     model_name=model_name,

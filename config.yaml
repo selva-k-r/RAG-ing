@@ -18,7 +18,7 @@ chunking:
   overlap: 64
 
 embedding_model:
-  name: "pubmedbert"
+  name: "all-MiniLM-L6-v2"  # Standard sentence transformer model
   device: "cpu"
 
 # Module 2: Query Processing & Retrieval Configuration  
@@ -31,8 +31,8 @@ retrieval:
 
 # Module 3: LLM Orchestration Configuration
 llm:
-  model: "gpt-5-nano"  # Azure OpenAI deployment name
-  provider: "azure_openai"  # Back to Azure OpenAI
+  model: "mock-llm"  # Use mock LLM for reliable testing
+  provider: "mock"  # Mock provider for testing
   api_url: "http://localhost:5000/v1"  # Only used for koboldcpp
   prompt_template: "./prompts/iconnect_enterprise.txt"
   system_instruction: "You are iConnect, an AI-powered enterprise search assistant specializing in PopHealth, DataSage, DevOps, and clinical documentation."

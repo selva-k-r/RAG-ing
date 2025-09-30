@@ -104,3 +104,4 @@ Thumbs.db
 secrets/
 *.key
 *.pem
+temp_helper_codes/

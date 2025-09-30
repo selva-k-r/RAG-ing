@@ -10,6 +10,12 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+# Import enhanced response generator with relative path
+import sys
+import os
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+from enhanced_response import enhanced_generator
+
 router = APIRouter()
 
 # Global cache for search results
@@ -40,7 +46,7 @@ def get_rag_system():
 @router.post("/search", response_model=SearchResponse)
 async def search(request: SearchRequest):
     """
-    Process search queries through the RAG system.
+    Process search queries through the RAG system with enhanced response generation.
     """
     rag_system = get_rag_system()
     
@@ -48,15 +54,22 @@ async def search(request: SearchRequest):
         raise HTTPException(status_code=503, detail="RAG system not available")
     
     try:
-        # Process query through RAG system
-        result = rag_system.query_documents(
+        # Use the query retrieval module's process_query method
+        query_result = rag_system.query_retrieval.process_query(request.query.strip())
+        
+        # Extract documents from the result
+        docs = query_result.get("documents", [])
+        
+        # Generate enhanced response
+        enhanced_response = enhanced_generator.generate_response(
             query=request.query.strip(),
+            docs=docs,
             audience=request.audience
         )
         
         # Format sources for frontend
         formatted_sources = []
-        for source in result.get("sources", []):
+        for source in docs:
             formatted_sources.append({
                 "content": source.page_content[:500] + "..." if len(source.page_content) > 500 else source.page_content,
                 "full_content": source.page_content,
@@ -68,13 +81,21 @@ async def search(request: SearchRequest):
                 "date": source.metadata.get('date', 'Unknown')
             })
         
+        # Create query hash for caching
+        import hashlib
+        query_hash = hashlib.md5(request.query.strip().encode()).hexdigest()[:8]
+        
         # Cache the result for detailed view
-        result_id = result["query_hash"]
-        search_results_cache[result_id] = {
+        search_results_cache[query_hash] = {
             "query": request.query.strip(),
-            "response": result["response"],
+            "response": enhanced_response,
             "sources": formatted_sources,
-            "metadata": result["metadata"],
+            "metadata": {
+                "total_docs": len(docs),
+                "response_type": "enhanced",
+                "timestamp": datetime.now().isoformat(),
+                "query_result": query_result  # Include the original query result
+            },
             "timestamp": datetime.now().isoformat(),
             "audience": request.audience,
             "selected_sources": request.sources
@@ -82,14 +103,45 @@ async def search(request: SearchRequest):
         
         return SearchResponse(
             success=True,
-            response=result["response"],
+            response=enhanced_response,
             sources=formatted_sources,
-            metadata=result["metadata"],
-            query_hash=result["query_hash"]
+            metadata={
+                "total_docs": len(docs),
+                "response_type": "enhanced",
+                "timestamp": datetime.now().isoformat()
+            },
+            query_hash=query_hash
         )
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
+        # Fallback to basic response if enhanced fails
+        try:
+            # Create a proper fallback query hash
+            import hashlib
+            fallback_hash = hashlib.md5(f"fallback_{request.query}_{datetime.now().isoformat()}".encode()).hexdigest()[:8]
+            
+            basic_response = f"I found some relevant information for your query: '{request.query}'\n\nThe system is working but encountered an issue generating the enhanced response. Please try again or contact support if the problem persists.\n\nError details: {str(e)}"
+            
+            # Cache the fallback result too
+            search_results_cache[fallback_hash] = {
+                "query": request.query.strip(),
+                "response": basic_response,
+                "sources": [],
+                "metadata": {"error_fallback": True, "original_error": str(e)},
+                "timestamp": datetime.now().isoformat(),
+                "audience": request.audience,
+                "selected_sources": request.sources
+            }
+            
+            return SearchResponse(
+                success=True,
+                response=basic_response,
+                sources=[],
+                metadata={"error_fallback": True, "original_error": str(e)},
+                query_hash=fallback_hash
+            )
+        except Exception as fallback_error:
+            raise HTTPException(status_code=500, detail=f"Search failed: {str(e)} | Fallback failed: {str(fallback_error)}")
 
 @router.get("/health", response_model=HealthResponse)
 async def health_check():

@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 from langchain.docstore.document import Document
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma, FAISS
 import chromadb
 
@@ -152,7 +152,7 @@ class CorpusEmbeddingModule:
         logger.info(f"Scanning directory: {path}")
         
         for file_path in path.rglob("*"):
-            if file_path.is_file() and file_path.suffix in [".txt", ".md", ".pdf"]:
+            if file_path.is_file() and file_path.suffix.lower() in [".txt", ".md", ".pdf", ".html", ".htm"]:
                 try:
                     content = self._extract_file_content(file_path)
                     if content.strip():  # Only process non-empty content
@@ -211,8 +211,7 @@ class CorpusEmbeddingModule:
     def _extract_file_content(self, file_path: Path) -> str:
         """Extract content from different file types.
         
-        TODO: Implement proper PDF extraction as noted in requirements analysis.
-        Currently returns placeholder for PDF files.
+        Implements proper PDF extraction using pdfplumber for better text extraction.
         """
         if file_path.suffix in [".txt", ".md"]:
             try:
@@ -226,10 +225,63 @@ class CorpusEmbeddingModule:
                         continue
                 logger.warning(f"Could not decode file {file_path}")
                 return ""
-        elif file_path.suffix == ".pdf":
-            # TODO: Implement proper PDF extraction using PyPDF2 or pdfplumber
-            # For now, return placeholder as identified in defect analysis
-            return f"PDF content from {file_path.name} - PDF extraction not yet implemented"
+        elif file_path.suffix in [".pdf", ".PDF"]:
+            try:
+                import pdfplumber
+                content_parts = []
+                
+                with pdfplumber.open(file_path) as pdf:
+                    for page_num, page in enumerate(pdf.pages, 1):
+                        try:
+                            # Extract text with error handling for PDF parsing issues
+                            text = page.extract_text()
+                            if text:
+                                content_parts.append(f"--- Page {page_num} ---\n{text}")
+                        except Exception as page_error:
+                            logger.warning(f"Failed to extract page {page_num} from {file_path}: {page_error}")
+                            # Try alternative extraction method
+                            try:
+                                # Use crop method to avoid color space issues
+                                cropped = page.crop((0, 0, page.width, page.height))
+                                text = cropped.extract_text()
+                                if text:
+                                    content_parts.append(f"--- Page {page_num} (alt method) ---\n{text}")
+                            except Exception as alt_error:
+                                logger.warning(f"Alternative extraction also failed for page {page_num}: {alt_error}")
+                                content_parts.append(f"--- Page {page_num} ---\n[Text extraction failed: {str(page_error)}]")
+                
+                content = "\n\n".join(content_parts)
+                if content.strip():
+                    logger.info(f"Successfully extracted {len(content)} characters from PDF: {file_path.name}")
+                    return content
+                else:
+                    logger.warning(f"No text content extracted from PDF: {file_path.name}")
+                    return f"PDF file: {file_path.name} - No extractable text content found"
+                
+            except ImportError:
+                logger.error("pdfplumber not installed. Install with: pip install pdfplumber")
+                return f"PDF content from {file_path.name} - pdfplumber not available"
+            except Exception as e:
+                logger.error(f"Failed to extract PDF content from {file_path}: {e}")
+                # Fallback to basic file info
+                return f"PDF file: {file_path.name} - Size: {file_path.stat().st_size} bytes - Extraction failed due to: {str(e)}"
+        elif file_path.suffix in [".html", ".htm"]:
+            try:
+                from bs4 import BeautifulSoup
+                html_content = file_path.read_text(encoding='utf-8')
+                soup = BeautifulSoup(html_content, 'html.parser')
+                # Remove script and style elements
+                for script in soup(["script", "style"]):
+                    script.decompose()
+                text = soup.get_text()
+                # Clean up whitespace
+                lines = (line.strip() for line in text.splitlines())
+                chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+                text = '\n'.join(chunk for chunk in chunks if chunk)
+                return text
+            except Exception as e:
+                logger.warning(f"Failed to extract HTML content from {file_path}: {e}")
+                return file_path.read_text(encoding='utf-8', errors='ignore')
         else:
             return ""
     
@@ -387,7 +439,9 @@ class CorpusEmbeddingModule:
             "pubmedbert": "microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext",
             "clinicalbert": "emilyalsentzer/Bio_ClinicalBERT", 
             "biobert": "dmis-lab/biobert-v1.1",
-            "scibert": "allenai/scibert_scivocab_uncased"
+            "scibert": "allenai/scibert_scivocab_uncased",
+            "all-MiniLM-L6-v2": "sentence-transformers/all-MiniLM-L6-v2",
+            "all-mpnet-base-v2": "sentence-transformers/all-mpnet-base-v2"
         }
         
         model_path = model_mapping.get(model_name, model_name)

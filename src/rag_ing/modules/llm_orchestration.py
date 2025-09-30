@@ -128,7 +128,6 @@ class LLMOrchestrationModule:
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
             return False
-    
     def _initialize_anthropic(self) -> bool:
         """Initialize Anthropic client."""
         try:
@@ -266,6 +265,7 @@ Response:'''
                     
             except Exception as e:
                 if attempt == max_retries - 1:
+                    logger.error(f"Model invocation failed after {max_retries} attempts: {e}")
                     raise
                 logger.warning(f"Attempt {attempt + 1} failed, retrying: {e}")
                 time.sleep(2 ** attempt)  # Exponential backoff
@@ -382,7 +382,6 @@ For detailed medical information, please consult with healthcare professionals. 
         except Exception as e:
             logger.error(f"Azure OpenAI invocation failed: {e}")
             raise
-    
     def _invoke_anthropic(self, prompt: str) -> str:
         """Invoke Anthropic API."""
         try:

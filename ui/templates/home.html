@@ -612,59 +612,38 @@
             }
         }
         
-        // Function to display search results
+        // Function to display search results - now redirects to dedicated page
         function displaySearchResults(result) {
-            // Create results container if it doesn't exist
-            let resultsContainer = document.getElementById('searchResults');
-            if (!resultsContainer) {
-                resultsContainer = document.createElement('div');
-                resultsContainer.id = 'searchResults';
-                resultsContainer.style.cssText = `
-                    margin-top: 20px;
-                    padding: 20px;
-                    background: #f8f9fa;
-                    border-radius: 12px;
-                    border: 1px solid #e9ecef;
-                    max-height: 400px;
-                    overflow-y: auto;
-                `;
+            if (result.success && result.query_hash) {
+                // Redirect to the dedicated result page
+                window.location.href = `/result/${result.query_hash}`;
+            } else {
+                // Fallback: show error message on current page
+                let resultsContainer = document.getElementById('searchResults');
+                if (!resultsContainer) {
+                    resultsContainer = document.createElement('div');
+                    resultsContainer.id = 'searchResults';
+                    resultsContainer.style.cssText = `
+                        margin-top: 20px;
+                        padding: 20px;
+                        background: #f8f9fa;
+                        border-radius: 12px;
+                        border: 1px solid #e9ecef;
+                        max-height: 400px;
+                        overflow-y: auto;
+                    `;
+                    
+                    // Insert after the search form
+                    const searchContainer = document.querySelector('.fixed-header');
+                    searchContainer.appendChild(resultsContainer);
+                }
                 
-                // Insert after the search form
-                const searchContainer = document.querySelector('.fixed-header');
-                searchContainer.appendChild(resultsContainer);
-            }
-            
-            // Display the response
-            resultsContainer.innerHTML = `
-                <div style="margin-bottom: 15px;">
-                    <h3 style="color: #2c3e50; margin-bottom: 10px;">🤖 AI Response:</h3>
-                    <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid #3498db;">
-                        ${result.response.replace(/\n/g, '<br>')}
+                resultsContainer.innerHTML = `
+                    <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 8px; border-left: 4px solid #dc3545;">
+                        <strong>❌ Error:</strong> Unable to process your search request. Please try again.
                     </div>
-                </div>
-                
-                ${result.sources && result.sources.length > 0 ? `
-                <div>
-                    <h4 style="color: #2c3e50; margin-bottom: 10px;">📚 Sources (${result.sources.length}):</h4>
-                    ${result.sources.map((source, index) => `
-                        <div style="background: white; padding: 12px; margin-bottom: 8px; border-radius: 6px; border-left: 3px solid #27ae60;">
-                            <strong>${index + 1}. ${source.title || source.source}</strong><br>
-                            <small style="color: #7f8c8d;">${source.source} • ${source.date || 'No date'}</small><br>
-                            <div style="margin-top: 5px; font-size: 14px;">${source.content}</div>
-                        </div>
-                    `).join('')}
-                </div>
-                ` : ''}
-                
-                <div style="margin-top: 15px; padding: 10px; background: #e8f5e8; border-radius: 6px; font-size: 12px; color: #2d5a2d;">
-                    ⚡ Processing time: ${result.metadata?.total_processing_time?.toFixed(2) || 'N/A'}s • 
-                    🔒 Safety score: ${result.metadata?.safety_score?.toFixed(2) || 'N/A'} • 
-                    🎯 Query ID: ${result.query_hash}
-                </div>
-            `;
-            
-            // Scroll to results
-            resultsContainer.scrollIntoView({ behavior: 'smooth' });
+                `;
+            }
         }
         
         // Search button click event
@@ -679,9 +658,22 @@
         
 
         
-        // Focus search input on page load
+        // Focus search input on page load and handle URL parameters
         window.addEventListener('load', function() {
-            document.getElementById('searchInput').focus();
+            const searchInput = document.getElementById('searchInput');
+            
+            // Check for query parameter in URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const queryParam = urlParams.get('q');
+            
+            if (queryParam) {
+                // If there's a query parameter, fill the search input and perform search
+                searchInput.value = queryParam;
+                performSearch();
+            } else {
+                // Otherwise just focus the input
+                searchInput.focus();
+            }
         });
         
         // Add search input placeholder animation
