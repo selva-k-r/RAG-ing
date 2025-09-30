@@ -3,13 +3,14 @@
 
 # Module 1: Corpus & Embedding Lifecycle Configuration
 data_source:
-  type: "local_file"  # confluence | local_file
+  type: "local_file"  # Switch back to local to test with HL7 content we obtained
   path: "./data/"
   confluence:
-    base_url: "https://your-domain.atlassian.net/wiki"
-    auth_token: "${CONFLUENCE_TOKEN}"
-    space_key: "ONCOLOGY"
-    page_filter: ["biomarkers", "protocols"]
+    base_url: "${CONFLUENCE_BASE_URL}"
+    username: "${CONFLUENCE_USERNAME}"
+    auth_token: "${CONFLUENCE_API_TOKEN}"
+    space_key: "FHIR"  # Common HL7 FHIR space
+    page_filter: ["Implementation", "Guide", "FHIR"]  # Filter for relevant pages
 
 chunking:
   strategy: "recursive"  # recursive | semantic
@@ -30,11 +31,13 @@ retrieval:
 
 # Module 3: LLM Orchestration Configuration
 llm:
-  model: "biomistral"
-  provider: "koboldcpp"
-  api_url: "http://localhost:5000/v1"
-  prompt_template: "./prompts/oncology.txt"
-  system_instruction: "You are a biomedical assistant specializing in oncology. Provide evidence-based responses with proper citations."
+  model: "gpt-5-nano"  # Azure OpenAI deployment name
+  provider: "azure_openai"  # Back to Azure OpenAI
+  api_url: "http://localhost:5000/v1"  # Only used for koboldcpp
+  prompt_template: "./prompts/iconnect_enterprise.txt"
+  system_instruction: "You are iConnect, an AI-powered enterprise search assistant specializing in PopHealth, DataSage, DevOps, and clinical documentation."
+  temperature: 1.0  # gpt-5-nano requires default temperature
+  max_tokens: 800  # Increased for detailed enterprise responses
 
 # Module 4: UI Layer Configuration
 ui:

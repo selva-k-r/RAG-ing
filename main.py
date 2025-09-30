@@ -67,7 +67,7 @@ def main():
   Module 5: Evaluation & Logging - Performance tracking and safety monitoring
 
 📋 Examples:
-  python main.py --ui                    # Launch Streamlit interface
+  python main.py --ui                    # Launch FastAPI web interface
   python main.py --ingest               # Process corpus and build vector store
   python main.py --query "cancer treatment options"  # Single query via CLI
   python main.py --status               # Show system status and metrics
@@ -86,7 +86,7 @@ def main():
     parser.add_argument(
         '--ui',
         action='store_true',
-        help='Launch Streamlit UI application'
+        help='Launch FastAPI web application'
     )
     
     parser.add_argument(
@@ -180,8 +180,8 @@ def main():
             )
             
             print("✅ Query processed successfully")
-            print(f"⏱️  Total time: {result['metadata']['total_time']:.2f}s")
-            print(f"📋 Sources found: {result['metadata']['num_sources']}")
+            print(f"⏱️  Total time: {result['metadata']['total_processing_time']:.2f}s")
+            print(f"📋 Sources found: {len(result['sources'])}")
             print(f"🤖 Model used: {result['metadata']['model_used']}")
             print(f"🛡️  Safety score: {result['metadata']['safety_score']:.2f}")
             print("\n📝 Response:")
@@ -192,11 +192,16 @@ def main():
             if result['sources']:
                 print(f"\n📚 Sources ({len(result['sources'])}):")
                 for i, source in enumerate(result['sources'][:3], 1):  # Show first 3 sources
-                    print(f"  {i}. {source.get('source', 'Unknown source')}")
-                    if len(result['sources']) > 3:
-                        print(f"  ... and {len(result['sources']) - 3} more sources")
-        
-        elif args.status:
+                # Handle both Document objects and dictionaries
+                if hasattr(source, 'metadata'):
+                    source_name = source.metadata.get('source', 'Unknown source')
+                elif isinstance(source, dict):
+                    source_name = source.get('source', 'Unknown source')
+                else:
+                    source_name = str(source)
+                print(f"  {i}. {source_name}")
+            if len(result['sources']) > 3:
+                print(f"  ... and {len(result['sources']) - 3} more sources")        elif args.status:
             print("\n📊 System Status:")
             status = orchestrator.get_system_status()
             
@@ -239,9 +244,14 @@ def main():
         
         elif args.ui:
             print("\n🚀 Launching UI Layer (Module 4)...")
-            print("🌐 Streamlit interface will open in your browser")
-            print("🛑 Press Ctrl+C to stop the application")
-            orchestrator.run_streamlit_app()
+            print("🌐 FastAPI web interface will open in your browser")
+            print("   Navigate to: http://localhost:8000")
+            print("🎯 New modular UI structure:")
+            print("   - ui/app.py: Main FastAPI application")
+            print("   - ui/api/: API routes and handlers")
+            print("   - ui/templates/: HTML templates")
+            print("   - ui/static/: CSS and JavaScript files")
+            orchestrator.run_web_app()
             
         else:
             print("\n❓ No action specified. Use --help for available options.")

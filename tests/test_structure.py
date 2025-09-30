@@ -80,7 +80,7 @@ class TestModuleStructure(unittest.TestCase):
     
     def test_ui_file_exists(self):
         """Test UI file exists."""
-        self.assertTrue(os.path.exists('src/rag_ing/ui/streamlit_app.py'))
+        self.assertTrue(os.path.exists('web_app.py'))
     
     def test_cli_file_exists(self):
         """Test CLI file exists."""
