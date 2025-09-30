@@ -192,16 +192,18 @@ def main():
             if result['sources']:
                 print(f"\n📚 Sources ({len(result['sources'])}):")
                 for i, source in enumerate(result['sources'][:3], 1):  # Show first 3 sources
-                # Handle both Document objects and dictionaries
-                if hasattr(source, 'metadata'):
-                    source_name = source.metadata.get('source', 'Unknown source')
-                elif isinstance(source, dict):
-                    source_name = source.get('source', 'Unknown source')
-                else:
-                    source_name = str(source)
-                print(f"  {i}. {source_name}")
-            if len(result['sources']) > 3:
-                print(f"  ... and {len(result['sources']) - 3} more sources")        elif args.status:
+                    # Handle both Document objects and dictionaries
+                    if hasattr(source, 'metadata'):
+                        source_name = source.metadata.get('source', 'Unknown source')
+                    elif isinstance(source, dict):
+                        source_name = source.get('source', 'Unknown source')
+                    else:
+                        source_name = str(source)
+                    print(f"  {i}. {source_name}")
+                if len(result['sources']) > 3:
+                    print(f"  ... and {len(result['sources']) - 3} more sources")
+        
+        elif args.status:
             print("\n📊 System Status:")
             status = orchestrator.get_system_status()
             

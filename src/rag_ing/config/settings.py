@@ -93,6 +93,16 @@ class VectorStoreConfig(BaseModel):
     collection_name: str = Field(default="oncology_docs", description="Collection name")
 
 
+class TempFilesConfig(BaseModel):
+    """Temporary files configuration."""
+    directory: str = Field(default="./temp_helper_codes", description="Directory for temporary files")
+    auto_cleanup: bool = Field(default=False, description="Automatically clean up temporary files")
+    file_types: List[str] = Field(
+        default=["*.py", "*.md", "*.txt", "*.html", "*.json", "*.yaml", "*.log"],
+        description="File types to manage in temp directory"
+    )
+
+
 
 
 class Settings(BaseSettings):
@@ -107,6 +117,7 @@ class Settings(BaseSettings):
     ui: UIConfig = Field(default_factory=UIConfig)
     evaluation: EvaluationConfig = Field(default_factory=EvaluationConfig)
     vector_store: VectorStoreConfig = Field(default_factory=VectorStoreConfig)
+    temp_files: TempFilesConfig = Field(default_factory=TempFilesConfig)
     
     # Environment variables
     confluence_token: Optional[str] = Field(default=None, alias="CONFLUENCE_TOKEN")

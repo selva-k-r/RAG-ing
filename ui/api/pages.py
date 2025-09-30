@@ -11,7 +11,7 @@ from pathlib import Path
 router = APIRouter()
 
 # Initialize templates
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(directory="ui/templates")
 
 @router.get("/", response_class=HTMLResponse)
 async def home(request: Request):
@@ -19,7 +19,7 @@ async def home(request: Request):
     try:
         # For now, serve the static HTML file directly
         # Later this can be converted to use Jinja2 templates
-        template_path = Path("templates/home.html")
+        template_path = Path("ui/templates/home.html")
         if not template_path.exists():
             raise HTTPException(status_code=404, detail="Home page template not found")
         

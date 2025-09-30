@@ -549,8 +549,8 @@
             });
         });
         
-        // Handle search functionality (for demo purposes)
-        function performSearch() {
+        // Handle search functionality - connects to RAG API
+        async function performSearch() {
             const query = document.getElementById('searchInput').value.trim();
             if (!query) {
                 alert('Please enter a search query!');
@@ -569,8 +569,102 @@
                 return;
             }
             
-            // For demo - show what would be searched
-            alert(`Searching for: "${query}"\nIn sources: ${selectedSources.join(', ')}\n\nThis will take you to the results page in the full application.`);
+            // Show loading state
+            const searchBtn = document.getElementById('searchBtn');
+            const originalText = searchBtn.textContent;
+            searchBtn.textContent = 'Searching...';
+            searchBtn.disabled = true;
+            
+            try {
+                // Make API call to RAG system
+                const response = await fetch('/api/search', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        sources: selectedSources,
+                        audience: 'technical' // Can be made configurable
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Display results on the page
+                    displaySearchResults(result);
+                } else {
+                    alert('Search failed: ' + (result.detail || 'Unknown error'));
+                }
+                
+            } catch (error) {
+                console.error('Search error:', error);
+                alert('Search failed: ' + error.message);
+            } finally {
+                // Restore button state
+                searchBtn.textContent = originalText;
+                searchBtn.disabled = false;
+            }
+        }
+        
+        // Function to display search results
+        function displaySearchResults(result) {
+            // Create results container if it doesn't exist
+            let resultsContainer = document.getElementById('searchResults');
+            if (!resultsContainer) {
+                resultsContainer = document.createElement('div');
+                resultsContainer.id = 'searchResults';
+                resultsContainer.style.cssText = `
+                    margin-top: 20px;
+                    padding: 20px;
+                    background: #f8f9fa;
+                    border-radius: 12px;
+                    border: 1px solid #e9ecef;
+                    max-height: 400px;
+                    overflow-y: auto;
+                `;
+                
+                // Insert after the search form
+                const searchContainer = document.querySelector('.fixed-header');
+                searchContainer.appendChild(resultsContainer);
+            }
+            
+            // Display the response
+            resultsContainer.innerHTML = `
+                <div style="margin-bottom: 15px;">
+                    <h3 style="color: #2c3e50; margin-bottom: 10px;">🤖 AI Response:</h3>
+                    <div style="background: white; padding: 15px; border-radius: 8px; border-left: 4px solid #3498db;">
+                        ${result.response.replace(/\n/g, '<br>')}
+                    </div>
+                </div>
+                
+                ${result.sources && result.sources.length > 0 ? `
+                <div>
+                    <h4 style="color: #2c3e50; margin-bottom: 10px;">📚 Sources (${result.sources.length}):</h4>
+                    ${result.sources.map((source, index) => `
+                        <div style="background: white; padding: 12px; margin-bottom: 8px; border-radius: 6px; border-left: 3px solid #27ae60;">
+                            <strong>${index + 1}. ${source.title || source.source}</strong><br>
+                            <small style="color: #7f8c8d;">${source.source} • ${source.date || 'No date'}</small><br>
+                            <div style="margin-top: 5px; font-size: 14px;">${source.content}</div>
+                        </div>
+                    `).join('')}
+                </div>
+                ` : ''}
+                
+                <div style="margin-top: 15px; padding: 10px; background: #e8f5e8; border-radius: 6px; font-size: 12px; color: #2d5a2d;">
+                    ⚡ Processing time: ${result.metadata?.total_processing_time?.toFixed(2) || 'N/A'}s • 
+                    🔒 Safety score: ${result.metadata?.safety_score?.toFixed(2) || 'N/A'} • 
+                    🎯 Query ID: ${result.query_hash}
+                </div>
+            `;
+            
+            // Scroll to results
+            resultsContainer.scrollIntoView({ behavior: 'smooth' });
         }
         
         // Search button click event

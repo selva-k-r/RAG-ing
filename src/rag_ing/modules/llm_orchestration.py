@@ -128,6 +128,7 @@ class LLMOrchestrationModule:
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
             return False
+    
     def _initialize_anthropic(self) -> bool:
         """Initialize Anthropic client."""
         try:
@@ -256,30 +257,8 @@ Response:'''
                     return self._invoke_koboldcpp(prompt)
                 elif provider == "openai":
                     return self._invoke_openai(prompt)
-<<<<<<< HEAD
-=======
-                for attempt in range(max_retries):
-            try:
-                provider = self.llm_config.provider
-                
-                if provider == "koboldcpp":
-                    return self._invoke_koboldcpp(prompt)
-                elif provider == "openai":
-                    return self._invoke_openai(prompt)
                 elif provider == "azure_openai":
                     return self._invoke_azure_openai(prompt)
-                elif provider == "anthropic":
-                    return self._invoke_anthropic(prompt)
-                else:
-                    raise ValueError(f"Unsupported provider: {provider}")
-                    
-            except Exception as e:
-                if attempt == max_retries - 1:
-                    logger.error(f"Model invocation failed after {max_retries} attempts: {e}")
-                    raise
-                logger.warning(f"Attempt {attempt + 1} failed, retrying: {e}")
-                time.sleep(2 ** attempt)  # Exponential backoff
->>>>>>> step1
                 elif provider == "anthropic":
                     return self._invoke_anthropic(prompt)
                 else:
@@ -344,8 +323,6 @@ Response:'''
             logger.error(f"OpenAI invocation failed: {e}")
             raise
     
-<<<<<<< HEAD
-=======
     def _invoke_azure_openai(self, prompt: str) -> str:
         """Invoke Azure OpenAI API."""
         try:
@@ -406,7 +383,6 @@ For detailed medical information, please consult with healthcare professionals. 
             logger.error(f"Azure OpenAI invocation failed: {e}")
             raise
     
->>>>>>> step1
     def _invoke_anthropic(self, prompt: str) -> str:
         """Invoke Anthropic API."""
         try:

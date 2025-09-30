@@ -47,25 +47,6 @@ class QueryRetrievalModule:
         logger.info("Initializing vector store and embedding model components...")
         
         try:
-<<<<<<< HEAD
-                        # Initialize embedding model with fallback
-            try:
-                from langchain_community.embeddings import HuggingFaceEmbeddings
-                
-                embedding_config = self.config.embedding_model
-                model_name = f"microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext"  # PubMedBERT
-                
-                self.embedding_model = HuggingFaceEmbeddings(
-                    model_name=model_name,
-                    model_kwargs={'device': embedding_config.device}
-                )
-                logger.info(f"Embedding model loaded: {embedding_config.name}")
-            except Exception as e:
-                logger.warning(f"Failed to load HuggingFaceEmbeddings: {e}")
-                # Fallback to a simple mock embedding for demo purposes
-                logger.info("Using mock embedding model for demonstration")
-                self.embedding_model = self._create_mock_embedding_model()
-=======
             # Initialize embedding model with fallback
             try:
                 from langchain_community.embeddings import HuggingFaceEmbeddings
@@ -83,7 +64,6 @@ class QueryRetrievalModule:
                 # Fallback to a simple mock embedding for demo purposes
                 logger.info("Using mock embedding model for demonstration")
                 self.embedding_model = self._create_mock_embedding_model()
->>>>>>> step1
             
             # Initialize vector store
             vector_store_config = self.config.vector_store
@@ -118,13 +98,12 @@ class QueryRetrievalModule:
                     logger.warning(f"Failed to load existing vector store: {e}")
                     logger.info("Using mock vector store for demonstration")
                     self.vector_store = self._create_mock_vector_store()
+                    
         except Exception as e:
             logger.error(f"Failed to initialize components: {e}")
             self.embedding_model = None
             self.vector_store = None
     
-<<<<<<< HEAD
-=======
     def _create_mock_embedding_model(self):
         """Create a simple mock embedding model for demonstration purposes."""
         class MockEmbeddingModel:
@@ -162,7 +141,6 @@ class QueryRetrievalModule:
         
         return MockVectorStore()
     
->>>>>>> step1
     def process_query(self, query: str, filters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Main entry point for query processing and retrieval."""
         logger.info(f"Processing query: {query[:50]}...")

@@ -59,9 +59,3 @@ Context: {context}
 Question: {query}
 
 Answer:
-
-Context: {context}
-
-Question: {query}
-
-Answer:

@@ -1,6 +1,15 @@
 # Temporary Helper Codes
 
-This folder contains temporary and helper scripts created during development and testing phases. These files are not part of the core RAG system functionality but were useful for development, testing, and experimentation.
+This folder contains **all temporary files** created during development, testing, and experimentation. These files are not part of the core RAG system functionality but are useful for development, prototyping, and quick testing.
+
+## Purpose
+
+🎯 **Designated temporary files directory** - As configured in `config.yaml`, this folder is the centralized location for:
+- Development scripts and prototypes
+- Testing utilities and experimental code  
+- Temporary Python files, markdown, HTML, JSON, and text files
+- Helper scripts for debugging and analysis
+- Any files not directly related to the core project structure
 
 ## Contents
 
@@ -23,15 +32,34 @@ This folder contains temporary and helper scripts created during development and
 - **`PROMPT_ENGINEERING_ANALYSIS.md`** - Analysis of FAQ response patterns for prompt engineering
 - **`AZURE_OPENAI_SETUP.md`** - Azure OpenAI configuration guide and setup instructions
 
-## Purpose
+## Automatic Management
 
-These files were created to:
-- Test external API integrations (Confluence, HL7)
-- Experiment with different UI approaches
-- Validate system connectivity and functionality
-- Support prompt engineering and response analysis
-- Document setup procedures for Azure OpenAI integration
-- Analyze response patterns for improving AI outputs
+The system includes utilities for managing temporary files:
+
+```python
+# Import temporary file utilities
+from rag_ing.utils import get_temp_path, create_temp_file, cleanup_temp_files
+
+# Create a temporary file
+temp_path = create_temp_file("my_script.py", "print('Hello from temp!')")
+
+# Get path for temporary file
+file_path = get_temp_path("test_data.json")
+
+# Clean up temporary files by pattern
+deleted_count = cleanup_temp_files("*.log")
+```
+
+## Configuration
+
+Temporary files behavior is controlled in `config.yaml`:
+
+```yaml
+temp_files:
+  directory: "./temp_helper_codes"
+  auto_cleanup: false  # Set to true for automatic cleanup
+  file_types: ["*.py", "*.md", "*.txt", "*.html", "*.json", "*.yaml", "*.log"]
+```
 
 ## Usage
 
@@ -49,6 +77,8 @@ python temp_helper_codes/demo.py
 ```
 
 ## Note
+
+⚠️ **All new temporary files should be created in this directory** to maintain project organization and enable automated cleanup when needed.
 
 These files are kept for reference and potential future use but are not required for the core RAG system operation. The main system operates through:
 - `main.py` - CLI interface

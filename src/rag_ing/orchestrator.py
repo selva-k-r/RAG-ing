@@ -236,19 +236,6 @@ class RAGOrchestrator:
             "enabled_metrics": self.evaluation_logging.get_enabled_metrics(),
             "logging_enabled": self.evaluation_logging.is_logging_enabled(),
             "configuration": {
-<<<<<<< HEAD
-                                "embedding_model": self.settings.embedding_model.name,
-                "vector_store": self.settings.vector_store.type,
-                "llm_provider": self.settings.llm.provider,
-                "ui_audience_toggle": self.settings.ui.audience_toggle
-            }
-        }
-    
-    def run_streamlit_app(self) -> None:
-        """Launch the Streamlit UI application.
-        
-        This passes control to Module 4: UI Layer
-=======
                 "embedding_model": self.settings.embedding_model.name,
                 "vector_store": self.settings.vector_store.type,
                 "llm_provider": self.settings.llm.provider,
@@ -260,36 +247,10 @@ class RAGOrchestrator:
         """Launch the FastAPI web application.
         
         This passes control to Module 4: UI Layer (FastAPI implementation)
->>>>>>> step1
         """
         import subprocess
         import sys
         
-<<<<<<< HEAD
-        logger.info("Launching Streamlit application...")
-        
-        try:
-            # Run streamlit app using subprocess
-            streamlit_cmd = [
-                sys.executable, "-m", "streamlit", "run", 
-                "streamlit_app.py",
-                "--server.address", "0.0.0.0",
-                "--server.port", "8501",
-                "--browser.gatherUsageStats", "false"
-            ]
-            
-            logger.info(f"Starting Streamlit with command: {' '.join(streamlit_cmd)}")
-            
-            # Run Streamlit
-            subprocess.run(streamlit_cmd, check=True)
-            
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Streamlit failed to start: {e}")
-            raise UIError(f"Streamlit failed to start: {e}")
-        except Exception as e:
-            logger.error(f"Failed to launch Streamlit: {e}")
-            raise UIError(f"Failed to launch Streamlit: {e}")
-=======
         logger.info("Launching FastAPI web application...")
         
         try:
@@ -309,7 +270,6 @@ class RAGOrchestrator:
         except Exception as e:
             logger.error(f"Failed to launch web app: {e}")
             raise UIError(f"Failed to launch web app: {e}")
->>>>>>> step1
     
     def health_check(self) -> Dict[str, Any]:
         """Perform comprehensive health check on all modules.

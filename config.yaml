@@ -36,8 +36,8 @@ llm:
   api_url: "http://localhost:5000/v1"  # Only used for koboldcpp
   prompt_template: "./prompts/iconnect_enterprise.txt"
   system_instruction: "You are iConnect, an AI-powered enterprise search assistant specializing in PopHealth, DataSage, DevOps, and clinical documentation."
-  temperature: 1.0  # gpt-5-nano requires default temperature
-  max_tokens: 800  # Increased for detailed enterprise responses
+  temperature: 0.3  # Lower temperature for more focused responses
+  max_tokens: 1000  # Increased for more detailed responses
 
 # Module 4: UI Layer Configuration
 ui:
@@ -66,3 +66,9 @@ vector_store:
   type: "chroma"
   path: "./vector_store"
   collection_name: "oncology_docs"
+
+# Temporary Files Configuration
+temp_files:
+  directory: "./temp_helper_codes"
+  auto_cleanup: false  # Set to true if you want automatic cleanup
+  file_types: ["*.py", "*.md", "*.txt", "*.html", "*.json", "*.yaml", "*.log"]

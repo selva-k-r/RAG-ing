@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-Main FastAPI application entry point.
+Main FastAPI applicatio# Mount static files
+import os
+os.makedirs("ui/static", exist_ok=True)
+app.mount("/static", StaticFiles(directory="ui/static"), name="static")entry point.
 Serves the RAG system with a clean, modular structure.
 """
 
@@ -29,7 +32,7 @@ async def lifespan(app: FastAPI):
     global rag_system
     try:
         print("🚀 Starting iConnect FastAPI server...")
-        rag_system = RAGOrchestrator('../config.yaml')
+        rag_system = RAGOrchestrator('./config.yaml')
         print("✅ RAG system initialized successfully")
         yield
     except Exception as e:
@@ -49,7 +52,7 @@ app = FastAPI(
 )
 
 # Mount static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory="ui/static"), name="static")
 
 # Include API routes
 app.include_router(api_router, prefix="/api", tags=["API"])
