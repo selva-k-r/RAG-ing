@@ -1,0 +1,20 @@
+# Simple Docker Compose for RAG-ing Application
+version: '3.8'
+
+services:
+  rag-app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONPATH=/app/src
+    volumes:
+      - ./data:/app/data:ro
+      - ./config.yaml:/app/config.yaml:ro
+      - rag-logs:/app/logs
+      - rag-vectors:/app/vector_store
+    restart: unless-stopped
+
+volumes:
+  rag-logs:
+  rag-vectors:

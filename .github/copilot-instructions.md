@@ -2,15 +2,15 @@
 
 ## Architecture Overview
 
-This is a **5-module oncology-focused RAG system** implementing a comprehensive retrieval-augmented generation pipeline. The architecture follows strict modular separation as defined in `src/Requirement.md`:
+This is a **production-ready enterprise RAG system** implementing a comprehensive 5-module architecture as specified in `src/Requirement.md`. The system supports both **oncology-focused research** and **general enterprise knowledge management**:
 
-- **Module 1**: `corpus_embedding.py` - Document ingestion & biomedical embeddings (PubMedBERT/Bio_ClinicalBERT)
-- **Module 2**: `query_retrieval.py` - Hybrid retrieval with ontology filtering (ICD-O, SNOMED-CT, MeSH)
-- **Module 3**: `llm_orchestration.py` - KoboldCpp integration with fallback providers
-- **Module 4**: `ui_layer.py` - Streamlit UI with clinical/technical audience toggle
-- **Module 5**: `evaluation_logging.py` - Performance tracking & safety scoring
+- **Module 1**: `corpus_embedding.py` - Document ingestion with biomedical embeddings (PubMedBERT fallback to all-MiniLM-L6-v2)
+- **Module 2**: `query_retrieval.py` - Hybrid retrieval with semantic search and metadata filtering
+- **Module 3**: `llm_orchestration.py` - Azure OpenAI integration (gpt-4) with multi-provider fallback
+- **Module 4**: **Modular FastAPI UI** in `ui/` directory - Complete web interface with 100% frontend control
+- **Module 5**: `evaluation_logging.py` - Real-time performance tracking, safety scoring, and structured logging
 
-The `orchestrator.py` coordinates all modules, while `config/settings.py` provides YAML-driven configuration using Pydantic models.
+The `orchestrator.py` coordinates all modules using **YAML-driven configuration** via Pydantic models in `config/settings.py`.
 
 ## Quick Start (3 Steps)
 
@@ -23,11 +23,22 @@ pip install -e .
 # Step 2: Process your documents (REQUIRED first step)
 python main.py --ingest
 
-# Step 3: Launch the interface
+# Step 3: Launch the FastAPI web interface
 python main.py --ui
 ```
 
+**Access**: Open http://localhost:8000 in your browser
+
 **Why this order matters**: The system needs to build embeddings from your documents before it can answer questions. Think of Step 2 as "teaching the AI about your documents" and Step 3 as "asking questions about what it learned."
+
+## Current Implementation Status ✅
+
+**Production Ready**: The system is fully operational with:
+- **FastAPI Web Interface**: Modular structure in `ui/` directory with API routes, templates, and static files
+- **Azure OpenAI Integration**: Primary LLM provider with fallback chain (OpenAI → Anthropic → KoboldCpp)
+- **ChromaDB Vector Store**: Persistent vector storage with metadata preservation
+- **Comprehensive Logging**: Structured JSON logs in `./logs/` with performance metrics
+- **Docker Support**: Multi-stage containerization with deployment alternatives
 
 ## Configuration System
 
@@ -40,25 +51,32 @@ orchestrator = RAGOrchestrator(settings)
 ```
 
 Key configuration sections:
-- `data_source`: Local files vs Confluence connector
-- `embedding_model`: Biomedical model selection (pubmedbert/clinicalbert)
-- `llm`: KoboldCpp primary with OpenAI/Anthropic fallback
-- `ui.audience_toggle`: Clinical vs technical response modes
-- `evaluation.metrics`: Enable/disable specific tracking
+- `data_source`: Local files vs Confluence connector (type: "local_file" or "confluence")
+- `embedding_model`: Model selection with fallback (PubMedBERT → all-MiniLM-L6-v2)
+- `llm`: Azure OpenAI primary with multi-provider fallback chain
+- `ui.framework`: "fastapi" (current) vs "streamlit" (archived)
+- `evaluation.metrics`: Enable/disable specific tracking components
+- `vector_store`: ChromaDB configuration with collection management
 
 ## Entry Points & Workflows
 
 ### Primary Entry Point
 - `main.py` - CLI with extensive help text and examples
 - `python main.py --ingest` - Process corpus and build vectors
-- `python main.py --ui` - Launch Streamlit interface
+- `python main.py --ui` - Launch FastAPI web interface (runs `ui/app.py`)
 - `python main.py --query "text" --audience clinical` - Single query
 
 ### Development Workflow
 1. **First run**: Always `--ingest` to process documents
 2. **Configuration changes**: Restart required, no hot-reload
 3. **Testing**: Use `pytest tests/` - structure tests expect specific file locations
-4. **Debugging**: `--debug` flag enables comprehensive logging
+4. **UI Development**: Edit files in `ui/` directory - modular FastAPI structure
+5. **Debugging**: `--debug` flag enables comprehensive logging
+
+### Docker Deployment
+- **Minimal**: `docker-compose -f docker-compose.minimal.yml up --build` (quickest)
+- **Standard**: `docker-compose up --build` (with persistence)
+- **Script**: `./docker/deploy.sh start` (recommended)
 
 ## Domain-Specific Patterns
 
@@ -99,8 +117,8 @@ User Query → Orchestrator → Module 2 (retrieval) → Module 3 (LLM) → Modu
 - Metadata preserved: source, ontology codes, timestamps
 
 ### LLM Integration  
-- KoboldCpp as primary (local deployment)
-- Fallback chain: OpenAI → Anthropic
+- Azure OpenAI as primary (gpt-4/gpt-5-nano)
+- Fallback chain: OpenAI → Anthropic → KoboldCpp
 - Prompt templates in `./prompts/` directory
 - Audience-specific system instructions
 
@@ -128,6 +146,46 @@ User Query → Orchestrator → Module 2 (retrieval) → Module 3 (LLM) → Modu
 - **Environment variables**: Use `${VAR}` syntax in YAML for secrets
 - **Module imports**: Follow the pattern in `modules/__init__.py`
 - **CLI vs programmatic**: Different entry points, same underlying orchestrator
+
+## Docker Deployment Architecture
+
+### Simple Setup
+- **Single Dockerfile**: Python 3.11-slim base with minimal dependencies
+- **Two compose files**: `docker-compose.yml` (persistent) and `docker-compose.minimal.yml` (quick)
+- **Deploy script**: `./docker/deploy.sh` for build, start, stop, logs, clean operations
+
+### Quick Commands
+```bash
+# Fastest start
+docker-compose -f docker-compose.minimal.yml up --build
+
+# With data persistence
+docker-compose up --build
+
+# Using deploy script
+./docker/deploy.sh build && ./docker/deploy.sh start
+```
+
+## UI Architecture (Module 4)
+
+### Current: Modular FastAPI Structure
+- **`ui/app.py`**: Main FastAPI application with lifespan management
+- **`ui/api/routes.py`**: RESTful API endpoints for search and health
+- **`ui/api/pages.py`**: HTML page generation and template rendering
+- **`ui/templates/`**: Jinja2 templates for dynamic content
+- **`ui/static/`**: CSS, JavaScript, and static assets
+
+### Launch Mechanism
+```python
+# From orchestrator.py - runs ui/app.py as subprocess
+def run_web_app(self) -> None:
+    subprocess.run([sys.executable, "ui/app.py"], check=True)
+```
+
+### Archived Implementations
+- **Streamlit**: Complete implementation in `archived/streamlit/`
+- **Monolithic FastAPI**: Legacy `temp_helper_codes/web_app_old.py`
+- **Migration Notes**: FastAPI chosen for 100% UI control and performance
 
 This system prioritizes modularity, medical domain accuracy, and comprehensive evaluation over generic RAG patterns.
 
