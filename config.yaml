@@ -1,16 +1,38 @@
 # RAG-ing Modular PoC Configuration
-# Aligned with Requirement.md specification
+# Updated with multi-source support and enhanced capabilities
 
 # Module 1: Corpus & Embedding Lifecycle Configuration
 data_source:
-  type: "local_file"  # Switch back to local to test with HL7 content we obtained
-  path: "./data/"
-  confluence:
-    base_url: "${CONFLUENCE_BASE_URL}"
-    username: "${CONFLUENCE_USERNAME}"
-    auth_token: "${CONFLUENCE_API_TOKEN}"
-    space_key: "FHIR"  # Common HL7 FHIR space
-    page_filter: ["Implementation", "Guide", "FHIR"]  # Filter for relevant pages
+  # NEW: Multi-source configuration - process all enabled sources simultaneously
+  sources:
+    - type: "local_file"
+      enabled: true
+      path: "./data/"
+      file_types: [".txt", ".md", ".pdf", ".docx", ".html"]
+      description: "Local documents and research papers"
+      
+    - type: "confluence"
+      enabled: false  # Enable when credentials are configured
+      confluence:
+        base_url: "${CONFLUENCE_BASE_URL}"
+        username: "${CONFLUENCE_USERNAME}"
+        auth_token: "${CONFLUENCE_API_TOKEN}"
+        space_keys: ["FHIR", "DOCS", "RESEARCH"]
+        page_filter: ["Implementation", "Guide", "FHIR", "Clinical"]
+        max_pages: 100
+      description: "Company documentation from Confluence"
+      
+    - type: "jira"
+      enabled: false  # Enable when credentials are configured  
+      jira:
+        server_url: "${JIRA_URL}"
+        username: "${JIRA_USER}"
+        auth_token: "${JIRA_TOKEN}"
+        project_keys: ["ONCOLOGY", "RESEARCH", "CLINICAL"]
+        issue_types: ["Story", "Task", "Bug", "Epic", "Requirement"]
+        jql_filter: "project in (ONCOLOGY, RESEARCH) AND status != Closed"
+        max_issues: 200
+      description: "Project tickets and requirements from Jira"
 
 chunking:
   strategy: "recursive"  # recursive | semantic
@@ -18,35 +40,92 @@ chunking:
   overlap: 64
 
 embedding_model:
-  name: "all-MiniLM-L6-v2"  # Standard sentence transformer model
+  # PRIMARY: Azure OpenAI embedding model (higher quality)
+  provider: "azure_openai"  # azure_openai | huggingface
+  
+  # Azure OpenAI embedding configuration  
+  azure_model: "text-embedding-ada-002"
+  azure_endpoint: "https://saran-mg4yt9h8-eastus2.cognitiveservices.azure.com/"
+  azure_api_key: "${AZURE_OPENAI_API_KEY}"
+  azure_api_version: "2023-05-15"
+  azure_deployment_name: "text-embedding-ada-002"
+  
+  # FALLBACK: Open source model (for development/offline use)
+  fallback_model: "all-MiniLM-L6-v2"  # Standard sentence transformer model
   device: "cpu"
+  
+  # Model selection strategy
+  use_azure_primary: false  # Set to true when Azure deployment is ready
 
-# Module 2: Query Processing & Retrieval Configuration  
+# Module 2: Enhanced Query Processing & Retrieval Configuration  
 retrieval:
-  top_k: 5
-  strategy: "similarity"  # similarity | hybrid
+  top_k: 10  # Increased for better coverage
+  strategy: "hybrid"  # Enhanced: similarity + keyword + reranking
+  
+  # Advanced retrieval features
+  use_reranking: true
+  reranker_model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  
+  # Hybrid search configuration
+  semantic_weight: 0.6  # Reduced to give more weight to keyword matching
+  keyword_weight: 0.4   # Increased for better question-answer matching
+  
+  # Enhanced question-answer matching
+  question_keywords_boost: 2.0    # Boost chunks that contain question keywords
+  date_keywords_boost: 1.8        # Boost chunks with dates, years, "started", "began"
+  direct_answer_boost: 2.5        # Boost chunks that look like direct answers
+  
+  # Medical domain optimizations
+  domain_boost: 1.2
+  medical_terms_boost: true
+  ontology_codes_weight: 1.5  # Boost ICD-O, SNOMED-CT, MeSH codes
+  
   filters:
     ontology_match: true
     date_range: "last_12_months"
 
-# Module 3: LLM Orchestration Configuration
+# Module 3: Enhanced LLM Orchestration Configuration
 llm:
-  model: "mock-llm"  # Use mock LLM for reliable testing
-  provider: "mock"  # Mock provider for testing
-  api_url: "http://localhost:5000/v1"  # Only used for koboldcpp
-  prompt_template: "./prompts/iconnect_enterprise.txt"
-  system_instruction: "You are iConnect, an AI-powered enterprise search assistant specializing in PopHealth, DataSage, DevOps, and clinical documentation."
-  temperature: 0.3  # Lower temperature for more focused responses
-  max_tokens: 1000  # Increased for more detailed responses
+  model: "gpt-5-nano"  # Your actual deployed model
+  provider: "azure_openai"  # Primary provider
+
+  # Standard settings for your deployed model
+  max_tokens: 4096  # Reduced from 16384 
+  temperature: 0.1   # Lower for more focused responses
+  
+  # Token management
+  use_smart_truncation: true
+  context_optimization: true
+  token_buffer: 2000  # Reduced from 6000
+  
+  # Azure OpenAI configuration
+  azure_endpoint: "${AZURE_OPENAI_ENDPOINT}"
+  azure_api_key: "${AZURE_OPENAI_API_KEY}"
+  azure_api_version: "2024-02-15-preview"  # Standard API version
+  azure_deployment_name: "gpt-5-nano"  # Your actual deployment
+  
+  # Fallback configuration
+  api_url: "http://localhost:5000/v1"  # For local models
+  prompt_template: "./prompts/oncology.txt"
+  system_instruction: "You are an AI assistant that provides clear, concise answers. IMPORTANT: Give direct answers first, then supporting details. For questions about when something started, provide the specific date or timeframe immediately. Format responses with clear structure and avoid lengthy technical paragraphs."
+  
+  # Response formatting preferences
+  response_style: "concise"           # concise | detailed | technical
+  max_response_length: 300           # Target response length in words
+  prioritize_direct_answers: true    # Put direct answers first
+  include_source_references: true    # Show source documents
 
 # Module 4: UI Layer Configuration
 ui:
-  framework: "streamlit"
-  audience_toggle: true
-  feedback_enabled: true
-  show_chunk_metadata: true
-  default_model: "biomistral"
-  default_source: "confluence"
+  framework: "fastapi"  # Current framework (streamlit archived)
+  port: 8000
+  host: "0.0.0.0"
+  debug: false
+  
+  # UI Features
+  show_source_metadata: true
+  enable_search_history: true
+  response_streaming: false
 
 # Module 5: Evaluation & Logging Configuration
 evaluation:

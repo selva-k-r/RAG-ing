@@ -105,3 +105,5 @@ secrets/
 *.key
 *.pem
 temp_helper_codes/
+RAG_RESPONSE_TUNING_FINAL_REPORT.md
+MODEL_CONFIGURATION_CLEANUP_SUMMARY.md

@@ -62,69 +62,120 @@ class CorpusEmbeddingModule:
         logger.info(f"CorpusEmbeddingModule initialized - Data source: {self.data_source_config.type}")
     
     def process_corpus(self) -> Dict[str, Any]:
-        """Main entry point for corpus processing pipeline.
+        """Enhanced main entry point supporting multi-source corpus processing.
         
-        Implements the complete workflow from Requirement.md:
-        1. YAML-Driven Ingestion Logic
+        Educational note: This method demonstrates the Template Method pattern -
+        the overall algorithm stays the same, but individual steps are enhanced
+        to support multiple data sources.
+        
+        Implements enhanced workflow:
+        1. Multi-Source YAML-Driven Ingestion Logic  
         2. Chunking Strategy 
         3. Embedding Generation
         4. Vector Storage
         5. Validation of embeddings
         
         Returns:
-            Dict containing processing statistics as required
+            Dict containing comprehensive processing statistics
         """
-        logger.info("Starting corpus processing pipeline")
+        logger.info("🚀 Starting enhanced multi-source corpus processing pipeline")
         start_time = time.time()
         
         try:
-            # Step 1: YAML-Driven Ingestion Logic
-            logger.info("Step 1: Document ingestion")
-            documents = self._ingest_documents()
+            # Step 1: Enhanced Multi-Source Ingestion Logic
+            logger.info("📂 Step 1: Multi-source document ingestion")
+            documents = self._ingest_documents_multi_source()
             self._stats["documents_processed"] = len(documents)
-            logger.info(f"Ingested {len(documents)} documents")
+            logger.info(f"✅ Ingested {len(documents)} documents from multiple sources")
             
             # Step 2: Chunking Strategy  
-            logger.info("Step 2: Document chunking")
+            logger.info("🧩 Step 2: Document chunking")
             chunks = self._chunk_documents(documents)
             self._stats["chunk_count"] = len(chunks)
-            logger.info(f"Created {len(chunks)} chunks using {self.chunking_config.strategy} strategy")
+            logger.info(f"✅ Created {len(chunks)} chunks using {self.chunking_config.strategy} strategy")
             
             # Step 3: Embedding Generation
-            logger.info("Step 3: Loading embedding model")
+            logger.info("🧠 Step 3: Loading embedding model")
             self._load_embedding_model()
             
             # Step 4: Vector Storage
-            logger.info("Step 4: Setting up vector store and storing embeddings")
+            logger.info("💾 Step 4: Setting up vector store and storing embeddings")
             self._setup_vector_store()
             self._store_embeddings(chunks)
             
-            # Step 5: Validate embeddings (as per requirements)
-            logger.info("Step 5: Validating vector dimensions and schema")
+            # Step 5: Validate embeddings
+            logger.info("✔️ Step 5: Validating vector dimensions and schema")
             validation_success = self.validate_embeddings()
             
             # Calculate final statistics
             processing_time = time.time() - start_time
             self._stats.update({
                 "processing_time": processing_time,
-                "validation_success": validation_success
+                "validation_success": validation_success,
+                "sources_processed": len(self.data_source_config.get_enabled_sources()),
+                "embedding_model": self.embedding_config.name,
+                "vector_store_type": self.vector_store_config.type
             })
             
-            # Log embedding stats as required by best practices
+            # Enhanced logging with multi-source breakdown
             logger.info(
-                f"Corpus processing completed - "
+                f"🎉 Multi-source corpus processing completed successfully! "
+                f"Sources: {self._stats.get('sources_processed', 0)}, "
+                f"Documents: {self._stats['documents_processed']}, "
                 f"Chunks: {self._stats['chunk_count']}, "
-                f"Vector size: {self._stats['vector_size']}, "
+                f"Vector size: {self._stats.get('vector_size', 'N/A')}, "
                 f"Time: {processing_time:.2f}s"
             )
             
             return self._stats
             
         except Exception as e:
-            logger.error(f"Corpus processing failed: {str(e)}")
+            logger.error(f"❌ Multi-source corpus processing failed: {str(e)}")
             raise IngestionError(f"Failed to process corpus: {str(e)}")
     
-    def _ingest_documents(self) -> List[Document]:
+    def _ingest_documents_multi_source(self) -> List[Document]:
+        """Enhanced multi-source document ingestion.
+        
+        Educational note: This method shows how to handle multiple data sources
+        gracefully, continuing processing even if one source fails.
+        """
+        all_documents = []
+        enabled_sources = self.data_source_config.get_enabled_sources()
+        
+        logger.info(f"📋 Processing {len(enabled_sources)} enabled data sources")
+        
+        for source in enabled_sources:
+            source_type = source.get('type')
+            source_description = source.get('description', f'{source_type} source')
+            
+            try:
+                logger.info(f"📂 Processing {source_description}...")
+                
+                # Route to appropriate ingestion method based on type
+                if source_type == 'local_file':
+                    docs = self._ingest_local_files_enhanced(source)
+                elif source_type == 'confluence':
+                    docs = self._ingest_confluence_enhanced(source)
+                elif source_type == 'jira':
+                    docs = self._ingest_jira_enhanced(source)
+                else:
+                    logger.warning(f"❓ Unknown source type: {source_type}, skipping...")
+                    continue
+                
+                all_documents.extend(docs)
+                logger.info(f"✅ {source_description}: {len(docs)} documents processed")
+                
+            except Exception as e:
+                logger.error(f"❌ Error processing {source_description}: {e}")
+                logger.info("🔄 Continuing with other sources...")
+                continue
+        
+        if not all_documents:
+            # Fall back to legacy single-source method for backward compatibility
+            logger.info("🔄 No documents from multi-source, trying legacy method...")
+            return self._ingest_documents()
+        
+        return all_documents
         """YAML-driven document ingestion.
         
         Parses data_source.type as required:
@@ -424,15 +475,97 @@ class CorpusEmbeddingModule:
         return chunks
     
     def _load_embedding_model(self) -> None:
-        """Load embedding model based on configuration.
+        """Enhanced embedding model loading supporting Azure OpenAI and open source models.
         
-        Supports PubMedBERT and other biomedical models as specified.
-        Maps model names to their HuggingFace identifiers.
+        Educational note: This demonstrates the Strategy pattern - different embedding
+        providers are handled through a common interface but with provider-specific logic.
+        
+        Supports both Azure OpenAI embeddings (text-embedding-ada-002) and 
+        open source models (PubMedBERT, all-MiniLM-L6-v2, etc.)
         """
-        model_name = self.embedding_config.name
+        provider = self.embedding_config.get_primary_provider()
+        logger.info(f"Loading embedding model using provider: {provider}")
+        
+        if provider == "azure_openai" and self.embedding_config.use_azure_primary:
+            # Use Azure OpenAI embeddings (higher quality, paid)
+            self._load_azure_embedding_model()
+        else:
+            # Use open source embedding model (free, local)
+            self._load_open_source_embedding_model()
+    
+    def _load_azure_embedding_model(self) -> None:
+        """Load Azure OpenAI embedding model."""
+        try:
+            logger.info("🔵 Loading Azure OpenAI embedding model")
+            
+            # Import Azure OpenAI
+            from openai import AzureOpenAI
+            
+            # Get configuration
+            azure_client = AzureOpenAI(
+                api_key=self.config.get_api_key("azure_openai"),
+                azure_endpoint=self.embedding_config.azure_endpoint or self.config.azure_openai_endpoint,
+                api_version=self.embedding_config.azure_api_version
+            )
+            
+            # Create wrapper class for Azure embeddings to match LangChain interface
+            class AzureEmbeddingWrapper:
+                def __init__(self, client, model_name, deployment_name):
+                    self.client = client
+                    self.model_name = model_name
+                    self.deployment_name = deployment_name
+                
+                def embed_query(self, text: str) -> List[float]:
+                    """Embed a single query text."""
+                    response = self.client.embeddings.create(
+                        input=[text],
+                        model=self.deployment_name
+                    )
+                    return response.data[0].embedding
+                
+                def embed_documents(self, texts: List[str]) -> List[List[float]]:
+                    """Embed multiple documents."""
+                    # Process in batches to avoid API limits
+                    batch_size = 16  # Azure OpenAI batch limit
+                    all_embeddings = []
+                    
+                    for i in range(0, len(texts), batch_size):
+                        batch = texts[i:i + batch_size]
+                        response = self.client.embeddings.create(
+                            input=batch,
+                            model=self.deployment_name
+                        )
+                        batch_embeddings = [data.embedding for data in response.data]
+                        all_embeddings.extend(batch_embeddings)
+                    
+                    return all_embeddings
+            
+            # Initialize Azure embedding wrapper
+            self.embedding_model = AzureEmbeddingWrapper(
+                client=azure_client,
+                model_name=self.embedding_config.azure_model,
+                deployment_name=self.embedding_config.azure_deployment_name
+            )
+            
+            # Test the model with a sample text
+            test_embedding = self.embedding_model.embed_query("oncology biomarker test")
+            self._stats["vector_size"] = len(test_embedding)
+            
+            logger.info(f"✅ Azure embedding model loaded successfully - Vector dimension: {len(test_embedding)}")
+            logger.info(f"   Model: {self.embedding_config.azure_model}")
+            logger.info(f"   Deployment: {self.embedding_config.azure_deployment_name}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to load Azure embedding model: {e}")
+            logger.info("🔄 Falling back to open source embedding model")
+            self._load_open_source_embedding_model()
+    
+    def _load_open_source_embedding_model(self) -> None:
+        """Load open source embedding model as fallback or primary choice."""
+        model_name = self.embedding_config.get_fallback_model()
         device = self.embedding_config.device
         
-        logger.info(f"Loading embedding model: {model_name} on {device}")
+        logger.info(f"🟢 Loading open source embedding model: {model_name} on {device}")
         
         # Map model names to HuggingFace model paths as required
         model_mapping = {
@@ -447,6 +580,8 @@ class CorpusEmbeddingModule:
         model_path = model_mapping.get(model_name, model_name)
         
         try:
+            from langchain_huggingface import HuggingFaceEmbeddings
+            
             self.embedding_model = HuggingFaceEmbeddings(
                 model_name=model_path,
                 model_kwargs={'device': device},
@@ -457,10 +592,11 @@ class CorpusEmbeddingModule:
             test_embedding = self.embedding_model.embed_query("oncology biomarker test")
             self._stats["vector_size"] = len(test_embedding)
             
-            logger.info(f"Embedding model loaded successfully - Vector dimension: {len(test_embedding)}")
+            logger.info(f"✅ Open source embedding model loaded successfully - Vector dimension: {len(test_embedding)}")
+            logger.info(f"   Model path: {model_path}")
             
         except Exception as e:
-            logger.error(f"Failed to load embedding model {model_name}: {e}")
+            logger.error(f"❌ Failed to load open source embedding model {model_name}: {e}")
             raise IngestionError(f"Embedding model loading failed: {e}")
     
     def _setup_vector_store(self) -> None:
@@ -613,5 +749,136 @@ class CorpusEmbeddingModule:
             "data_source_type": self.data_source_config.type,
             "data_source_path": self.data_source_config.path,
             "chunking_strategy": self.chunking_config.strategy,
-            "embedding_model_name": self.embedding_config.name
+            "embedding_model_name": self.embedding_config.name,
+            "enabled_sources": len(self.data_source_config.get_enabled_sources())
         }
+    
+    # Enhanced multi-source ingestion methods
+    
+    def _ingest_local_files_enhanced(self, source_config: Dict[str, Any]) -> List[Document]:
+        """Enhanced local file ingestion with source-specific configuration.
+        
+        Educational note: This method shows how to handle source-specific
+        configuration while maintaining the same interface.
+        """
+        path = Path(source_config.get('path', './data/'))
+        file_types = source_config.get('file_types', ['.txt', '.md', '.pdf', '.docx', '.html'])
+        documents = []
+        
+        if not path.exists():
+            logger.warning(f"📁 Local path does not exist: {path}")
+            return documents
+        
+        logger.info(f"📂 Scanning local directory: {path}")
+        
+        for file_path in path.rglob("*"):
+            if file_path.is_file() and file_path.suffix.lower() in file_types:
+                try:
+                    content = self._extract_file_content(file_path)
+                    if content.strip():
+                        # Extract ontology codes for medical domain
+                        ontology_codes = self._extract_ontology_codes(content)
+                        
+                        doc = Document(
+                            page_content=content,
+                            metadata={
+                                "source": str(file_path),
+                                "source_type": "local_file",
+                                "filename": file_path.name,
+                                "file_type": file_path.suffix,
+                                "date": file_path.stat().st_mtime,
+                                "ontology_codes": ontology_codes,
+                                "domain": "oncology",
+                                "description": source_config.get('description', 'Local file')
+                            }
+                        )
+                        documents.append(doc)
+                        logger.debug(f"✅ Processed: {file_path.name}")
+                        
+                except Exception as e:
+                    logger.warning(f"⚠️ Failed to process {file_path}: {e}")
+        
+        logger.info(f"📚 Local files: {len(documents)} documents processed")
+        return documents
+    
+    def _ingest_confluence_enhanced(self, source_config: Dict[str, Any]) -> List[Document]:
+        """Enhanced Confluence ingestion with multiple space support.
+        
+        Educational note: This method demonstrates how to handle external API
+        integration with proper error handling and configuration management.
+        """
+        confluence_config = source_config.get('confluence', {})
+        
+        # Check if Confluence is properly configured
+        required_fields = ['base_url', 'username', 'auth_token']
+        missing_fields = [field for field in required_fields if not confluence_config.get(field)]
+        
+        if missing_fields:
+            logger.warning(f"🔑 Confluence config missing fields: {missing_fields}")
+            return []
+        
+        try:
+            # Initialize Confluence connector
+            connector = ConfluenceConnector(confluence_config)
+            
+            # Process multiple spaces if configured
+            space_keys = confluence_config.get('space_keys', [confluence_config.get('space_key', 'DOCS')])
+            max_pages = confluence_config.get('max_pages', 100)
+            page_filter = confluence_config.get('page_filter', [])
+            
+            all_docs = []
+            for space_key in space_keys:
+                logger.info(f"🌐 Processing Confluence space: {space_key}")
+                docs = connector.fetch_pages(space_key, max_pages, page_filter)
+                
+                # Add source metadata
+                for doc in docs:
+                    doc.metadata.update({
+                        "source_type": "confluence",
+                        "space_key": space_key,
+                        "description": source_config.get('description', f'Confluence {space_key}')
+                    })
+                
+                all_docs.extend(docs)
+                logger.info(f"✅ Space {space_key}: {len(docs)} pages processed")
+            
+            logger.info(f"🌐 Confluence total: {len(all_docs)} documents processed")
+            return all_docs
+            
+        except Exception as e:
+            logger.error(f"❌ Confluence ingestion failed: {e}")
+            return []
+    
+    def _ingest_jira_enhanced(self, source_config: Dict[str, Any]) -> List[Document]:
+        """Enhanced JIRA ingestion for tickets and requirements.
+        
+        Educational note: This method shows how to add new data source types
+        while following the same patterns as existing sources.
+        """
+        jira_config = source_config.get('jira', {})
+        
+        # Check JIRA configuration
+        required_fields = ['server_url', 'username', 'auth_token']
+        missing_fields = [field for field in required_fields if not jira_config.get(field)]
+        
+        if missing_fields:
+            logger.warning(f"🔑 JIRA config missing fields: {missing_fields}")
+            return []
+        
+        try:
+            # This is a placeholder for JIRA connector implementation
+            # Educational note: In a real implementation, you would:
+            # 1. Create a JiraConnector class similar to ConfluenceConnector
+            # 2. Use the JIRA API to fetch tickets based on JQL queries
+            # 3. Extract content from ticket descriptions, comments, etc.
+            
+            logger.info("🎫 JIRA ingestion - Implementation pending")
+            logger.info("💡 To implement: Create JiraConnector class with API integration")
+            
+            # For now, return empty list
+            # TODO: Implement JiraConnector when needed
+            return []
+            
+        except Exception as e:
+            logger.error(f"❌ JIRA ingestion failed: {e}")
+            return []

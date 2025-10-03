@@ -26,11 +26,18 @@ class LLMOrchestrationModule:
             "total_requests": 0,
             "avg_response_time": 0,
             "total_tokens_used": 0,
-            "successful_requests": 0
+            "successful_requests": 0,
+            "reasoning_tokens_used": 0,  # GPT-4o nano specific
+            "smart_truncation_applied": 0,
+            "context_optimization_applied": 0,
+            "medical_disclaimers_added": 0
         }
         
         # Initialize the LLM client
         logger.info(f"Initializing LLM orchestration with provider: {self.llm_config.provider}")
+        logger.info(f"Model: {self.llm_config.model} | Max tokens: {self.llm_config.max_tokens}")
+        logger.info(f"Smart truncation: {self.llm_config.use_smart_truncation} | Context optimization: {self.llm_config.context_optimization}")
+        
         if not self.initialize_model():
             logger.warning("LLM client initialization failed, will attempt lazy initialization")
     
@@ -132,7 +139,11 @@ class LLMOrchestrationModule:
         """Initialize Anthropic client."""
         try:
             # Import and initialize Anthropic client
-            import anthropic
+            try:
+                import anthropic
+            except ImportError:
+                logger.error("Anthropic package not installed. Install with: pip install anthropic")
+                return False
             
             api_key = self.config.get_api_key("anthropic")
             if not api_key:
@@ -222,7 +233,7 @@ Response:'''
             raise LLMError(f"Failed to generate response: {e}")
     
     def _construct_prompt(self, query: str, context: str, audience: str) -> str:
-        """Construct prompt using template and context."""
+        """Construct prompt using template and context with smart truncation for GPT-4o nano."""
         if not self.prompt_template:
             self.load_prompt_template()
         
@@ -236,6 +247,10 @@ Response:'''
         else:
             system_instruction = self.llm_config.system_instruction
         
+        # Apply smart context truncation for GPT-4o nano's 12K token limit
+        if self.llm_config.use_smart_truncation and self.llm_config.max_tokens >= 10000:
+            context = self._apply_smart_context_truncation(context, query, audience)
+        
         # Format the prompt template
         prompt = self.prompt_template.format(
             system_instruction=system_instruction,
@@ -243,6 +258,172 @@ Response:'''
             query=query
         )
         
+        # Final token management check
+        if self.llm_config.context_optimization:
+            prompt = self._optimize_context_for_model(prompt, query, audience)
+        
+        return prompt
+    
+    def _apply_smart_context_truncation(self, context: str, query: str, audience: str) -> str:
+        """Apply smart context truncation optimized for GPT-4o nano's 12K context window."""
+        logger.debug("Applying smart context truncation for GPT-4o nano")
+        
+        # Estimate tokens (rough approximation: 1 token ≈ 4 characters)
+        max_context_tokens = self.llm_config.max_tokens - self.llm_config.token_buffer
+        max_context_chars = max_context_tokens * 4
+        
+        if len(context) <= max_context_chars:
+            logger.debug(f"Context fits within limits: {len(context)} chars")
+            return context
+        
+        logger.info(f"Context too long ({len(context)} chars), applying smart truncation")
+        
+        # Split context into documents/chunks
+        documents = self._extract_documents_from_context(context)
+        
+        # Apply relevance scoring for truncation
+        scored_docs = self._score_documents_for_relevance(documents, query, audience)
+        
+        # Build truncated context prioritizing most relevant content
+        truncated_context = self._build_truncated_context(scored_docs, max_context_chars)
+        
+        logger.info(f"Context truncated: {len(context)} -> {len(truncated_context)} chars")
+        return truncated_context
+    
+    def _extract_documents_from_context(self, context: str) -> list:
+        """Extract individual documents from context string."""
+        # Simple approach: split by common document separators
+        separators = ["---", "Document:", "Source:", "===", "###"]
+        
+        # Try to split by separators
+        documents = []
+        current_doc = context
+        
+        for separator in separators:
+            if separator in current_doc:
+                docs = current_doc.split(separator)
+                documents = [doc.strip() for doc in docs if doc.strip()]
+                break
+        
+        # If no separators found, treat as single document
+        if not documents:
+            documents = [context]
+        
+        return documents
+    
+    def _score_documents_for_relevance(self, documents: list, query: str, audience: str) -> list:
+        """Score documents by relevance for smart truncation."""
+        query_terms = set(query.lower().split())
+        
+        # Medical terms get higher weight for clinical audience
+        medical_terms = {
+            'cancer', 'oncology', 'tumor', 'chemotherapy', 'radiation', 'immunotherapy',
+            'metastasis', 'carcinoma', 'lymphoma', 'leukemia', 'biopsy', 'malignant',
+            'benign', 'staging', 'prognosis', 'diagnosis', 'treatment', 'therapy',
+            'clinical', 'patient', 'medical', 'healthcare', 'disease', 'symptom'
+        }
+        
+        # Technical terms get higher weight for technical audience
+        technical_terms = {
+            'configuration', 'setup', 'database', 'server', 'deployment', 'api',
+            'integration', 'system', 'architecture', 'implementation', 'framework',
+            'protocol', 'authentication', 'endpoint', 'middleware', 'repository'
+        }
+        
+        scored_docs = []
+        for doc in documents:
+            doc_lower = doc.lower()
+            score = 0.0
+            
+            # Query term matching
+            for term in query_terms:
+                score += doc_lower.count(term) * 2.0
+            
+            # Audience-specific term boosting
+            if audience == "clinical":
+                for term in medical_terms:
+                    score += doc_lower.count(term) * 1.5
+            elif audience == "technical":
+                for term in technical_terms:
+                    score += doc_lower.count(term) * 1.5
+            
+            # Document length penalty (prefer concise, relevant docs)
+            length_penalty = len(doc) / 10000  # Penalty for very long docs
+            score = max(0, score - length_penalty)
+            
+            scored_docs.append((doc, score))
+        
+        # Sort by relevance score
+        scored_docs.sort(key=lambda x: x[1], reverse=True)
+        logger.debug(f"Scored {len(scored_docs)} documents for relevance")
+        
+        return scored_docs
+    
+    def _build_truncated_context(self, scored_docs: list, max_chars: int) -> str:
+        """Build truncated context from highest-scoring documents."""
+        truncated_context = ""
+        remaining_chars = max_chars
+        
+        for doc, score in scored_docs:
+            # Reserve space for document separator
+            separator = "\n\n--- Document ---\n"
+            needed_chars = len(doc) + len(separator)
+            
+            if needed_chars <= remaining_chars:
+                # Include full document
+                truncated_context += separator + doc
+                remaining_chars -= needed_chars
+            else:
+                # Include partial document if there's significant space left
+                if remaining_chars > 500:  # Only if we have substantial space
+                    partial_doc = doc[:remaining_chars - len(separator) - 20] + "...[truncated]"
+                    truncated_context += separator + partial_doc
+                break
+        
+        return truncated_context.strip()
+    
+    def _optimize_context_for_model(self, prompt: str, query: str, audience: str) -> str:
+        """Apply final context optimization for the specific model."""
+        logger.debug("Applying model-specific context optimization")
+        
+        # For GPT-4o nano, optimize for medical reasoning if applicable
+        if "nano" in self.llm_config.model.lower():
+            # Add reasoning prompt hints for medical queries
+            if audience == "clinical" or any(term in query.lower() for term in 
+                                           ['cancer', 'treatment', 'therapy', 'medical', 'clinical']):
+                optimization_prefix = """[Medical Context Analysis Required]
+The following information requires careful medical reasoning. Consider:
+- Clinical evidence and safety implications
+- Biomedical mechanisms and pathways  
+- Patient safety and contraindications
+- Evidence quality and limitations
+
+"""
+                prompt = optimization_prefix + prompt
+        
+        # Final token count check
+        estimated_tokens = len(prompt) // 4
+        max_allowed = self.llm_config.max_tokens - self.llm_config.token_buffer
+        
+        if estimated_tokens > max_allowed:
+            logger.warning(f"Prompt still too long ({estimated_tokens} tokens), applying final truncation")
+            # Emergency truncation - keep query and essential context
+            lines = prompt.split('\n')
+            truncated_lines = []
+            current_tokens = 0
+            
+            # Always keep the first few lines (system instruction)
+            for i, line in enumerate(lines[:10]):
+                truncated_lines.append(line)
+                current_tokens += len(line) // 4
+            
+            # Add query at the end
+            query_section = f"\n\nQuery: {query}\n\nResponse:"
+            truncated_lines.append(query_section)
+            
+            prompt = '\n'.join(truncated_lines)
+        
+        logger.debug(f"Final prompt length: {len(prompt)} chars (~{len(prompt)//4} tokens)")
         return prompt
     
     def _invoke_model(self, prompt: str) -> str:
@@ -324,64 +505,101 @@ Response:'''
             raise
     
     def _invoke_azure_openai(self, prompt: str) -> str:
-        """Invoke Azure OpenAI API."""
+        """Invoke Azure OpenAI API with standard optimization."""
         try:
-            # Use max_completion_tokens for newer Azure OpenAI models
-            # Some models like gpt-5-nano don't support custom temperature
+            logger.info(f"Invoking Azure OpenAI model: {self.llm_config.model}")
+            
+            # Standard parameters
             params = {
                 "model": self.llm_config.model,
                 "messages": [{"role": "user", "content": prompt}],
-                "max_completion_tokens": self.llm_config.max_tokens
             }
             
-            # Only add temperature if it's not the default (1.0) for gpt-5-nano compatibility
-            if self.llm_config.temperature != 1.0 and "nano" not in self.llm_config.model.lower():
-                params["temperature"] = self.llm_config.temperature
+            # Handle different token parameter names for different models
+            if "nano" in self.llm_config.model.lower():
+                params["max_completion_tokens"] = self.llm_config.max_tokens
+                # gpt-5-nano only supports temperature = 1.0 (default)
+                # Don't add temperature parameter for nano model
+            else:
+                params["max_tokens"] = self.llm_config.max_tokens
+                # Add temperature parameter for standard models
+                if self.llm_config.temperature != 1.0:
+                    params["temperature"] = self.llm_config.temperature
+            
+            logger.debug(f"Azure OpenAI request parameters: {params}")
             
             response = self.client.chat.completions.create(**params)
             
-            # Debug log the response structure
-            logger.info(f"Azure OpenAI response: {response}")
-            logger.info(f"Response choices: {response.choices}")
-            logger.info(f"Message content: {response.choices[0].message.content}")
-            logger.info(f"Finish reason: {response.choices[0].finish_reason}")
-            logger.info(f"Usage: {response.usage}")
+            # Standard logging
+            logger.info(f"Azure OpenAI response received")
+            logger.debug(f"Response structure: {response}")
+            
+            if response.choices and len(response.choices) > 0:
+                logger.debug(f"Response choices: {len(response.choices)}")
+                logger.debug(f"First choice message: {response.choices[0].message}")
+                logger.debug(f"Finish reason: {response.choices[0].finish_reason}")
+            
+            if hasattr(response, 'usage') and response.usage:
+                logger.info(f"Token usage: {response.usage}")
             
             generated_text = response.choices[0].message.content
             
-            # Handle gpt-5-nano specific behavior - check for reasoning tokens
+            # Handle empty responses
             if generated_text is None or generated_text == "":
                 logger.warning("Received empty response from Azure OpenAI")
-                # For gpt-5-nano, if reasoning tokens were used but no content, provide a comprehensive fallback
-                if hasattr(response, 'usage') and hasattr(response.usage, 'completion_tokens_details'):
-                    reasoning_tokens = getattr(response.usage.completion_tokens_details, 'reasoning_tokens', 0)
-                    if reasoning_tokens > 0:
-                        logger.info(f"Model used {reasoning_tokens} reasoning tokens but produced no output content")
-                        # Generate a context-aware response based on the query
-                        generated_text = f"""Based on the retrieved documents, I can provide information about your query. The system successfully:
-
-🔍 Retrieved relevant documents from the knowledge base
-🧠 Processed the information using {reasoning_tokens} reasoning tokens  
-⚕️ Applied medical knowledge for clinical context
-✅ Completed safety evaluation and logging
-
-The gpt-5-nano model performed internal reasoning but didn't generate visible output. This is a known characteristic of this model version. The RAG system is functioning correctly - retrieval, embedding, and safety evaluation all completed successfully.
-
-For detailed medical information, please consult with healthcare professionals. This system demonstrates successful document retrieval and processing capabilities."""
-                    else:
-                        generated_text = "I apologize, but I wasn't able to generate a response. Please try again."
-                else:
-                    generated_text = "I apologize, but I wasn't able to generate a response. Please try again."
+                generated_text = "I apologize, but I wasn't able to generate a response. Please try rephrasing your question."
+            
+            # Post-process the response for medical context
+            generated_text = self._post_process_response(generated_text)
             
             # Track token usage
             if hasattr(response, 'usage'):
-                self._stats["total_tokens_used"] += response.usage.total_tokens
+                total_tokens = response.usage.total_tokens
+                self._stats["total_tokens_used"] += total_tokens
             
             return generated_text.strip() if generated_text else "No response generated."
             
         except Exception as e:
             logger.error(f"Azure OpenAI invocation failed: {e}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             raise
+    
+    def _post_process_response(self, response: str) -> str:
+        """Post-process responses for consistency and quality."""
+        if not response or response == "No response generated.":
+            return response
+        
+        # Add medical disclaimer for clinical responses
+        if any(term in response.lower() for term in ['treatment', 'therapy', 'diagnosis', 'medication', 'clinical']):
+            disclaimer = "\n\n⚠️ **Medical Disclaimer**: This information is for educational purposes only and should not replace professional medical advice. Always consult with qualified healthcare professionals for medical decisions."
+            
+            # Only add if not already present
+            if "medical disclaimer" not in response.lower() and "consult" not in response.lower():
+                response += disclaimer
+        
+        # Enhance response structure for better readability
+        if len(response) > 500 and response.count('\n') < 3:
+            # Add paragraph breaks for long responses without structure
+            sentences = response.split('. ')
+            structured_response = ""
+            sentence_count = 0
+            
+            for sentence in sentences:
+                structured_response += sentence
+                if not sentence.endswith('.'):
+                    structured_response += '.'
+                sentence_count += 1
+                
+                # Add paragraph break every 3-4 sentences
+                if sentence_count % 3 == 0 and sentence != sentences[-1]:
+                    structured_response += '\n\n'
+                else:
+                    structured_response += ' '
+            
+            response = structured_response.strip()
+        
+        return response
     def _invoke_anthropic(self, prompt: str) -> str:
         """Invoke Anthropic API."""
         try:
@@ -426,7 +644,7 @@ For detailed medical information, please consult with healthcare professionals. 
         return cleaned_response
     
     def _update_stats(self, response_time: float, response_length: int) -> None:
-        """Update generation statistics."""
+        """Update generation statistics with enhanced metrics."""
         self._stats["total_requests"] += 1
         self._stats["successful_requests"] += 1
         
@@ -434,6 +652,13 @@ For detailed medical information, please consult with healthcare professionals. 
         total_requests = self._stats["total_requests"]
         prev_avg = self._stats["avg_response_time"]
         self._stats["avg_response_time"] = ((prev_avg * (total_requests - 1)) + response_time) / total_requests
+        
+        # Track GPT-4o nano specific features
+        if self.llm_config.use_smart_truncation:
+            self._stats["smart_truncation_applied"] += 1
+        
+        if self.llm_config.context_optimization:
+            self._stats["context_optimization_applied"] += 1
     
     def test_connection(self) -> bool:
         """Test connection to the configured LLM provider."""
