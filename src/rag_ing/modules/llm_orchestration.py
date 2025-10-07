@@ -174,24 +174,12 @@ class LLMOrchestrationModule:
     
     def _get_default_oncology_template(self) -> str:
         """Get default oncology-focused prompt template."""
-        return '''You are a specialized biomedical assistant with expertise in oncology. Your role is to provide accurate, evidence-based information about cancer diagnosis, treatment, biomarkers, and related medical topics.
-
-Guidelines:
-- Always ground your responses in the provided context
-- Cite specific sources when making claims
-- Use appropriate medical terminology while remaining accessible
-- Highlight any limitations or uncertainties in the information
-- For clinical questions, emphasize the importance of consulting healthcare professionals
-- Include relevant ontology codes (ICD-O, SNOMED-CT) when available
-
-System Instruction: {system_instruction}
-
-Context Information:
+        return '''Context Information:
 {context}
 
 Query: {query}
 
-Response:'''
+Please provide a clear, direct answer based on the context above.'''
     
     def generate_response(self, query: str, context: str, 
                          audience: str = "clinical") -> Dict[str, Any]:
@@ -199,6 +187,9 @@ Response:'''
         start_time = time.time()
         
         try:
+            # Store audience for use in invocation
+            self._current_audience = audience
+            
             # Step 1: Construct prompt
             prompt = self._construct_prompt(query, context, audience)
             
@@ -237,23 +228,12 @@ Response:'''
         if not self.prompt_template:
             self.load_prompt_template()
         
-        # Customize system instruction based on audience
-        if audience == "clinical":
-            system_instruction = ("Focus on clinical relevance, patient safety, and practical "
-                                "applications. Use medical terminology appropriate for healthcare professionals.")
-        elif audience == "technical":
-            system_instruction = ("Focus on technical implementation, system configuration, and "
-                                "detailed methodological information.")
-        else:
-            system_instruction = self.llm_config.system_instruction
-        
         # Apply smart context truncation for GPT-4o nano's 12K token limit
         if self.llm_config.use_smart_truncation and self.llm_config.max_tokens >= 10000:
             context = self._apply_smart_context_truncation(context, query, audience)
         
-        # Format the prompt template
+        # Format the prompt template (only context and query now)
         prompt = self.prompt_template.format(
-            system_instruction=system_instruction,
             context=context,
             query=query
         )
@@ -509,10 +489,32 @@ The following information requires careful medical reasoning. Consider:
         try:
             logger.info(f"Invoking Azure OpenAI model: {self.llm_config.model}")
             
+            # Customize system instruction based on audience
+            audience = getattr(self, '_current_audience', 'clinical')
+            if audience == "clinical":
+                system_instruction = ("You are an AI assistant that provides well-formatted answers using Markdown. "
+                                    "Use **bold** for key terms, *italics* for emphasis, tables for data, and bullet points for lists. "
+                                    "Focus on clinical relevance and practical applications. "
+                                    "Start with a direct answer, then provide supporting details in a structured format.")
+            elif audience == "technical":
+                system_instruction = ("You are an AI assistant that provides well-formatted answers using Markdown. "
+                                    "Use **bold** for key terms, *italics* for emphasis, `code blocks` for technical terms, "
+                                    "tables for comparisons, numbered lists for procedures, and Mermaid diagrams for workflows. "
+                                    "Focus on technical implementation and system configuration. "
+                                    "Start with a direct answer, then provide detailed structured information.")
+            else:
+                system_instruction = self.llm_config.system_instruction
+            
+            # Build proper message structure
+            messages = [
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": prompt}
+            ]
+            
             # Standard parameters
             params = {
                 "model": self.llm_config.model,
-                "messages": [{"role": "user", "content": prompt}],
+                "messages": messages,
             }
             
             # Handle different token parameter names for different models

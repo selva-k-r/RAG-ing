@@ -185,6 +185,108 @@
             color: #444;
         }
         
+        /* Markdown Styling */
+        .response-content h1, .response-content h2, .response-content h3 {
+            color: #1e88e5;
+            margin-top: 20px;
+            margin-bottom: 12px;
+            font-weight: 600;
+        }
+        
+        .response-content h1 { font-size: 24px; border-bottom: 2px solid #1e88e5; padding-bottom: 8px; }
+        .response-content h2 { font-size: 20px; }
+        .response-content h3 { font-size: 18px; }
+        
+        .response-content strong { color: #1565c0; font-weight: 600; }
+        .response-content em { font-style: italic; color: #666; }
+        
+        .response-content code {
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #e91e63;
+        }
+        
+        .response-content pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 15px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        
+        .response-content pre code {
+            background: none;
+            border: none;
+            color: #f8f8f2;
+            padding: 0;
+        }
+        
+        .response-content ul, .response-content ol {
+            margin: 12px 0;
+            padding-left: 25px;
+        }
+        
+        .response-content li {
+            margin: 6px 0;
+        }
+        
+        .response-content blockquote {
+            border-left: 4px solid #26a69a;
+            background: #f0f8f8;
+            padding: 12px 16px;
+            margin: 15px 0;
+            font-style: italic;
+            color: #2d5a5a;
+        }
+        
+        .response-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .response-content th {
+            background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%);
+            color: white;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .response-content td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 14px;
+        }
+        
+        .response-content tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .response-content tr:last-child td {
+            border-bottom: none;
+        }
+        
+        /* Mermaid Diagram Styling */
+        .response-content .mermaid {
+            background: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #e0e0e0;
+            margin: 20px 0;
+            text-align: center;
+        }
+        
         .sources-section {
             margin-bottom: 30px;
         }
@@ -452,7 +554,23 @@
         </a>
     </div>
 
+    <!-- Markdown and Mermaid Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@11.0.0/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10.6.1/dist/mermaid.min.js"></script>
+    
     <script>
+        // Initialize Mermaid
+        mermaid.initialize({ 
+            startOnLoad: false,
+            theme: 'default',
+            securityLevel: 'loose',
+            flowchart: {
+                useMaxWidth: true,
+                htmlLabels: true,
+                curve: 'basis'
+            }
+        });
+        
         function goHome() {
             window.location.href = '/';
         }
@@ -472,8 +590,45 @@
             }
         });
         
-        // Focus mini search input if needed
-        document.addEventListener('DOMContentLoaded', function() {
+        // Render markdown content with mermaid diagrams
+        document.addEventListener('DOMContentLoaded', async function() {
+            const responseContent = document.getElementById('responseContent');
+            if (responseContent) {
+                const rawMarkdown = responseContent.textContent || responseContent.innerText;
+                
+                // Configure marked with options
+                marked.setOptions({
+                    breaks: true,
+                    gfm: true, // GitHub Flavored Markdown
+                    headerIds: true,
+                    mangle: false,
+                    sanitize: false
+                });
+                
+                // Parse markdown to HTML
+                let htmlContent = marked.parse(rawMarkdown);
+                
+                // Replace response content with parsed HTML
+                responseContent.innerHTML = htmlContent;
+                
+                // Find and render mermaid diagrams
+                const mermaidDivs = responseContent.querySelectorAll('pre code.language-mermaid, pre code.mermaid');
+                if (mermaidDivs.length > 0) {
+                    for (let i = 0; i < mermaidDivs.length; i++) {
+                        const mermaidCode = mermaidDivs[i].textContent;
+                        const mermaidDiv = document.createElement('div');
+                        mermaidDiv.className = 'mermaid';
+                        mermaidDiv.textContent = mermaidCode;
+                        
+                        // Replace the code block with mermaid div
+                        mermaidDivs[i].parentElement.replaceWith(mermaidDiv);
+                    }
+                    
+                    // Render all mermaid diagrams
+                    await mermaid.run();
+                }
+            }
+            
             // Check if we should focus the mini search (e.g., if user pressed a shortcut)
             if (window.location.hash === '#search') {
                 document.getElementById('miniSearchInput').focus();

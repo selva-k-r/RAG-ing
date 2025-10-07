@@ -125,11 +125,26 @@ class QueryRetrievalModule:
         
         embedding_config = self.config.embedding_model
         
-        # Create Azure client
+        # Create Azure client - prioritize embedding-specific credentials from env vars
+        api_key = (
+            self.config.azure_openai_embedding_api_key or  # From .env AZURE_OPENAI_EMBEDDING_API_KEY
+            embedding_config.azure_api_key or              # From config.yaml
+            self.config.azure_openai_api_key              # Fallback to main Azure key
+        )
+        endpoint = (
+            self.config.azure_openai_embedding_endpoint or  # From .env AZURE_OPENAI_EMBEDDING_ENDPOINT
+            embedding_config.azure_endpoint or             # From config.yaml
+            self.config.azure_openai_endpoint             # Fallback to main Azure endpoint
+        )
+        api_version = (
+            self.config.azure_openai_embedding_api_version or  # From .env
+            embedding_config.azure_api_version                 # From config.yaml
+        )
+        
         azure_client = AzureOpenAI(
-            api_key=self.config.get_api_key("azure_openai"),
-            azure_endpoint=embedding_config.azure_endpoint or self.config.azure_openai_endpoint,
-            api_version=embedding_config.azure_api_version
+            api_key=api_key,
+            azure_endpoint=endpoint,
+            api_version=api_version
         )
         
         # Use the same wrapper class as in corpus embedding
@@ -635,7 +650,7 @@ class QueryRetrievalModule:
         # Sort by boost score
         scored_docs.sort(key=lambda x: x[1], reverse=True)
         
-        logger.debug(f"Applied enhanced boosting to {len(docs)} documents (Q&A boost: {qa_boost:.2f})")
+        logger.debug(f"Applied enhanced boosting to {len(docs)} documents with scores")
         return [doc for doc, score in scored_docs]
     
     def _rerank_documents(self, docs: List[Document]) -> List[Document]:

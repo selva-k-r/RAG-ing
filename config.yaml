@@ -40,22 +40,21 @@ chunking:
   overlap: 64
 
 embedding_model:
-  # PRIMARY: Azure OpenAI embedding model (higher quality)
+  # PRIMARY: Azure OpenAI embedding model (higher quality, no SSL issues)
   provider: "azure_openai"  # azure_openai | huggingface
   
   # Azure OpenAI embedding configuration  
-  azure_model: "text-embedding-ada-002"
-  azure_endpoint: "https://saran-mg4yt9h8-eastus2.cognitiveservices.azure.com/"
-  azure_api_key: "${AZURE_OPENAI_API_KEY}"
-  azure_api_version: "2023-05-15"
-  azure_deployment_name: "text-embedding-ada-002"
-  
+  azure_model: "text-embedding-ada-002"  # or text-embedding-3-large, text-embedding-3-small
+  azure_endpoint: "${AZURE_OPENAI_EMBEDDING_ENDPOINT}"
+  azure_api_key: "${AZURE_OPENAI_EMBEDDING_API_KEY}"
+  azure_deployment_name: "text-embedding-ada-002"  # Your actual deployment name
+  azure_api_version: "${AZURE_OPENAI_EMBEDDING_API_VERSION}"
   # FALLBACK: Open source model (for development/offline use)
   fallback_model: "all-MiniLM-L6-v2"  # Standard sentence transformer model
   device: "cpu"
   
   # Model selection strategy
-  use_azure_primary: false  # Set to true when Azure deployment is ready
+  use_azure_primary: true  # ✅ ENABLED - Using Azure embeddings now!
 
 # Module 2: Enhanced Query Processing & Retrieval Configuration  
 retrieval:
@@ -101,8 +100,8 @@ llm:
   # Azure OpenAI configuration
   azure_endpoint: "${AZURE_OPENAI_ENDPOINT}"
   azure_api_key: "${AZURE_OPENAI_API_KEY}"
-  azure_api_version: "2024-02-15-preview"  # Standard API version
-  azure_deployment_name: "gpt-5-nano"  # Your actual deployment
+  azure_api_version: "${AZURE_OPENAI_API_VERSION}"  # Standard API version
+  azure_deployment_name: "${AZURE_DEPLOYMENT_NAME}"  # Your actual deployment
   
   # Fallback configuration
   api_url: "http://localhost:5000/v1"  # For local models

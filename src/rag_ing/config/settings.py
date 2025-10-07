@@ -241,9 +241,18 @@ class Settings(BaseSettings):
     # Environment variables
     confluence_token: Optional[str] = Field(default=None, alias="CONFLUENCE_TOKEN")
     openai_api_key: Optional[str] = Field(default=None, alias="OPENAI_API_KEY")
+    
+    # Azure OpenAI (LLM/GPT)
     azure_openai_api_key: Optional[str] = Field(default=None, alias="AZURE_OPENAI_API_KEY")
     azure_openai_endpoint: Optional[str] = Field(default=None, alias="AZURE_OPENAI_ENDPOINT")
     azure_openai_api_version: Optional[str] = Field(default="2024-12-01-preview", alias="AZURE_OPENAI_API_VERSION")
+    
+    # Azure OpenAI (Embeddings) - Separate deployment
+    azure_openai_embedding_api_key: Optional[str] = Field(default=None, alias="AZURE_OPENAI_EMBEDDING_API_KEY")
+    azure_openai_embedding_endpoint: Optional[str] = Field(default=None, alias="AZURE_OPENAI_EMBEDDING_ENDPOINT")
+    azure_openai_embedding_api_version: Optional[str] = Field(default="2023-05-15", alias="AZURE_OPENAI_EMBEDDING_API_VERSION")
+    
+    # Other providers
     anthropic_api_key: Optional[str] = Field(default=None, alias="ANTHROPIC_API_KEY")
     huggingface_api_key: Optional[str] = Field(default=None, alias="HUGGINGFACE_API_KEY")
     
@@ -291,6 +300,7 @@ class Settings(BaseSettings):
         key_mapping = {
             "openai": self.openai_api_key,
             "azure_openai": self.azure_openai_api_key,
+            "azure_openai_embedding": self.azure_openai_embedding_api_key,
             "anthropic": self.anthropic_api_key,
             "huggingface": self.huggingface_api_key,
         }

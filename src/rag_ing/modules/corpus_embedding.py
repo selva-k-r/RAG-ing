@@ -501,11 +501,26 @@ class CorpusEmbeddingModule:
             # Import Azure OpenAI
             from openai import AzureOpenAI
             
-            # Get configuration
+            # Get configuration - prioritize embedding-specific credentials from env vars
+            api_key = (
+                self.config.azure_openai_embedding_api_key or  # From .env AZURE_OPENAI_EMBEDDING_API_KEY
+                self.embedding_config.azure_api_key or          # From config.yaml
+                self.config.azure_openai_api_key               # Fallback to main Azure key
+            )
+            endpoint = (
+                self.config.azure_openai_embedding_endpoint or  # From .env AZURE_OPENAI_EMBEDDING_ENDPOINT
+                self.embedding_config.azure_endpoint or         # From config.yaml
+                self.config.azure_openai_endpoint              # Fallback to main Azure endpoint
+            )
+            api_version = (
+                self.config.azure_openai_embedding_api_version or  # From .env
+                self.embedding_config.azure_api_version            # From config.yaml
+            )
+            
             azure_client = AzureOpenAI(
-                api_key=self.config.get_api_key("azure_openai"),
-                azure_endpoint=self.embedding_config.azure_endpoint or self.config.azure_openai_endpoint,
-                api_version=self.embedding_config.azure_api_version
+                api_key=api_key,
+                azure_endpoint=endpoint,
+                api_version=api_version
             )
             
             # Create wrapper class for Azure embeddings to match LangChain interface

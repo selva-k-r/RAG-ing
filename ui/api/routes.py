@@ -60,12 +60,21 @@ async def search(request: SearchRequest):
         # Extract documents from the result
         docs = query_result.get("documents", [])
         
-        # Generate enhanced response
-        enhanced_response = enhanced_generator.generate_response(
+        # Format document context for LLM
+        context_parts = []
+        for i, doc in enumerate(docs, 1):
+            source = doc.metadata.get('source', 'Unknown')
+            context_parts.append(f"--- Document {i} (Source: {source}) ---\n{doc.page_content}\n")
+        context = "\n".join(context_parts)
+        
+        # Generate LLM-powered response using the orchestrator
+        llm_result = rag_system.llm_orchestration.generate_response(
             query=request.query.strip(),
-            docs=docs,
+            context=context,
             audience=request.audience
         )
+        
+        enhanced_response = llm_result.get("response", "Unable to generate response.")
         
         # Format sources for frontend
         formatted_sources = []
