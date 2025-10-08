@@ -58,6 +58,10 @@ app.mount("/static", StaticFiles(directory="ui/static"), name="static")
 app.include_router(api_router, prefix="/api", tags=["API"])
 app.include_router(pages_router, tags=["Pages"])
 
+# Include progress routes
+from api.simple_progress import router as progress_router
+app.include_router(progress_router, prefix="/api", tags=["Progress"])
+
 # Global function to access RAG system
 def get_rag_system():
     return rag_system

@@ -32,7 +32,7 @@ async def home(request: Request):
 
 @router.get("/result/{result_id}", response_class=HTMLResponse)
 async def get_detailed_result(result_id: str, request: Request):
-    """Serve a detailed result page for a specific search result using Jinja2 template."""
+    """Serve a detailed chat interface for a specific search result using Jinja2 template."""
     # Import here to avoid circular imports
     from api.routes import search_results_cache
     
@@ -41,8 +41,8 @@ async def get_detailed_result(result_id: str, request: Request):
     
     result_data = search_results_cache[result_id]
     
-    # Use Jinja2 template to render the search result page
-    return templates.TemplateResponse("search_result.html", {
+    # Use Jinja2 template to render the chat interface
+    return templates.TemplateResponse("search_result_chat.html", {
         "request": request,
         "query": result_data.get("query", ""),
         "response": result_data.get("response", ""),
@@ -51,6 +51,7 @@ async def get_detailed_result(result_id: str, request: Request):
         "query_hash": result_id,
         "audience": result_data.get("audience", "technical"),
         "timestamp": result_data.get("timestamp", ""),
-        "selected_sources": result_data.get("selected_sources", [])
+        "selected_sources": result_data.get("selected_sources", []),
+        "conversation": result_data.get("conversation", [])
     })
 

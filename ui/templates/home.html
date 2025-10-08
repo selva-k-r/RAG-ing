@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>iConnect - AI-Powered Search</title>
+    <link rel="stylesheet" href="/static/css/progress.css">
+    <link rel="stylesheet" href="/static/css/transformer.css">
     <style>
         * {
             margin: 0;
@@ -195,9 +197,130 @@
             box-shadow: 0 3px 10px rgba(30,136,229,0.3);
         }
         
-        .search-btn:hover {
+        .search-btn:hover:not(.searching) {
             transform: translateY(-50%) scale(1.35);
             box-shadow: 0 5px 15px rgba(30,136,229,0.4);
+        }
+        
+        /* Search Animation States */
+        .search-btn.searching {
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: translateY(-50%) scale(1); }
+            50% { transform: translateY(-50%) scale(1.1); }
+        }
+        
+        /* Word Sucking Animation */
+        @keyframes suckIn {
+            0% {
+                opacity: 1;
+                transform: scale(1) translate(0, 0);
+            }
+            50% {
+                opacity: 0.7;
+                transform: scale(0.7) translateX(calc(var(--target-x) * 0.5)) translateY(calc(var(--target-y) * 0.5));
+            }
+            100% {
+                opacity: 0;
+                transform: scale(0) translateX(var(--target-x)) translateY(var(--target-y));
+            }
+        }
+        
+        .word-particle {
+            position: absolute;
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e88e5;
+            pointer-events: none;
+            animation: suckIn 1.5s ease-in-out forwards;
+            z-index: 1001;
+        }
+        
+        /* Skeleton Loading */
+        .skeleton-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: white;
+            z-index: 9999;
+            animation: fadeIn 0.3s;
+        }
+        
+        .skeleton-overlay.show {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        .skeleton-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        .skeleton-header {
+            background: linear-gradient(135deg, #1e88e5 0%, #1565c0 100%);
+            height: 70px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            animation: shimmer 1.5s infinite;
+        }
+        
+        .skeleton-query {
+            background: #f0f0f0;
+            height: 60px;
+            margin-bottom: 30px;
+            border-radius: 12px;
+            animation: shimmer 1.5s infinite;
+            animation-delay: 0.2s;
+        }
+        
+        .skeleton-response {
+            background: #f0f0f0;
+            height: 300px;
+            margin-bottom: 20px;
+            border-radius: 12px;
+            animation: shimmer 1.5s infinite;
+            animation-delay: 0.4s;
+        }
+        
+        .skeleton-sources {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+        }
+        
+        .skeleton-source {
+            background: #f0f0f0;
+            height: 120px;
+            border-radius: 8px;
+            animation: shimmer 1.5s infinite;
+        }
+        
+        .skeleton-source:nth-child(1) { animation-delay: 0.6s; }
+        .skeleton-source:nth-child(2) { animation-delay: 0.8s; }
+        .skeleton-source:nth-child(3) { animation-delay: 1s; }
+        
+        @keyframes shimmer {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .skeleton-status {
+            text-align: center;
+            margin-top: 30px;
+            color: #666;
+            font-size: 14px;
+            animation: fadeIn 1s;
         }
         
         @keyframes mainSearchGlow {
@@ -402,8 +525,8 @@
             transform: translateY(-50%) translateX(5px);
         }
         
-        /* User Avatar */
-        .user-avatar {
+        /* User Avatar - Hide in chat mode */
+        .original-user-avatar {
             position: fixed;
             top: 20px;
             right: 20px;
@@ -420,29 +543,48 @@
             cursor: pointer;
             z-index: 1002;
             box-shadow: 0 4px 15px rgba(30,136,229,0.3);
-            transition: all 0.3s ease;
+            transition: all 0.8s ease;
             border: 3px solid #ffffff;
         }
         
-        .user-avatar:hover {
+        .original-user-avatar:hover {
             transform: scale(1.1);
             box-shadow: 0 6px 20px rgba(30,136,229,0.4);
         }
         
-        .user-avatar::before {
+        .original-user-avatar::before {
             content: "👤";
             font-size: 24px;
         }
+        
+        /* Original user avatar transforms in chat mode - handled in transformer.css */
 
     </style>
 </head>
 <body>
         <!-- User Avatar -->
-    <div class="user-avatar" title="User Profile"></div>
+    <div class="original-user-avatar" title="User Profile"></div>
+    
+    <!-- Skeleton Loading Overlay -->
+    <div class="skeleton-overlay" id="skeletonOverlay">
+        <div class="skeleton-container">
+            <div class="skeleton-header"></div>
+            <div class="skeleton-query"></div>
+            <div class="skeleton-response"></div>
+            <div class="skeleton-sources">
+                <div class="skeleton-source"></div>
+                <div class="skeleton-source"></div>
+                <div class="skeleton-source"></div>
+            </div>
+            <div class="skeleton-status">
+                🔍 Searching documents... <span id="searchStatus">Analyzing your query</span>
+            </div>
+        </div>
+    </div>
 
     <div class="container" id="mainContainer">
         <!-- Fixed Header -->
-        <div class="fixed-header">
+        <div class="fixed-header header-container">
             <!-- Main Title -->
             <div class="header-section">
             <div class="title-container">
@@ -452,7 +594,7 @@
             </div>
             
             <!-- Search Section -->
-            <div class="search-section-wrapper">
+            <div class="search-section-wrapper search-section-container">
             <div class="search-section">
                 <div class="search-container">
                     <input type="text" class="search-input" id="searchInput" 
@@ -463,7 +605,7 @@
             </div>
             
             <!-- Source Selection Filters -->
-            <div class="datasource-section-wrapper">
+            <div class="datasource-section-wrapper source-filters-container">
             <div class="source-filters">
                 <div class="source-option active" data-source="confluence">
                     📄 Confluence
@@ -484,10 +626,15 @@
             </div>
         </div>
 
+        <!-- Chat Messages Container (hidden initially) -->
+        <div id="chatMessages" class="chat-messages-container" style="display: none;">
+            <!-- Chat messages will be added here dynamically -->
+        </div>
+
         <!-- Scrollable Content -->
         <div class="content-wrapper">
             <!-- FAQ Section -->
-            <div class="faq-section">
+            <div class="faq-section faq-section-container">
             <div class="faq-header">
                 Frequently Asked Questions
             </div>
@@ -550,6 +697,7 @@
         });
         
         // Handle search functionality - connects to RAG API
+        // Handle search functionality with real-time progress
         async function performSearch() {
             const query = document.getElementById('searchInput').value.trim();
             if (!query) {
@@ -569,11 +717,38 @@
                 return;
             }
             
+            // Use the new progress tracker
+            if (window.progressTracker) {
+                await window.progressTracker.startSearch(query, 'technical', selectedSources);
+            } else {
+                // Fallback to old method if progress tracker not loaded
+                console.warn('Progress tracker not available, using fallback');
+                await performSearchFallback(query, selectedSources);
+            }
+        }
+
+        // Fallback search method (original implementation)
+        async function performSearchFallback(query, selectedSources) {
+            // Animate words sucking into search button
+            animateWordSuck(query);
+            
             // Show loading state
             const searchBtn = document.getElementById('searchBtn');
             const originalText = searchBtn.textContent;
-            searchBtn.textContent = 'Searching...';
+            searchBtn.classList.add('searching');
+            searchBtn.textContent = '⚡';
             searchBtn.disabled = true;
+            
+            // Track start time for minimum animation duration
+            const searchStartTime = Date.now();
+            const minimumAnimationDuration = 4500; // 3.5 seconds minimum
+            
+            // Show skeleton loading after word animation completes (2 seconds)
+            setTimeout(() => {
+                const skeletonOverlay = document.getElementById('skeletonOverlay');
+                skeletonOverlay.classList.add('show');
+                updateSearchStatus();
+            }, 2000);
             
             try {
                 // Make API call to RAG system
@@ -585,7 +760,7 @@
                     body: JSON.stringify({
                         query: query,
                         sources: selectedSources,
-                        audience: 'technical' // Can be made configurable
+                        audience: 'technical'
                     })
                 });
                 
@@ -595,18 +770,37 @@
                 
                 const result = await response.json();
                 
+                // Calculate elapsed time
+                const elapsedTime = Date.now() - searchStartTime;
+                const remainingTime = Math.max(0, minimumAnimationDuration - elapsedTime);
+                
+                // Wait for remaining time to ensure smooth animation
+                await new Promise(resolve => setTimeout(resolve, remainingTime));
+                
+                // Clear the status interval before redirecting
+                if (window.searchStatusInterval) {
+                    clearInterval(window.searchStatusInterval);
+                }
+                
                 if (result.success) {
-                    // Display results on the page
                     displaySearchResults(result);
                 } else {
+                    const skeletonOverlay = document.getElementById('skeletonOverlay');
+                    skeletonOverlay.classList.remove('show');
                     alert('Search failed: ' + (result.detail || 'Unknown error'));
                 }
                 
             } catch (error) {
                 console.error('Search error:', error);
+                const skeletonOverlay = document.getElementById('skeletonOverlay');
+                skeletonOverlay.classList.remove('show');
+                if (window.searchStatusInterval) {
+                    clearInterval(window.searchStatusInterval);
+                }
                 alert('Search failed: ' + error.message);
             } finally {
                 // Restore button state
+                searchBtn.classList.remove('searching');
                 searchBtn.textContent = originalText;
                 searchBtn.disabled = false;
             }
@@ -646,13 +840,23 @@
             }
         }
         
-        // Search button click event
-        document.getElementById('searchBtn').addEventListener('click', performSearch);
+        // Search button click event - use clean transformer
+        document.getElementById('searchBtn').addEventListener('click', function() {
+            if (window.handleCleanTransformerSearch) {
+                window.handleCleanTransformerSearch({ preventDefault: () => {} });
+            } else {
+                performSearch();
+            }
+        });
         
         // Enter key search
         document.getElementById('searchInput').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
-                performSearch();
+                if (window.handleCleanTransformerSearch) {
+                    window.handleCleanTransformerSearch({ preventDefault: () => {} });
+                } else {
+                    performSearch();
+                }
             }
         });
         
@@ -712,6 +916,112 @@
                     window.location.href = faqPages[index];
                 }
             });
+        });
+        
+        // Animate words sucking into search button
+        function animateWordSuck(query) {
+            const words = query.split(' ');
+            const searchInput = document.getElementById('searchInput');
+            const searchBtn = document.getElementById('searchBtn');
+            
+            // Get search button position
+            const btnRect = searchBtn.getBoundingClientRect();
+            const btnCenterX = btnRect.left + btnRect.width / 2;
+            const btnCenterY = btnRect.top + btnRect.height / 2;
+            
+            // Get input position
+            const inputRect = searchInput.getBoundingClientRect();
+            
+            // Calculate stagger delay to spread words over ~1.5 seconds
+            const totalStaggerTime = 500; // Total time to stagger word launches (0.5s)
+            const staggerDelay = words.length > 1 ? totalStaggerTime / (words.length - 1) : 0;
+            
+            // Create word particles
+            words.forEach((word, index) => {
+                setTimeout(() => {
+                    const particle = document.createElement('div');
+                    particle.className = 'word-particle';
+                    particle.textContent = word;
+                    
+                    // Random starting position within input area for variety
+                    const startX = inputRect.left + (inputRect.width * (0.1 + Math.random() * 0.8));
+                    const startY = inputRect.top + (inputRect.height / 2) + (Math.random() * 10 - 5);
+                    
+                    // Calculate target offset
+                    const targetX = btnCenterX - startX;
+                    const targetY = btnCenterY - startY;
+                    
+                    particle.style.left = startX + 'px';
+                    particle.style.top = startY + 'px';
+                    particle.style.setProperty('--target-x', targetX + 'px');
+                    particle.style.setProperty('--target-y', targetY + 'px');
+                    
+                    document.body.appendChild(particle);
+                    
+                    // Remove particle after animation completes (1.5s animation + stagger)
+                    setTimeout(() => {
+                        particle.remove();
+                    }, 1500);
+                }, index * staggerDelay);
+            });
+        }
+        
+        // Update search status messages
+        function updateSearchStatus() {
+            const statusMessages = [
+                'Analyzing your query...',
+                'Searching through documents...',
+                'Finding relevant information...',
+                'Generating response...',
+                'Preparing results...'
+            ];
+            
+            let currentIndex = 0;
+            const statusElement = document.getElementById('searchStatus');
+            
+            const interval = setInterval(() => {
+                currentIndex = (currentIndex + 1) % statusMessages.length;
+                statusElement.textContent = statusMessages[currentIndex];
+            }, 800); // Changed to 800ms for smoother progression
+            
+            // Store interval ID to clear it later if needed
+            window.searchStatusInterval = interval;
+        }
+    </script>
+    <script src="/static/js/progress.js"></script>
+    <script src="/static/js/clean_transformer.js"></script>
+    <script>
+        // Initialize progress tracker
+        window.progressTracker = new ProgressTracker();
+        
+        // Initialize transformer UI
+        window.addEventListener('load', function() {
+            // Set initial search mode
+            document.body.classList.add('search-mode', 'no-transition');
+            
+            // Remove no-transition after initial load
+            setTimeout(() => {
+                document.body.classList.remove('no-transition');
+            }, 100);
+            
+            // Create results container for progress display
+            let resultsContainer = document.getElementById('results');
+            if (!resultsContainer) {
+                resultsContainer = document.createElement('div');
+                resultsContainer.id = 'results';
+                resultsContainer.style.cssText = `
+                    position: fixed;
+                    top: 45vh;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    width: 90%;
+                    max-width: 800px;
+                    z-index: 998;
+                `;
+                document.body.appendChild(resultsContainer);
+            }
+            
+            console.log('🎬 Transformer UI initialized in search mode');
         });
     </script>
 </body>
