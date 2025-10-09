@@ -89,13 +89,12 @@ class RAGOrchestrator:
             logger.error(f"Corpus ingestion failed: {e}")
             raise RAGError(f"Corpus ingestion failed: {e}")
     
-    def query_documents(self, query: str, audience: str = "clinical", 
+    def query_documents(self, query: str, 
                        user_context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """Complete query processing pipeline.
         
         Args:
             query: User query
-            audience: Target audience (clinical/technical)
             user_context: Additional user context
             
         Returns:
@@ -128,10 +127,10 @@ class RAGOrchestrator:
             # Convert retrieved documents to context string
             context = "\n\n".join([doc.page_content for doc in retrieved_docs])
             
+            # Module 3: LLM Orchestration
             llm_response = self.llm_orchestration.generate_response(
                 query=query,
-                context=context,
-                audience=audience
+                context=context
             )
             generation_time = time.time() - generation_start
             
@@ -157,7 +156,6 @@ class RAGOrchestrator:
             complete_response = {
                 "query": query,
                 "query_hash": query_hash,
-                "audience": audience,
                 "response": llm_response["response"],
                 "sources": retrieved_docs,
                 "metadata": {
@@ -175,7 +173,6 @@ class RAGOrchestrator:
                 timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
                 query=query,
                 query_hash=query_hash,
-                audience=audience,
                 retrieval_metrics=retrieval_metrics,
                 generation_metrics=generation_metrics,
                 system_metadata={
@@ -238,8 +235,7 @@ class RAGOrchestrator:
             "configuration": {
                 "embedding_model": self.settings.embedding_model.name,
                 "vector_store": self.settings.vector_store.type,
-                "llm_provider": self.settings.llm.provider,
-                "ui_audience_toggle": self.settings.ui.audience_toggle
+                "llm_provider": self.settings.llm.provider
             }
         }
     

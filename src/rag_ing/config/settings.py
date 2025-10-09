@@ -1,7 +1,7 @@
 """YAML-driven configuration management for Modular RAG PoC."""
 
 from typing import Dict, List, Optional, Any, Union
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings
 import yaml
 import os
@@ -26,14 +26,16 @@ class DataSourceConfig(BaseModel):
     path: Optional[str] = Field(default="./data/", description="Legacy: Path for local files")
     confluence: Optional[Dict[str, Any]] = Field(default=None, description="Legacy: Confluence configuration")
     
-    @validator('sources', always=True)
-    def convert_legacy_format(cls, v, values):
+    @field_validator('sources', mode='before')
+    @classmethod 
+    def convert_legacy_format(cls, v, info):
         """Convert old single-source config to new multi-source format.
         
         Educational note: Pydantic validators ensure data consistency.
         This maintains backward compatibility while enabling new features.
         """
         # If sources is empty but we have legacy fields, convert them
+        values = info.data if info.data else {}
         if not v and values.get('type'):
             legacy_source = {
                 'type': values.get('type'),
@@ -64,8 +66,10 @@ class DataSourceConfig(BaseModel):
 class ChunkingConfig(BaseModel):
     """Text chunking configuration."""
     strategy: str = Field(default="recursive", description="Strategy: recursive or semantic")
-    chunk_size: int = Field(default=512, gt=0)
-    overlap: int = Field(default=64, ge=0)
+    chunk_size: int = Field(default=1200, gt=0)  # Increased from 512
+    overlap: int = Field(default=100, ge=0)  # Increased from 64
+    prepend_metadata: bool = Field(default=True, description="Prepend document metadata to chunks")
+    chunk_size_includes_metadata: bool = Field(default=False, description="Include metadata in chunk size calculation")
     semantic_boundaries: List[str] = Field(
         default=["## Diagnosis", "## Treatment", "## Biomarkers", "## Prognosis"],
         description="Semantic boundaries for oncology content"
@@ -90,7 +94,8 @@ class EmbeddingModelConfig(BaseModel):
     device: str = Field(default="cpu", description="Device: cpu or cuda")
     model_path: Optional[str] = Field(default=None, description="Custom model path")
     
-    @validator('azure_model')
+    @field_validator('azure_model')
+    @classmethod
     def validate_azure_embedding_models(cls, v):
         """Validate that only standard Azure OpenAI embedding models are used."""
         standard_embedding_models = [
@@ -100,7 +105,8 @@ class EmbeddingModelConfig(BaseModel):
             raise ValueError(f"Azure embedding model '{v}' is not standard. Supported: {standard_embedding_models}")
         return v
     
-    @validator('name')
+    @field_validator('name')
+    @classmethod
     def validate_fallback_models(cls, v):
         """Validate fallback embedding models."""
         supported_models = [
@@ -121,28 +127,64 @@ class EmbeddingModelConfig(BaseModel):
         return self.name
 
 
+class RerankingConfig(BaseModel):
+    """Reranking configuration for cross-encoder models."""
+    enabled: bool = Field(default=True, description="Enable cross-encoder reranking")
+    model: str = Field(default="cross-encoder/ms-marco-MiniLM-L-6-v2", description="Cross-encoder model")
+    top_k_initial: int = Field(default=20, description="Documents to retrieve before reranking")
+    top_k_final: int = Field(default=5, description="Final documents after reranking")
+    relevance_threshold: float = Field(default=0.7, description="Minimum relevance score")
+
+
 class RetrievalConfig(BaseModel):
-    """Enhanced query processing and retrieval configuration."""
-    top_k: int = Field(default=5, gt=0)
+    """Enhanced query processing and retrieval configuration with hybrid search."""
+    top_k: int = Field(default=10, gt=0)
     strategy: str = Field(default="hybrid", description="Strategy: similarity, keyword, or hybrid")
     
-    # Enhanced retrieval parameters
-    use_reranking: bool = Field(default=True, description="Enable cross-encoder reranking")
-    reranker_model: str = Field(default="cross-encoder/ms-marco-MiniLM-L-6-v2")
-    
     # Hybrid search weights
-    semantic_weight: float = Field(default=0.7, ge=0.0, le=1.0)
-    keyword_weight: float = Field(default=0.3, ge=0.0, le=1.0)
+    semantic_weight: float = Field(default=0.6, ge=0.0, le=1.0)
+    keyword_weight: float = Field(default=0.4, ge=0.0, le=1.0)
+    
+    # Reranking configuration
+    reranking: RerankingConfig = Field(default_factory=RerankingConfig)
+    
+    # Context optimization
+    max_context_tokens: int = Field(default=12000, description="Maximum context tokens")
+    context_precision_threshold: float = Field(default=0.7, description="Context precision threshold")
+    
+    # Query enhancement
+    query_enhancement: Dict[str, float] = Field(
+        default={
+            "question_keywords_boost": 2.0,
+            "date_keywords_boost": 1.8,
+            "direct_answer_boost": 2.5
+        },
+        description="Query enhancement multipliers"
+    )
     
     # Domain-specific boosting
-    domain_boost: float = Field(default=1.2, description="Boost factor for domain-relevant results")
-    medical_terms_boost: bool = Field(default=True, description="Boost medical terminology matches")
-    ontology_codes_weight: float = Field(default=1.5, description="Weight for ICD-O, SNOMED-CT, MeSH codes")
+    domain_specific: Dict[str, Any] = Field(
+        default={
+            "medical_terms_boost": True,
+            "ontology_codes_weight": 1.5
+        },
+        description="Domain-specific retrieval enhancements"
+    )
     
+    # Filtering options
     filters: Dict[str, Any] = Field(
         default={"ontology_match": True, "date_range": "last_12_months"},
         description="Retrieval filters"
     )
+    
+    @field_validator('keyword_weight')
+    def validate_weights_sum(cls, v, info):
+        """Ensure semantic and keyword weights sum to 1.0."""
+        if info.data and 'semantic_weight' in info.data:
+            semantic_weight = info.data['semantic_weight']
+            if abs(semantic_weight + v - 1.0) > 0.01:  # Small tolerance for floating point
+                raise ValueError(f"semantic_weight ({semantic_weight}) + keyword_weight ({v}) must sum to 1.0")
+        return v
 
 
 class LLMConfig(BaseModel):
@@ -187,21 +229,100 @@ class UIConfig(BaseModel):
     default_source: str = Field(default="confluence")
 
 
-class EvaluationConfig(BaseModel):
-    """Evaluation and logging configuration."""
-    metrics: Dict[str, bool] = Field(
+class RAGASMetricsConfig(BaseModel):
+    """RAGAS-specific evaluation metrics configuration."""
+    enabled: bool = Field(default=True, description="Enable RAGAS evaluation")
+    
+    # Core RAGAS metrics
+    context_precision: bool = Field(default=True, description="Evaluate context precision")
+    context_recall: bool = Field(default=True, description="Evaluate context recall")
+    faithfulness: bool = Field(default=True, description="Evaluate response faithfulness")
+    answer_relevancy: bool = Field(default=True, description="Evaluate answer relevancy")
+    answer_similarity: bool = Field(default=True, description="Evaluate answer similarity")
+    answer_correctness: bool = Field(default=True, description="Evaluate factual correctness")
+    
+    # Advanced RAGAS metrics
+    context_entity_recall: bool = Field(default=False, description="Evaluate entity recall")
+    noise_sensitivity: bool = Field(default=False, description="Evaluate noise sensitivity")
+    
+    # Thresholds for quality gates
+    thresholds: Dict[str, float] = Field(
         default={
-            "precision_at_k": True,
-            "citation_coverage": True,
-            "clarity_rating": True,
-            "latency": True,
-            "safety": True
+            "context_precision": 0.7,
+            "context_recall": 0.7,
+            "faithfulness": 0.8,
+            "answer_relevancy": 0.75,
+            "answer_similarity": 0.8,
+            "answer_correctness": 0.7
         },
-        description="Enabled metrics"
+        description="Quality thresholds for each metric"
     )
-    logging: Dict[str, Any] = Field(
-        default={"enabled": True, "format": "json", "path": "./logs/"},
-        description="Logging configuration"
+
+
+class LoggingConfig(BaseModel):
+    """Logging configuration for evaluation system."""
+    enabled: bool = Field(default=True, description="Enable logging")
+    format: str = Field(default="json", description="Log format: json or text")
+    path: str = Field(default="./logs/", description="Log file directory")
+    include_ragas_scores: bool = Field(default=True, description="Include RAGAS scores in logs")
+
+
+class ContinuousEvaluationConfig(BaseModel):
+    """Continuous evaluation framework configuration."""
+    enabled: bool = Field(default=True, description="Enable continuous evaluation")
+    
+    # Evaluation frequency
+    batch_size: int = Field(default=10, description="Queries per evaluation batch")
+    evaluation_interval: int = Field(default=100, description="Queries between evaluations")
+    
+    # Performance monitoring
+    performance_window: int = Field(default=1000, description="Queries in performance window")
+    degradation_threshold: float = Field(default=0.1, description="Performance degradation threshold")
+    
+    # Alerting configuration
+    alert_on_degradation: bool = Field(default=True, description="Send alerts on performance issues")
+    alert_threshold_breaches: int = Field(default=3, description="Consecutive breaches before alert")
+    
+    # Data collection
+    sample_rate: float = Field(default=0.1, ge=0.0, le=1.0, description="Fraction of queries to evaluate")
+    store_raw_data: bool = Field(default=True, description="Store raw evaluation data")
+
+
+class EvaluationConfig(BaseModel):
+    """Comprehensive RAGAS metrics for RAG evaluation and continuous monitoring."""
+    enabled: bool = Field(default=True, description="Enable evaluation system")
+    
+    # RAGAS integration
+    ragas: RAGASMetricsConfig = Field(default_factory=RAGASMetricsConfig)
+    
+    # Continuous evaluation
+    continuous: ContinuousEvaluationConfig = Field(default_factory=ContinuousEvaluationConfig)
+    
+    # Logging configuration
+    logging: LoggingConfig = Field(default_factory=LoggingConfig)
+    
+    # Traditional metrics (backward compatibility)
+    metrics: List[str] = Field(
+        default=[
+            "response_time", "token_count", "cost_estimate",
+            "retrieval_accuracy", "context_relevance", "safety_score"
+        ],
+        description="Traditional evaluation metrics"
+    )
+    
+    # Legacy fields for backward compatibility
+    log_level: str = Field(default="INFO", description="Evaluation logging level")
+    export_interval: int = Field(default=24, description="Hours between metric exports")
+    retention_days: int = Field(default=30, description="Days to retain evaluation data")
+    
+    # Quality gates
+    quality_gates: Dict[str, Any] = Field(
+        default={
+            "min_safety_score": 0.8,
+            "max_response_time": 5.0,
+            "min_context_relevance": 0.7
+        },
+        description="Quality gates for system operation"
     )
 
 

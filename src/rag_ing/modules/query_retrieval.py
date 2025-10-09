@@ -402,6 +402,9 @@ class QueryRetrievalModule:
     def _retrieve_documents(self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, query_text: str = None) -> List[Document]:
         """Enhanced retrieval with hybrid search, reranking, and medical domain optimization."""
         try:
+            # Store query text for keyword retrieval
+            self._last_query = query_text or "medical oncology treatment"
+            
             # Step 1: Determine retrieval strategy
             strategy = self.retrieval_config.strategy
             logger.info(f"Using {strategy} retrieval strategy")
@@ -417,11 +420,11 @@ class QueryRetrievalModule:
                 docs = self._semantic_retrieval(query_embedding, filters)
             
             # Step 2: Apply medical domain filtering and boosting
-            if self.retrieval_config.medical_terms_boost:
+            if self.retrieval_config.domain_specific.get("medical_terms_boost", True):
                 docs = self._apply_medical_boosting(docs, query_text)
             
             # Step 3: Apply cross-encoder reranking if enabled
-            if self.retrieval_config.use_reranking and len(docs) > 1:
+            if self.retrieval_config.reranking.enabled and len(docs) > 1:
                 docs = self._rerank_documents(docs)
             
             # Step 4: Final filtering and deduplication
@@ -497,6 +500,10 @@ class QueryRetrievalModule:
     def _simulate_keyword_search(self, query_text: str, filters: Optional[Dict[str, Any]], k: int) -> List[Document]:
         """Simulate keyword search for demonstration (in production, use BM25)."""
         # This is a simplified simulation - in production you'd use proper BM25 implementation
+        
+        # Safety check for empty or None query text
+        if not query_text or not query_text.strip():
+            query_text = "medical oncology treatment"  # Safe fallback
         
         retrieval_params = {"k": k * 2}  # Get more for keyword filtering
         if filters:
@@ -774,15 +781,15 @@ class QueryRetrievalModule:
                     "semantic": self.retrieval_config.semantic_weight,
                     "keyword": self.retrieval_config.keyword_weight
                 } if self.retrieval_config.strategy == "hybrid" else None,
-                "reranking_enabled": self.retrieval_config.use_reranking,
-                "medical_boosting": self.retrieval_config.medical_terms_boost,
+                "reranking_enabled": self.retrieval_config.reranking.enabled,
+                "medical_boosting": self.retrieval_config.domain_specific.get("medical_terms_boost", True),
                 "top_k": self.retrieval_config.top_k,
                 "timestamp": datetime.now().isoformat()
             },
             "enhancement_features": {
                 "hybrid_search": self.retrieval_config.strategy == "hybrid",
-                "cross_encoder_reranking": self.retrieval_config.use_reranking,
-                "medical_domain_optimization": self.retrieval_config.medical_terms_boost,
+                "cross_encoder_reranking": self.retrieval_config.reranking.enabled,
+                "medical_domain_optimization": self.retrieval_config.domain_specific.get("medical_terms_boost", True),
                 "ontology_code_weighting": True,  # Always enabled for medical domain
                 "deduplication": True
             }
@@ -803,10 +810,10 @@ class QueryRetrievalModule:
         if self.retrieval_config.strategy == "hybrid":
             self._metrics["hybrid_queries"] += 1
         
-        if self.retrieval_config.use_reranking:
+        if self.retrieval_config.reranking.enabled:
             self._metrics["reranked_queries"] += 1
         
-        if self.retrieval_config.medical_terms_boost:
+        if self.retrieval_config.domain_specific.get("medical_terms_boost", True):
             self._metrics["medical_boosted_queries"] += 1
     
     def _cache_result(self, query_hash: str, result: Dict[str, Any]) -> None:

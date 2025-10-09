@@ -57,7 +57,6 @@ class QueryEvent:
     timestamp: str
     query: str
     query_hash: str
-    audience: str
     retrieval_metrics: RetrievalMetrics
     generation_metrics: GenerationMetrics
     user_feedback: Optional[Dict[str, Any]] = None
@@ -74,7 +73,7 @@ class EvaluationLoggingModule:
         self.logging_config = self.eval_config.logging
         
         # Initialize logging infrastructure
-        if self.logging_config.get("enabled", True):
+        if self.logging_config.enabled:
             self._setup_structured_logging()
         
         # Initialize metrics tracking
@@ -82,10 +81,19 @@ class EvaluationLoggingModule:
         self._query_events = []
         self._session_start = datetime.now()
     
+    def _is_metric_enabled(self, metric_name: str) -> bool:
+        """Check if a metric is enabled in the configuration."""
+        if isinstance(self.metrics_enabled, list):
+            return metric_name in self.metrics_enabled
+        elif isinstance(self.metrics_enabled, dict):
+            return self._is_metric_enabled(metric_name)
+        else:
+            return False
+    
     def _setup_structured_logging(self) -> None:
         """Setup structured JSON logging infrastructure."""
         try:
-            log_path = Path(self.logging_config.get("path", "./logs/"))
+            log_path = Path(self.logging_config.path)
             log_path.mkdir(parents=True, exist_ok=True)
             
             # Create evaluation-specific logger
@@ -120,13 +128,13 @@ class EvaluationLoggingModule:
             self.eval_logger.addHandler(eval_handler)
             
             # Separate handlers for different metric types
-            if self.metrics_enabled.get("precision_at_k", False):
+            if self._is_metric_enabled("precision_at_k"):
                 retrieval_handler = logging.FileHandler(log_path / "retrieval_metrics.jsonl")
                 retrieval_handler.setFormatter(JSONFormatter())
                 retrieval_logger = logging.getLogger("retrieval_metrics")
                 retrieval_logger.addHandler(retrieval_handler)
             
-            if self.metrics_enabled.get("clarity_rating", False):
+            if self._is_metric_enabled("clarity_rating"):
                 generation_handler = logging.FileHandler(log_path / "generation_metrics.jsonl")
                 generation_handler.setFormatter(JSONFormatter())
                 generation_logger = logging.getLogger("generation_metrics")
@@ -140,7 +148,7 @@ class EvaluationLoggingModule:
     
     def log_query_event(self, event: QueryEvent) -> None:
         """Log a complete query evaluation event."""
-        if not self.logging_config.get("enabled", True):
+        if not self.logging_config.enabled:
             return
         
         try:
@@ -152,7 +160,7 @@ class EvaluationLoggingModule:
             self.eval_logger.info(event_json)
             
             # Log to specific metric logs if enabled
-            if (self.metrics_enabled.get("precision_at_k", False) and 
+            if (self._is_metric_enabled("precision_at_k") and 
                 event.retrieval_metrics):
                 retrieval_logger = logging.getLogger("retrieval_metrics")
                 retrieval_data = {
@@ -162,7 +170,7 @@ class EvaluationLoggingModule:
                 }
                 retrieval_logger.info(json.dumps(retrieval_data, default=str))
             
-            if (self.metrics_enabled.get("clarity_rating", False) and 
+            if (self._is_metric_enabled("clarity_rating") and 
                 event.generation_metrics):
                 generation_logger = logging.getLogger("generation_metrics")
                 generation_data = {
@@ -188,13 +196,13 @@ class EvaluationLoggingModule:
         """Calculate retrieval performance metrics."""
         metrics = RetrievalMetrics()
         
-        if self.metrics_enabled.get("precision_at_k", False) and relevant_docs:
+        if self._is_metric_enabled("precision_at_k") and relevant_docs:
             # Calculate precision@k metrics
             metrics.precision_at_1 = self._precision_at_k(retrieved_docs, relevant_docs, 1)
             metrics.precision_at_3 = self._precision_at_k(retrieved_docs, relevant_docs, 3)
             metrics.precision_at_5 = self._precision_at_k(retrieved_docs, relevant_docs, 5)
         
-        if self.metrics_enabled.get("latency", False):
+        if self._is_metric_enabled("latency"):
             metrics.latency_ms = retrieval_time * 1000
         
         # Calculate hit rate (whether any results were retrieved)
@@ -221,15 +229,15 @@ class EvaluationLoggingModule:
         metrics.response_length = len(response)
         metrics.model_used = model_name
         
-        if self.metrics_enabled.get("latency", False):
+        if self._is_metric_enabled("latency"):
             metrics.generation_time_ms = generation_time * 1000
         
         # Citation coverage calculation
-        if self.metrics_enabled.get("citation_coverage", False):
+        if self._is_metric_enabled("citation_coverage"):
             metrics.citation_coverage = self._calculate_citation_coverage(response, sources)
         
         # User feedback-based metrics
-        if user_feedback and self.metrics_enabled.get("clarity_rating", False):
+        if user_feedback and self._is_metric_enabled("clarity_rating"):
             ratings = user_feedback.get("ratings", {})
             metrics.clarity_score = ratings.get("clarity")
             metrics.safety_score = ratings.get("safety")
@@ -241,7 +249,7 @@ class EvaluationLoggingModule:
     
     def calculate_safety_score(self, response: str, query: str) -> float:
         """Calculate safety adherence score."""
-        if not self.metrics_enabled.get("safety", False):
+        if not self._is_metric_enabled("safety"):
             return 0.0
         
         safety_score = 1.0  # Start with perfect score
@@ -457,7 +465,7 @@ class EvaluationLoggingModule:
     
     def is_logging_enabled(self) -> bool:
         """Check if logging is enabled."""
-        return self.logging_config.get("enabled", True)
+        return self.logging_config.enabled
     
     def get_enabled_metrics(self) -> Dict[str, bool]:
         """Get dictionary of enabled metrics."""

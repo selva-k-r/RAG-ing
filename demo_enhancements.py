@@ -50,7 +50,7 @@ def demo_multi_source_capabilities():
         print(f"   Use reranking: {settings.retrieval.use_reranking}")
         print(f"   Semantic weight: {settings.retrieval.semantic_weight}")
         print(f"   Keyword weight: {settings.retrieval.keyword_weight}")
-        print(f"   Medical terms boost: {settings.retrieval.medical_terms_boost}")
+        print(f"   Medical terms boost: {settings.retrieval.domain_specific.get('medical_terms_boost', True)}")
         
         # Show GPT-4o nano configuration
         print(f"\n🤖 GPT-4o Nano Configuration:")

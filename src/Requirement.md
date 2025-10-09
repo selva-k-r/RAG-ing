@@ -9,7 +9,7 @@ The RAG system consists of 5 **fully implemented** core modules:
 1. **Module 1:** Corpus Embedding - Document ingestion, biomedical embeddings, and vector storage ✅
 2. **Module 2:** Query Retrieval - Hybrid semantic search with ontology filtering ✅  
 3. **Module 3:** LLM Orchestration - Multi-provider response generation (Azure OpenAI, OpenAI, Anthropic, KoboldCpp) ✅
-4. **Module 4:** UI Layer - FastAPI web interface with clinical/technical audience toggle ✅
+4. **Module 4:** UI Layer - FastAPI web interface for general business/technical users ✅
 5. **Module 5:** Evaluation Logging - Real-time performance tracking and safety scoring ✅
 
 All modules are coordinated through a central orchestrator with YAML configuration management and comprehensive fallback systems.
@@ -20,7 +20,7 @@ All modules are coordinated through a central orchestrator with YAML configurati
 - ✅ Full end-to-end RAG pipeline operational
 - ✅ Azure OpenAI integration with credential management
 - ✅ ChromaDB vector store with 3 indexed documents  
-- ✅ FastAPI web interface with audience toggle functionality
+- ✅ FastAPI web interface for general users
 - ✅ Pure HTML/CSS/JS frontend with 100% UI control
 - ✅ Mock embedding fallback system (768-dimensional)
 - ✅ Comprehensive configuration system with environment variables
@@ -187,30 +187,31 @@ Use Streamlit or Flask
 
 Build query input box
 
+### UI Features ✅
+- Clean, intuitive query interface
+- Real-time response display with streaming support
+- Source document display with metadata
+- Search history and session management
+- Responsive design for mobile and desktop
+
+### Display Response ✅
 Display response with markdown formatting
 
-Audience Toggle
-
-Add toggle for clinical vs technical view
-
-Persist toggle state across sessions
-
-Feedback Capture
-
+### Feedback Capture ✅
 Add sliders or text area for clarity, citation, safety
-
 Store feedback with timestamp and query hash
 
-YAML Configuration
-yaml
+## YAML Configuration
+```yaml
 ui:
   framework: streamlit
-  audience_toggle: true
   feedback_enabled: true
   show_chunk_metadata: true
   default_model: biomistral
   default_source: confluence
-Best Practices
+```
+
+### Best Practices ✅
 Use responsive layout
 
 Validate input before submission
@@ -327,9 +328,9 @@ retrieval:
 
 **Prompt Construction** ✅
 - Load prompt template (with default oncology template)
-- Inject system instructions with audience awareness
+- Inject system instructions for general business/technical users
 - Append retrieved context and user query with citations
-- **Implementation:** Advanced prompt engineering with clinical/technical audience toggle
+- **Implementation:** Advanced prompt engineering for business/technical users
 
 **Model Invocation** ✅
 
@@ -359,11 +360,11 @@ llm:
 ✅ Detailed token usage and response time logging
 ✅ Multi-provider fallback chains for reliability
 ✅ Azure OpenAI enterprise integration with credential security
-✅ Audience-aware prompt construction (clinical vs technical)
+✅ Prompt construction for business/technical users
 
 ## 4. UI Layer (Module 4) - COMPLETED ✅
 
-**Objective:** Provide web interface for query input and response display with audience targeting.
+**Objective:** Provide web interface for query input and response display for general users.
 
 **Current Implementation Status:** ✅ FULLY OPERATIONAL (FastAPI Implementation)
 
@@ -381,11 +382,13 @@ llm:
 - Confidence scoring and source integration
 - **Implementation:** Server-side page generation with template-based styling
 
-**Audience Toggle** ✅
-- Toggle for clinical vs technical response modes
-- Real-time audience switching via API endpoints
-- Dynamic response formatting based on audience selection
-- **Implementation:** API-driven audience targeting with immediate effect
+**User Interface** ✅
+- Simplified interface for general business/technical users
+- Real-time query processing via API endpoints
+- Dynamic response formatting for optimal readability
+- **Implementation:** API-driven interface with immediate feedback
+
+```
 
 **Search Integration** ✅
 - Real-time RAG processing with live search overlay
@@ -398,7 +401,6 @@ llm:
 # Module 4: UI Layer Configuration
 ui:
   framework: "fastapi"
-  audience_toggle: true
   feedback_enabled: true
   show_chunk_metadata: true
   default_model: "gpt-4"

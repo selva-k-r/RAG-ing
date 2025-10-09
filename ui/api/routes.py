@@ -85,8 +85,7 @@ async def search(request: SearchRequest):
         # Generate LLM-powered response using the orchestrator
         llm_result = rag_system.llm_orchestration.generate_response(
             query=request.query.strip(),
-            context=context,
-            audience=request.audience
+            context=context
         )
         
         enhanced_response = llm_result.get("response", "Unable to generate response.")
@@ -223,8 +222,7 @@ async def chat(request: ChatRequest):
         # Generate LLM-powered response
         llm_result = rag_system.llm_orchestration.generate_response(
             query=request.query.strip(),
-            context=context,
-            audience=request.audience
+            context=context
         )
         
         response_text = llm_result.get("response", "Unable to generate response.")

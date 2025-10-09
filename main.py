@@ -63,7 +63,7 @@ def main():
   Module 1: Corpus & Embedding Lifecycle - Document ingestion with PubMedBERT
   Module 2: Query Processing & Retrieval - Semantic search with domain filtering  
   Module 3: LLM Orchestration - KoboldCpp integration with medical prompts
-  Module 4: UI Layer - Clinical/Technical audience toggle with feedback
+  Module 4: UI Layer - User interface with feedback
   Module 5: Evaluation & Logging - Performance tracking and safety monitoring
 
 📋 Examples:
@@ -99,13 +99,6 @@ def main():
         '--query',
         type=str,
         help='Execute a single query via CLI'
-    )
-    
-    parser.add_argument(
-        '--audience',
-        choices=['clinical', 'technical'],
-        default='clinical',
-        help='Target audience for queries (default: clinical)'
     )
     
     parser.add_argument(
@@ -171,12 +164,11 @@ def main():
                 print(f"🔢 Embeddings generated: {stats.get('embeddings_generated', 'N/A')}")
         
         elif args.query:
-            print(f"\n🔍 Processing query for {args.audience} audience...")
+            print(f"\n🔍 Processing query...")
             print(f"❓ Query: {args.query}")
             
             result = orchestrator.query_documents(
-                query=args.query,
-                audience=args.audience
+                query=args.query
             )
             
             print("✅ Query processed successfully")

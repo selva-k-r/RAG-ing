@@ -181,13 +181,13 @@ Query: {query}
 
 Please provide a clear, direct answer based on the context above.'''
     
-    def generate_response(self, query: str, context: str, 
-                         audience: str = "clinical") -> Dict[str, Any]:
+    def generate_response(self, query: str, context: str) -> Dict[str, Any]:
         """Generate grounded response using the selected model."""
         start_time = time.time()
         
         try:
-            # Store audience for use in invocation
+            # Use default audience since we removed audience-specific functionality
+            audience = "general"  # Default to general business/technical users
             self._current_audience = audience
             
             # Step 1: Construct prompt

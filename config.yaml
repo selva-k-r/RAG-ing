@@ -36,8 +36,12 @@ data_source:
 
 chunking:
   strategy: "recursive"  # recursive | semantic
-  chunk_size: 512
-  overlap: 64
+  chunk_size: 1200  # Increased from 512 for better context preservation
+  overlap: 100       # Increased from 64 for better continuity
+  
+  # Metadata preservation for enhanced retrieval
+  prepend_metadata: true
+  chunk_size_includes_metadata: false
 
 embedding_model:
   # PRIMARY: Azure OpenAI embedding model (higher quality, no SSL issues)
@@ -58,27 +62,38 @@ embedding_model:
 
 # Module 2: Enhanced Query Processing & Retrieval Configuration  
 retrieval:
-  top_k: 10  # Increased for better coverage
-  strategy: "hybrid"  # Enhanced: similarity + keyword + reranking
-  
-  # Advanced retrieval features
-  use_reranking: true
-  reranker_model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+  # Basic retrieval settings
+  top_k: 10                     # Initial retrieval count
+  strategy: "hybrid"            # hybrid: semantic + BM25 keyword search
   
   # Hybrid search configuration
-  semantic_weight: 0.6  # Reduced to give more weight to keyword matching
-  keyword_weight: 0.4   # Increased for better question-answer matching
+  semantic_weight: 0.6          # Weight for semantic similarity search
+  keyword_weight: 0.4           # Weight for BM25 keyword search
+  
+  # Reranking with cross-encoder for relevance improvement
+  reranking:
+    enabled: true
+    model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    top_k_initial: 20           # Retrieve more docs for reranking
+    top_k_final: 5              # Final number after reranking
+    relevance_threshold: 0.7    # Minimum relevance score
+    
+  # Context optimization
+  max_context_tokens: 12000     # Increased from GraphRAG defaults
+  context_precision_threshold: 0.7
   
   # Enhanced question-answer matching
-  question_keywords_boost: 2.0    # Boost chunks that contain question keywords
-  date_keywords_boost: 1.8        # Boost chunks with dates, years, "started", "began"
-  direct_answer_boost: 2.5        # Boost chunks that look like direct answers
-  
-  # Medical domain optimizations
-  domain_boost: 1.2
-  medical_terms_boost: true
-  ontology_codes_weight: 1.5  # Boost ICD-O, SNOMED-CT, MeSH codes
-  
+  query_enhancement:
+    question_keywords_boost: 2.0    # Boost chunks with question keywords
+    date_keywords_boost: 1.8        # Boost temporal information
+    direct_answer_boost: 2.5        # Boost direct answer patterns
+    
+  # Medical domain optimizations  
+  domain_specific:
+    medical_terms_boost: true
+    ontology_codes_weight: 1.5      # Boost ICD-O, SNOMED-CT, MeSH codes
+    
+  # Filtering options
   filters:
     ontology_match: true
     date_range: "last_12_months"
@@ -126,18 +141,62 @@ ui:
   enable_search_history: true
   response_streaming: false
 
-# Module 5: Evaluation & Logging Configuration
+# Module 5: Enhanced Evaluation & Logging Configuration
 evaluation:
-  metrics:
-    precision_at_k: true
-    citation_coverage: true
-    clarity_rating: true
-    latency: true
-    safety: true
+  # RAGAS evaluation framework
+  ragas:
+    enabled: true
+    # Core RAGAS metrics
+    context_precision: true      # How many relevant documents were retrieved
+    context_recall: true         # How many relevant documents from ground truth were retrieved  
+    faithfulness: true           # How factually consistent response is with context
+    answer_relevancy: true       # How relevant answer is to the query
+    answer_similarity: true      # Semantic similarity to reference answers
+    answer_correctness: true     # Factual accuracy compared to ground truth
+    
+    # Quality thresholds
+    thresholds:
+      context_precision: 0.75
+      context_recall: 0.70
+      faithfulness: 0.85
+      answer_relevancy: 0.80
+      answer_similarity: 0.80
+      answer_correctness: 0.70
+  
+  # Continuous evaluation framework
+  continuous:
+    enabled: true
+    batch_size: 10
+    evaluation_interval: 100
+    sample_rate: 0.1           # Evaluate 10% of queries in real-time
+    alert_on_degradation: true
+    
+  # Logging configuration
   logging:
     enabled: true
     format: "json"
     path: "./logs/"
+    include_ragas_scores: true
+    
+  # Traditional metrics (backward compatibility)
+  metrics:
+    - "response_time"
+    - "token_count" 
+    - "cost_estimate"
+    - "retrieval_accuracy"
+    - "context_relevance"
+    - "safety_score"
+    
+  # Quality gates
+  quality_gates:
+    min_safety_score: 0.90
+    max_response_time: 5.0
+    min_context_relevance: 0.75
+    
+  # Logging configuration
+  log_level: "INFO"
+  export_interval: 24
+  retention_days: 30
 
 # Vector Store Configuration
 vector_store:
