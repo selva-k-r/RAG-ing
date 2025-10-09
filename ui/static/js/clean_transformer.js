@@ -225,6 +225,8 @@ class CleanTransformer {
                 z-index: 100 !important;
             `;
         }
+        
+        // Event delegation handles search button - no need for manual setup
     }
 
     addUserMessage(query) {
@@ -330,8 +332,14 @@ class CleanTransformer {
     }
 
     updateTypingIndicator(data) {
-        const typingText = document.querySelector('.typing-text');
-        if (!typingText) return;
+        // Find the LAST (most recent) typing indicator
+        const typingTexts = document.querySelectorAll('.typing-text');
+        const typingText = typingTexts[typingTexts.length - 1]; // Get the last one
+        
+        if (!typingText) {
+            console.warn('No typing indicator found');
+            return;
+        }
 
         const messages = [
             "AI is initializing...",
@@ -345,6 +353,7 @@ class CleanTransformer {
         const step = data.step || 0;
         if (step < messages.length) {
             typingText.textContent = messages[step];
+            console.log(`📊 Progress update: ${messages[step]} (${data.progress || 0}%)`);
         }
     }
 
@@ -358,15 +367,32 @@ class CleanTransformer {
                 return;
             }
 
-            // Hide typing, show response
-            const typingIndicator = document.getElementById('typingIndicator');
-            const responseText = document.getElementById('aiResponseText');
-            
-            if (typingIndicator) typingIndicator.style.display = 'none';
-            if (responseText) responseText.style.display = 'block';
+            console.log('✅ Final response loaded, starting text streaming');
 
-            // Stream the text
-            await this.streamText(result.response, responseText);
+            // Find the LAST (most recent) typing indicator and response text
+            const typingIndicators = document.querySelectorAll('.typing-indicator');
+            const responseTexts = document.querySelectorAll('#aiResponseText, .message-text[style*="display: none"]');
+            
+            const typingIndicator = typingIndicators[typingIndicators.length - 1];
+            const responseText = responseTexts[responseTexts.length - 1];
+            
+            if (typingIndicator) {
+                typingIndicator.style.display = 'none';
+                console.log('✅ Typing indicator hidden');
+            }
+            
+            if (responseText) {
+                responseText.style.display = 'block';
+                console.log('✅ Response text container shown');
+                
+                // Stream the text
+                await this.streamText(result.response, responseText);
+                console.log('✅ Text streaming completed');
+            } else {
+                console.error('❌ Response text container not found');
+                this.showAIError('Could not display response');
+                return;
+            }
             
             // Add sources
             this.addSourcesMessage(result.sources, result.metadata);
@@ -404,6 +430,9 @@ class CleanTransformer {
         // Enhanced markdown formatting for human readability
         let formatted = text;
         
+        // Handle tables first (before other formatting)
+        formatted = this.formatTables(formatted);
+        
         // Handle headers
         formatted = formatted.replace(/^### (.*$)/gm, '<h3 style="color: #2c3e50; font-size: 18px; font-weight: 600; margin: 20px 0 10px 0; border-bottom: 2px solid #e9ecef; padding-bottom: 5px;">$1</h3>');
         formatted = formatted.replace(/^## (.*$)/gm, '<h2 style="color: #1e88e5; font-size: 20px; font-weight: 600; margin: 25px 0 15px 0; border-bottom: 2px solid #1e88e5; padding-bottom: 8px;">$1</h2>');
@@ -431,11 +460,90 @@ class CleanTransformer {
         formatted = formatted.replace(/\n/g, '<br>');
         
         // Wrap in paragraph tags
-        if (!formatted.startsWith('<h') && !formatted.startsWith('<ul') && !formatted.startsWith('<ol') && !formatted.startsWith('<pre')) {
+        if (!formatted.startsWith('<h') && !formatted.startsWith('<ul') && !formatted.startsWith('<ol') && !formatted.startsWith('<pre') && !formatted.startsWith('<table')) {
             formatted = '<p style="margin: 15px 0; line-height: 1.6;">' + formatted + '</p>';
         }
         
         return formatted;
+    }
+
+    formatTables(text) {
+        // Convert markdown tables to HTML tables
+        const lines = text.split('\n');
+        let inTable = false;
+        let tableRows = [];
+        let result = [];
+        
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            
+            // Check if line contains table separators (|)
+            if (line.includes('|') && line.split('|').length > 2) {
+                if (!inTable) {
+                    inTable = true;
+                    tableRows = [];
+                }
+                
+                // Clean up the line and split by |
+                const cells = line.split('|').map(cell => cell.trim()).filter(cell => cell !== '');
+                
+                // Skip separator lines (like |---|---|---|)
+                if (!cells[0].match(/^-+$/)) {
+                    tableRows.push(cells);
+                }
+            } else {
+                // End of table
+                if (inTable && tableRows.length > 0) {
+                    result.push(this.createHTMLTable(tableRows));
+                    tableRows = [];
+                    inTable = false;
+                }
+                result.push(line);
+            }
+        }
+        
+        // Handle table at end of text
+        if (inTable && tableRows.length > 0) {
+            result.push(this.createHTMLTable(tableRows));
+        }
+        
+        return result.join('\n');
+    }
+
+    createHTMLTable(rows) {
+        if (rows.length === 0) return '';
+        
+        let html = '<table style="width: 100%; border-collapse: collapse; margin: 20px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-radius: 8px; overflow: hidden;">';
+        
+        // Header row
+        if (rows.length > 0) {
+            html += '<thead style="background: linear-gradient(135deg, #1e88e5, #26a69a);">';
+            html += '<tr>';
+            rows[0].forEach(cell => {
+                html += `<th style="padding: 12px 15px; color: white; font-weight: 600; text-align: left; border-bottom: 2px solid rgba(255,255,255,0.2);">${cell}</th>`;
+            });
+            html += '</tr>';
+            html += '</thead>';
+        }
+        
+        // Body rows
+        if (rows.length > 1) {
+            html += '<tbody>';
+            for (let i = 1; i < rows.length; i++) {
+                const isEven = (i - 1) % 2 === 0;
+                const bgColor = isEven ? '#ffffff' : '#f8f9fa';
+                
+                html += `<tr style="background: ${bgColor};">`;
+                rows[i].forEach(cell => {
+                    html += `<td style="padding: 12px 15px; border-bottom: 1px solid #e9ecef; color: #2c3e50; font-size: 14px;">${cell}</td>`;
+                });
+                html += '</tr>';
+            }
+            html += '</tbody>';
+        }
+        
+        html += '</table>';
+        return html;
     }
 
     addSourcesMessage(sources, metadata) {
@@ -581,6 +689,7 @@ class CleanTransformer {
 
 // Global transformer instance
 const cleanTransformer = new CleanTransformer();
+window.cleanTransformer = cleanTransformer;
 
 // Main search handler
 window.handleCleanTransformerSearch = async function(event) {

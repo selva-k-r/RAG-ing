@@ -738,25 +738,51 @@
             console.log('Legacy displaySearchResults called - should use transformer');
         }
         
-        // Search button click event - use clean transformer
-        document.getElementById('searchBtn').addEventListener('click', function() {
-            if (window.handleCleanTransformerSearch) {
-                window.handleCleanTransformerSearch({ preventDefault: () => {} });
-            } else {
-                performSearch();
+        // Use event delegation for search button (works after DOM changes)
+        document.body.addEventListener('click', function(e) {
+            if (e.target && e.target.id === 'searchBtn') {
+                e.preventDefault();
+                handleSearchClick();
             }
         });
         
-        // Enter key search
-        document.getElementById('searchInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                if (window.handleCleanTransformerSearch) {
-                    window.handleCleanTransformerSearch({ preventDefault: () => {} });
-                } else {
-                    performSearch();
-                }
+        // Use event delegation for Enter key (works after DOM changes)
+        document.body.addEventListener('keypress', function(e) {
+            if (e.target && e.target.id === 'searchInput' && e.key === 'Enter') {
+                e.preventDefault();
+                handleSearchClick();
             }
         });
+        
+        // Unified search handler that works in both modes
+        async function handleSearchClick() {
+            const searchInput = document.getElementById('searchInput');
+            const query = searchInput ? searchInput.value.trim() : '';
+            
+            if (!query) {
+                alert('Please enter a search query');
+                return;
+            }
+            
+            const isInChatMode = document.body.classList.contains('chat-mode');
+            console.log('🔍 Search triggered:', query, 'Mode:', isInChatMode ? 'chat' : 'search');
+            
+            if (window.cleanTransformer) {
+                if (isInChatMode) {
+                    // In chat mode - add follow-up message
+                    console.log('🔄 Adding follow-up message to chat');
+                    await window.cleanTransformer.addChatMessage(query);
+                    searchInput.value = ''; // Clear input after sending
+                } else {
+                    // In search mode - do transformation
+                    console.log('🚗→🤖 Starting transformation');
+                    await window.cleanTransformer.transformToChat(query);
+                }
+            } else {
+                console.warn('cleanTransformer not available, using fallback');
+                performSearch();
+            }
+        }
         
 
         
