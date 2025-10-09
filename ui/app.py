@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
 """
-Main FastAPI applicatio# Mount static files
-import os
-os.makedirs("ui/static", exist_ok=True)
-app.mount("/static", StaticFiles(directory="ui/static"), name="static")entry point.
-Serves the RAG system with a clean, modular structure.
+Main FastAPI application entry point.
+Serves the RAG system with transformer UI and real-time progress tracking.
 """
 
 import sys

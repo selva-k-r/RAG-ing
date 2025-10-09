@@ -98,6 +98,23 @@
     flex-wrap: wrap !important;
 }
 
+/* Override any inline positioning for search elements */
+body.search-mode .search-section-wrapper {
+    position: fixed !important;
+    top: 30vh !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    margin-top: 0 !important;
+}
+
+body.search-mode .datasource-section-wrapper {
+    position: fixed !important;
+    top: 40vh !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    margin-top: 0 !important;
+}
+
 /* Ensure subtitle is always visible and not blocked */
 .chat-mode .subtitle {
     position: relative !important;
@@ -170,10 +187,11 @@
     z-index: 999;
 }
 
-.search-mode .search-section-container {
-    /* Centered in search mode - well below header */
+.search-mode .search-section-container,
+.search-mode .search-section-wrapper {
+    /* Centered in search mode - moved up 10% */
     position: fixed !important;
-    top: 35vh !important;
+    top: 30vh !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     width: 100% !important;
@@ -183,6 +201,8 @@
     border: none !important;
     box-shadow: none !important;
     z-index: 500 !important;
+    height: auto !important;
+    margin-top: 0 !important;
 }
 
 .chat-mode .search-section-container {
@@ -214,10 +234,11 @@
     transition: all 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
 }
 
-.search-mode .source-filters-container {
-    /* Centered below search in search mode - with proper spacing */
+.search-mode .source-filters-container,
+.search-mode .datasource-section-wrapper {
+    /* Centered below search in search mode - at 50% from top */
     position: fixed !important;
-    top: 48vh !important;
+    top: 50vh !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
     width: 100% !important;
@@ -228,6 +249,7 @@
     box-shadow: none !important;
     z-index: 500 !important;
     height: auto !important;
+    margin-top: 0 !important;
 }
 
 .chat-mode .source-filters-container {
@@ -249,7 +271,7 @@
 .search-mode .source-option {
     /* Full size in search mode - restore original styling */
     padding: 10px 19px !important;
-    font-size: 11px !important;
+    font-size: 14px !important;
     border-radius: 20px !important;
     margin: 0 5px !important;
     transform: none !important;

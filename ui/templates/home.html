@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>iConnect - AI-Powered Search</title>
-    <link rel="stylesheet" href="/static/css/progress.css">
-    <link rel="stylesheet" href="/static/css/transformer.css">
+    <link rel="stylesheet" href="/static/css/progress.css?v=20251009">
+    <link rel="stylesheet" href="/static/css/transformer.css?v=20251009">
     <style>
         * {
             margin: 0;
@@ -22,13 +22,13 @@
         
         /* Fixed header layout with top spacing and compact design */
         :root {
-            /* Layout Structure - 7% top blank, content 8%-50%, FAQ 51% */
+            /* Layout Structure - Repositioned to start at 40% */
             --header-height: 50vh;
             --header-top-offset: 7vh;
             --title-spacing: 13vh;
-            --search-spacing: 13vh;
-            --datasource-spacing: 13vh;
-            --content-top-margin: 51vh;
+            --search-spacing: 18vh; /* Adjusted for 40% positioning */
+            --datasource-spacing: 8vh; /* Smaller gap between search and sources */
+            --content-top-margin: 60vh; /* FAQ starts at 60% */
             
             /* Logo/Title Controls */
             --logo-size: 60px;
@@ -92,7 +92,7 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-top: 2vh;
+            margin-top: 2vh; /* Fine-tuned for exact 40% positioning (7vh + 13vh + 18vh + 2vh = 40vh) */
         }
         
         .datasource-section-wrapper {
@@ -727,117 +727,15 @@
             }
         }
 
-        // Fallback search method (original implementation)
+        // Fallback search method - simplified since we use transformer
         async function performSearchFallback(query, selectedSources) {
-            // Animate words sucking into search button
-            animateWordSuck(query);
-            
-            // Show loading state
-            const searchBtn = document.getElementById('searchBtn');
-            const originalText = searchBtn.textContent;
-            searchBtn.classList.add('searching');
-            searchBtn.textContent = '⚡';
-            searchBtn.disabled = true;
-            
-            // Track start time for minimum animation duration
-            const searchStartTime = Date.now();
-            const minimumAnimationDuration = 4500; // 3.5 seconds minimum
-            
-            // Show skeleton loading after word animation completes (2 seconds)
-            setTimeout(() => {
-                const skeletonOverlay = document.getElementById('skeletonOverlay');
-                skeletonOverlay.classList.add('show');
-                updateSearchStatus();
-            }, 2000);
-            
-            try {
-                // Make API call to RAG system
-                const response = await fetch('/api/search', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        query: query,
-                        sources: selectedSources,
-                        audience: 'technical'
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-                
-                const result = await response.json();
-                
-                // Calculate elapsed time
-                const elapsedTime = Date.now() - searchStartTime;
-                const remainingTime = Math.max(0, minimumAnimationDuration - elapsedTime);
-                
-                // Wait for remaining time to ensure smooth animation
-                await new Promise(resolve => setTimeout(resolve, remainingTime));
-                
-                // Clear the status interval before redirecting
-                if (window.searchStatusInterval) {
-                    clearInterval(window.searchStatusInterval);
-                }
-                
-                if (result.success) {
-                    displaySearchResults(result);
-                } else {
-                    const skeletonOverlay = document.getElementById('skeletonOverlay');
-                    skeletonOverlay.classList.remove('show');
-                    alert('Search failed: ' + (result.detail || 'Unknown error'));
-                }
-                
-            } catch (error) {
-                console.error('Search error:', error);
-                const skeletonOverlay = document.getElementById('skeletonOverlay');
-                skeletonOverlay.classList.remove('show');
-                if (window.searchStatusInterval) {
-                    clearInterval(window.searchStatusInterval);
-                }
-                alert('Search failed: ' + error.message);
-            } finally {
-                // Restore button state
-                searchBtn.classList.remove('searching');
-                searchBtn.textContent = originalText;
-                searchBtn.disabled = false;
-            }
+            console.warn('Using fallback search - transformer not available');
+            alert('Transformer system not loaded. Please refresh the page.');
         }
         
-        // Function to display search results - now redirects to dedicated page
+        // Legacy function - now handled by transformer system
         function displaySearchResults(result) {
-            if (result.success && result.query_hash) {
-                // Redirect to the dedicated result page
-                window.location.href = `/result/${result.query_hash}`;
-            } else {
-                // Fallback: show error message on current page
-                let resultsContainer = document.getElementById('searchResults');
-                if (!resultsContainer) {
-                    resultsContainer = document.createElement('div');
-                    resultsContainer.id = 'searchResults';
-                    resultsContainer.style.cssText = `
-                        margin-top: 20px;
-                        padding: 20px;
-                        background: #f8f9fa;
-                        border-radius: 12px;
-                        border: 1px solid #e9ecef;
-                        max-height: 400px;
-                        overflow-y: auto;
-                    `;
-                    
-                    // Insert after the search form
-                    const searchContainer = document.querySelector('.fixed-header');
-                    searchContainer.appendChild(resultsContainer);
-                }
-                
-                resultsContainer.innerHTML = `
-                    <div style="background: #f8d7da; color: #721c24; padding: 15px; border-radius: 8px; border-left: 4px solid #dc3545;">
-                        <strong>❌ Error:</strong> Unable to process your search request. Please try again.
-                    </div>
-                `;
-            }
+            console.log('Legacy displaySearchResults called - should use transformer');
         }
         
         // Search button click event - use clean transformer
