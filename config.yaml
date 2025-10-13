@@ -87,16 +87,27 @@ retrieval:
     question_keywords_boost: 2.0    # Boost chunks with question keywords
     date_keywords_boost: 1.8        # Boost temporal information
     direct_answer_boost: 2.5        # Boost direct answer patterns
+    code_content_boost: 3.0         # DEMO: Prioritize actual code over documentation
+    recent_content_boost: 2.2       # DEMO: Boost content from recent dates
     
-  # Medical domain optimizations  
+  # Domain-specific optimizations  
   domain_specific:
     medical_terms_boost: true
     ontology_codes_weight: 1.5      # Boost ICD-O, SNOMED-CT, MeSH codes
+    
+    # DEMO: Code and temporal awareness
+    code_file_priority: true        # Prioritize .sql, .py, .js files
+    temporal_relevance: true        # Weight by document date metadata
+    deprecation_penalty: 0.3       # Reduce score for deprecated content
     
   # Filtering options
   filters:
     ontology_match: true
     date_range: "last_12_months"
+    
+    # DEMO: Content type filters
+    prefer_code_files: true         # Prefer code files when available
+    exclude_deprecated: false       # Include deprecated for comparison
 
 # Module 3: Enhanced LLM Orchestration Configuration
 llm:

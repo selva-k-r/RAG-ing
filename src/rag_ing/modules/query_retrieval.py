@@ -582,8 +582,8 @@ class QueryRetrievalModule:
         return [doc for doc, score in final_docs]
     
     def _apply_medical_boosting(self, docs: List[Document], query: str = None) -> List[Document]:
-        """Enhanced boosting for medical terminology and question-answer patterns."""
-        logger.debug("Applying enhanced medical and Q&A boosting")
+        """Enhanced boosting for medical terminology, temporal relevance, and code awareness."""
+        logger.debug("Applying enhanced medical, temporal, and code-aware boosting")
         
         # Medical terms that should boost relevance
         medical_terms = {
@@ -592,6 +592,26 @@ class QueryRetrievalModule:
             'benign', 'staging', 'prognosis', 'diagnosis', 'treatment', 'therapy',
             'clinical', 'patient', 'medical', 'healthcare', 'disease', 'symptom',
             'eom', 'enhancing oncology model'  # Add EOM-specific terms
+        }
+        
+        # Code-related terms for technical content prioritization
+        code_indicators = {
+            'sql', 'query', 'select', 'from', 'where', 'join', 'implementation',
+            'function', 'procedure', 'algorithm', 'optimization', 'performance',
+            'database', 'index', 'table', 'column', 'primary key', 'foreign key',
+            'with', 'cte', 'window function', 'partition by', 'order by'
+        }
+        
+        # Temporal indicators for date-based relevance
+        recency_indicators = {
+            'current', 'latest', 'new', 'updated', 'recent', 'modern', 'optimized',
+            'v2.0', 'version 2', 'production', 'active', '2024', '2025'
+        }
+        
+        # Deprecation indicators (negative scoring)
+        deprecation_indicators = {
+            'deprecated', 'old', 'obsolete', 'legacy', 'outdated', 'superseded',
+            'v1.0', 'version 1', 'previous', 'former', 'replaced', 'discontinued'
         }
         
         # Question-answer patterns that indicate direct answers
@@ -637,6 +657,36 @@ class QueryRetrievalModule:
                                if pattern.lower() in content or pattern in str(doc.metadata))
             ontology_boost = min(ontology_count * 0.2, 0.3)  # Max 0.3 boost
             
+            # DEMO: Code content boost - prioritize actual code over documentation
+            code_count = sum(1 for term in code_indicators if term in content)
+            code_boost = 0.0
+            if code_count > 0:
+                code_boost = min(code_count * 0.15, 0.8)  # Max 0.8 boost for code
+                # Extra boost for SQL files
+                source_path = str(doc.metadata.get('source', ''))
+                if source_path.endswith('.sql'):
+                    code_boost += 0.5  # Strong boost for SQL files
+            
+            # DEMO: Temporal relevance boost - favor recent content
+            recency_count = sum(1 for term in recency_indicators if term in content)
+            temporal_boost = min(recency_count * 0.12, 0.6)  # Max 0.6 boost for recent content
+            
+            # DEMO: Deprecation penalty - reduce score for old/deprecated content
+            deprecation_count = sum(1 for term in deprecation_indicators if term in content)
+            deprecation_penalty = min(deprecation_count * 0.15, 0.5)  # Max 0.5 penalty
+            
+            # DEMO: Metadata-based temporal scoring
+            metadata_temporal_boost = 0.0
+            doc_date = doc.metadata.get('date', '')
+            if doc_date and isinstance(doc_date, str):
+                # Simple heuristic: boost 2024+ content, neutral for 2023, penalty for older
+                if '2024' in doc_date or '2025' in doc_date:
+                    metadata_temporal_boost = 0.4
+                elif '2023' in doc_date:
+                    metadata_temporal_boost = 0.1
+                elif any(year in doc_date for year in ['2022', '2021', '2020']):
+                    metadata_temporal_boost = -0.2
+            
             # NEW: Question-answer pattern boost
             qa_boost = 0.0
             if is_when_question:
@@ -650,8 +700,13 @@ class QueryRetrievalModule:
             if any(indicator in content for indicator in ['the program started', 'began in', 'launched in', 'effective']):
                 direct_answer_boost = 0.8  # Strong boost for direct answers
             
-            # Total boost score
-            boost_score = 1.0 + term_boost + ontology_boost + qa_boost + direct_answer_boost
+            # DEMO: Total boost score with temporal and code awareness
+            boost_score = (1.0 + term_boost + ontology_boost + qa_boost + direct_answer_boost +
+                          code_boost + temporal_boost + metadata_temporal_boost - deprecation_penalty)
+            
+            # Ensure boost score stays positive
+            boost_score = max(boost_score, 0.1)
+            
             scored_docs.append((doc, boost_score))
         
         # Sort by boost score
