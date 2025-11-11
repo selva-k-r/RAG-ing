@@ -225,6 +225,10 @@ python main.py --status                    # System health check
 # Development
 python main.py --debug --ingest           # Debug mode ingestion
 python ui/app.py                          # Direct FastAPI launch
+
+# Package Management
+./check_packages.sh                        # Check package status (color-coded)
+python3 analyze_packages.py                # Detailed package analysis
 ```
 
 ### **Web Interface**
@@ -249,6 +253,24 @@ response = rag.query_documents(
     audience="technical"
 )
 ```
+
+### **Package Status Check**
+```bash
+# Quick check of all dependencies
+./check_packages.sh
+
+# Or run the analysis directly
+python3 analyze_packages.py
+
+# View results
+open PACKAGE_STATUS_REPORT.html  # Visual HTML report
+cat PACKAGE_STATUS_REPORT.md     # Markdown report
+```
+
+**Color-coded Status**:
+- 🔴 **RED**: Deprecated packages (immediate action required)
+- 🟡 **YELLOW**: Stable but outdated (update recommended)
+- 🟢 **GREEN**: Latest stable version (all good!)
 
 ---
 
