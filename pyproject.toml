@@ -21,48 +21,77 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
 ]
 dependencies = [
-    "langchain>=0.1.0",
-    "langchain-community>=0.0.1",
-    "langchain-openai>=0.0.1",
-    "langchain-huggingface>=0.0.1",
-    "fastapi>=0.100.0",
-    "uvicorn>=0.20.0",
-    "snowflake-connector-python>=3.0.0",
-    "snowflake-sqlalchemy>=1.5.0",
-    "requests>=2.28.0",
-    "beautifulsoup4>=4.11.0",
-    "python-dotenv>=1.0.0",
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0",
-    "numpy>=1.21.0",
-    "pandas>=1.5.0",
-    "tiktoken>=0.5.0",
-    "openai>=1.0.0",
-    "anthropic>=0.18.0",
-    "faiss-cpu>=1.7.0",
-    "chromadb>=0.4.0",
-    "pdfplumber>=0.10.0",
-    "feedparser>=6.0.0",
-    "pymupdf>=1.23.26",
-    "markdown-it-py>=3.0.0",
-    "sentence-transformers>=2.2.2",
-    "PyYAML>=6.0",
-    "ragas>=0.1.0",
+    # Production dependencies - Updated November 2025
+    # All packages on latest stable versions except where noted
+    
+    # Web framework and server
+    "fastapi>=0.121.1",
+    "uvicorn>=0.38.0",
+    
+    # HTTP and parsing
+    "requests>=2.32.5",
+    "beautifulsoup4>=4.14.2",
+    
+    # Configuration and environment
+    "python-dotenv>=1.2.1",
+    "pydantic>=2.12.4",
+    "pydantic-settings>=2.12.0",
+    "PyYAML>=6.0.3",
+    
+    # Data science and numerical computing
+    "numpy>=2.3.4",
+    "pandas>=2.3.3",
+    
+    # AI and machine learning
+    "tiktoken>=0.12.0",
+    "anthropic>=0.72.0",
+    "sentence-transformers>=5.1.2",
+    "ragas>=0.3.8",
+    
+    # Vector database and search
+    "faiss-cpu>=1.12.0",
+    "chromadb>=1.3.4",
     "rank-bm25>=0.2.2",
+    
+    # Document processing
+    "pdfplumber>=0.11.8",
+    "pymupdf>=1.26.6",
+    "feedparser>=6.0.12",
+    "markdown-it-py>=4.0.0",
+    
+    # LangChain ecosystem - Pinned at 0.3.x
+    # Version 1.x requires code migration (breaking API changes)
+    # See MIGRATION_GUIDE.md for upgrade instructions
+    "langchain>=0.3.27,<1.0.0",
+    "langchain-community>=0.3.29,<1.0.0",
+    "langchain-openai>=0.3.33,<1.0.0",
+    "langchain-huggingface>=0.3.1,<1.0.0",
+    
+    # OpenAI SDK - Pinned at 1.x
+    # Version 2.x requires code migration (breaking API changes)
+    # See MIGRATION_GUIDE.md for upgrade instructions
+    "openai>=1.108.2,<2.0.0",
+    
+    # Snowflake - Pinned at 3.x
+    # Version 4.x requires code migration (breaking API changes)
+    # See MIGRATION_GUIDE.md for upgrade instructions
+    "snowflake-connector-python>=3.17.4,<4.0.0",
+    "snowflake-sqlalchemy>=1.7.7",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "black>=23.0.0",
-    "flake8>=6.0.0",
-    "mypy>=1.0.0",
+    "pytest>=9.0.0",
+    "pytest-cov>=7.0.0",
+    "black>=25.11.0",
+    "flake8>=7.3.0",
+    "mypy>=1.18.2",
 ]
 
 [project.urls]
-Homepage = "https://github.com/<your-github-username>/<your-repo-name>"
-Repository = "https://github.com/<your-github-username>/<your-repo-name>"
+Homepage = "https://github.com/selva-k-r/RAG-ing"
+Repository = "https://github.com/selva-k-r/RAG-ing"
+Issues = "https://github.com/selva-k-r/RAG-ing/issues"
 
 [project.scripts]
 rag-ing = "rag_ing.cli:main"

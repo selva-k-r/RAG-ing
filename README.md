@@ -1,551 +1,455 @@
-# RAG-ing: Enterprise AI-Powered Search & Knowledge Management
+# RAG-ing: Enterprise RAG System
 
-🚀 **A sophisticated RAG system with transformer-style UI animations and real-time progress tracking.**
+A production-ready Retrieval-Augmented Generation (RAG) system for intelligent document search and question answering. Connect to multiple data sources including Confluence, Jira, and local documents with Azure OpenAI integration.
 
-## 🎬 Key Features
+## Features
 
-### **🚗→🤖 Transformer UI Experience**
-- **Search-to-Chat Transformation**: Smooth animation from search page to chat interface
-- **Real-time Progress Tracking**: Live progress bar with contextual flying words
-- **Streaming Text Responses**: Character-by-character text rendering (5x faster)
-- **Chat-Style Interface**: Professional conversation flow with message bubbles
+### Core Capabilities
+- **Multi-Source Integration**: Confluence, Jira, local files (PDF, Markdown, TXT, HTML)
+- **Hybrid Search**: Semantic vector search combined with keyword matching
+- **LLM Integration**: Azure OpenAI (GPT-4) with fallback to OpenAI and Anthropic
+- **Real-time Responses**: Streaming text output with progress tracking
+- **Vector Storage**: ChromaDB for persistent embeddings
 
-### **🧠 Advanced AI Capabilities**
-- **Azure OpenAI Integration**: GPT-4 Turbo with 128K context window
-- **Vector Search**: ChromaDB with 1536-dimensional embeddings
-- **Semantic Caching**: 60-80% cost reduction through intelligent caching
-- **Multi-Source Search**: Confluence, Jira, Salesforce, Internal docs
+### Architecture
+Five-module system following YAML-driven configuration:
+1. **Corpus Embedding**: Document ingestion, chunking, and vector generation
+2. **Query Retrieval**: Hybrid search with semantic and keyword matching
+3. **LLM Orchestration**: Multi-provider AI response generation
+4. **UI Layer**: FastAPI web interface with real-time progress
+5. **Evaluation & Logging**: Performance metrics and structured logging
 
-### **⚡ Performance Features**
-- **Sub-2 second search**: Optimized vector retrieval
-- **Parallel processing**: Progress tracking doesn't slow down main operations
-- **Smart chunking**: Recursive text splitting with metadata preservation
-- **Fallback systems**: Multiple AI providers for reliability
+## Quick Start
 
----
-
-## 🏗️ Architecture Overview
-
-### **5-Module System**
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    RAG-ing Architecture                      │
-├─────────────────────────────────────────────────────────────┤
-│ Module 1: Corpus & Embedding Lifecycle                     │
-│ • Document ingestion (PDF, MD, TXT, HTML)                  │
-│ • Azure OpenAI embeddings (text-embedding-ada-002)         │
-│ • ChromaDB vector storage with persistence                 │
-├─────────────────────────────────────────────────────────────┤
-│ Module 2: Query Processing & Retrieval                     │
-│ • Hybrid search (semantic + keyword)                       │
-│ • Query enhancement and context understanding              │
-│ • Smart filtering and reranking                            │
-├─────────────────────────────────────────────────────────────┤
-│ Module 3: LLM Orchestration                                │
-│ • Azure OpenAI GPT-4 Turbo integration                     │
-│ • Multi-provider fallback (OpenAI, Anthropic)              │
-│ • Audience-specific prompts (technical/business)           │
-├─────────────────────────────────────────────────────────────┤
-│ Module 4: UI Layer (FastAPI + Transformer UI)              │
-│ • FastAPI backend with real-time progress                  │
-│ • Transformer-style UI animations                          │
-│ • Server-Sent Events for live updates                      │
-├─────────────────────────────────────────────────────────────┤
-│ Module 5: Evaluation & Logging                             │
-│ • Structured JSON logging                                  │
-│ • Performance metrics tracking                             │
-│ • User feedback collection                                 │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🚀 Quick Start
-
-### 1. Installation
+### Installation
 
 ```bash
-# Clone and setup
-git clone <repository-url>
+# Clone repository
+git clone https://github.com/selva-k-r/RAG-ing.git
 cd RAG-ing
 
-# Create virtual environment
+# Create and activate virtual environment
 python -m venv .venv
-.venv\Scripts\Activate.ps1  # Windows
-# source .venv/bin/activate  # Linux/Mac
+source .venv/bin/activate  # Linux/Mac
+# .venv\Scripts\Activate.ps1  # Windows
 
 # Install dependencies
-pip install -e .
+pip install -e ".[dev]"
 ```
 
-### 2. Environment Setup
+### Configuration
 
-Create `.env` file:
+Create `.env` file with your API credentials:
+
 ```bash
-# Azure OpenAI (Required)
-AZURE_OPENAI_API_KEY=your_azure_key_here
+# Azure OpenAI (Primary)
+AZURE_OPENAI_API_KEY=your_key_here
 AZURE_OPENAI_ENDPOINT=https://your-endpoint.openai.azure.com/
 AZURE_OPENAI_API_VERSION=2024-02-15-preview
 
-# Optional: Fallback providers
+# Optional fallback providers
 OPENAI_API_KEY=your_openai_key
 ANTHROPIC_API_KEY=your_anthropic_key
+
+# Confluence integration (optional)
+CONFLUENCE_BASE_URL=https://your-domain.atlassian.net/wiki
+CONFLUENCE_TOKEN=your_confluence_token
+CONFLUENCE_SPACE_KEY=YOUR_SPACE
+
+# Jira integration (optional)
+JIRA_SERVER=https://your-domain.atlassian.net
+JIRA_EMAIL=your_email@company.com
+JIRA_API_TOKEN=your_jira_token
 ```
 
-### 3. First Run (3 Steps)
+Configure data sources in `config.yaml`:
+
+```yaml
+data_source:
+  type: "local_file"  # Options: local_file, confluence, jira
+  path: "./data/"
+  
+  # Confluence configuration
+  confluence:
+    base_url: "${CONFLUENCE_BASE_URL}"
+    auth_token: "${CONFLUENCE_TOKEN}"
+    space_key: "${CONFLUENCE_SPACE_KEY}"
+    page_filter: ["documentation", "guides"]
+  
+  # Jira configuration
+  jira:
+    server: "${JIRA_SERVER}"
+    email: "${JIRA_EMAIL}"
+    api_token: "${JIRA_API_TOKEN}"
+    project_keys: ["PROJ1", "PROJ2"]
+```
+
+### Usage
 
 ```bash
-# Step 1: Ingest your documents (REQUIRED)
+# Step 1: Index your documents
 python main.py --ingest
 
-# Step 2: Launch the web interface
+# Step 2: Launch web interface
 python main.py --ui
-# OR: python ui/app.py
 
-# Step 3: Open browser
-# http://localhost:8000
+# Step 3: Access at http://localhost:8000
 ```
 
----
+Alternative commands:
 
-## 🎨 User Experience
+```bash
+# Single query via CLI
+python main.py --query "your question here"
 
-### **Search Mode (Initial)**
-```
-┌─────────────────────────────────────┐
-│              iConnect               │ ← Elegant centered title
-│        AI-Powered Search            │
-│                                     │
-│  [Search bar - centered]            │
-│  📄 Confluence 🎫 Jira 🏢 Internal │ ← Source selection
-│                                     │
-│           FAQ Section               │
-└─────────────────────────────────────┘
+# System health check
+python main.py --status
+
+# Export performance metrics
+python main.py --export-metrics
 ```
 
-### **🚗→🤖 Transformation Animation (0.8s)**
-- Header shrinks and moves to top
-- Search bar slides to bottom
-- Source icons become mini
-- FAQ section fades out
-- Chat area appears
+## Data Source Configuration
 
-### **Chat Mode (After Search)**
+### Local Files
+Place documents in the `./data/` directory. Supported formats:
+- PDF documents
+- Markdown (.md)
+- Text files (.txt)
+- HTML files (.html)
+
+### Confluence Integration
+Configure Confluence in `config.yaml`:
+
+```yaml
+data_source:
+  type: "confluence"
+  confluence:
+    base_url: "https://your-domain.atlassian.net/wiki"
+    auth_token: "${CONFLUENCE_TOKEN}"
+    space_key: "DOCS"
+    page_filter: ["guides", "api"]  # Optional: filter by labels
 ```
-┌─────────────────────────────────────┐
-│ iConnect | AI-Powered Search    💬  │ ← Compact header
-├─────────────────────────────────────┤
-│ 👤 What is avoidable diagnosis?     │ ← User message
-│                                     │
-│ 🤖 ● ● ● AI is analyzing...         │ ← Typing indicator
-│    [Response streams here]          │ ← Fast streaming text
-│ 📚 🎯 92% Confidence • ⏱️ 18s      │ ← Sources & stats
-├─────────────────────────────────────┤
-│ [Search bar] 📄🎫🏢☁️              │ ← Bottom input
-└─────────────────────────────────────┘
+
+The system will automatically fetch and index pages from specified spaces.
+
+### Jira Integration
+Configure Jira in `config.yaml`:
+
+```yaml
+data_source:
+  type: "jira"
+  jira:
+    server: "https://your-domain.atlassian.net"
+    email: "your-email@company.com"
+    api_token: "${JIRA_API_TOKEN}"
+    project_keys: ["PROJ"]
+    jql_filter: "project = PROJ AND type = Story"  # Optional
 ```
 
----
+The system indexes ticket descriptions, comments, and attachments.
 
-## 📊 Current Data & Performance
+### Multi-Source Setup
+To index from multiple sources, run ingestion separately for each:
 
-### **Indexed Content**
-- **169 documents** processed
-- **1,582 text chunks** generated
-- **1536-dimensional vectors** (Azure OpenAI ada-002)
-- **Processing time**: ~3 minutes for full corpus
+```bash
+# Index local files
+python main.py --ingest
 
-### **Performance Metrics**
-- **Search latency**: <2 seconds
-- **Vector similarity**: Cosine similarity with HNSW indexing
-- **Text streaming**: 5ms per character (3-5 chars at once)
-- **Progress updates**: Every 200ms via Server-Sent Events
+# Switch to Confluence in config.yaml, then:
+python main.py --ingest
 
-### **Data Sources**
-- **163 markdown files** (EOM documentation)
-- **3 PDF files** (CMS guidelines, payment methodology)
-- **HTML/TXT files** (FHIR content, samples)
+# Switch to Jira in config.yaml, then:
+python main.py --ingest
+```
 
----
+All sources are stored in the same vector database for unified search.
 
-## 🔧 Development
+## Project Structure
 
-### **Project Structure**
 ```
 RAG-ing/
-├── main.py                     # CLI entry point
-├── config.yaml                 # Main configuration
-├── src/rag_ing/               # Core RAG modules
-│   ├── modules/               # 5 core modules
-│   ├── config/                # Settings management
-│   ├── connectors/            # External integrations
-│   └── utils/                 # Shared utilities
-├── ui/                        # FastAPI web interface
-│   ├── app.py                 # Main FastAPI app
-│   ├── api/                   # API routes
-│   │   ├── routes.py          # Search endpoints
-│   │   └── simple_progress.py # Progress tracking
-│   ├── templates/             # HTML templates
-│   │   └── home.html          # Main interface
-│   └── static/                # Frontend assets
-│       ├── css/
-│       │   ├── progress.css   # Progress animations
-│       │   └── transformer.css # UI transformation
-│       └── js/
-│           ├── progress.js    # Progress tracking
-│           └── clean_transformer.js # UI animations
-├── data/                      # Document storage
-├── vector_store/              # ChromaDB persistence
-├── chroma/                    # ChromaDB metadata
-├── logs/                      # Application logs
-└── prompts/                   # AI prompt templates
+├── main.py                    # CLI entry point
+├── config.yaml                # System configuration
+├── .env                       # API credentials (create this)
+├── pyproject.toml             # Dependencies and project metadata
+│
+├── src/rag_ing/              # Core application
+│   ├── orchestrator.py       # Main RAG coordinator
+│   ├── modules/              # Five core modules
+│   │   ├── corpus_embedding.py
+│   │   ├── query_retrieval.py
+│   │   ├── llm_orchestration.py
+│   │   ├── ui_layer.py
+│   │   └── evaluation_logging.py
+│   ├── config/               # Settings management
+│   ├── connectors/           # Data source integrations
+│   │   ├── confluence_connector.py
+│   │   └── (jira connector planned)
+│   └── utils/                # Shared utilities
+│
+├── ui/                       # Web interface
+│   ├── app.py                # FastAPI application
+│   ├── api/                  # API routes
+│   ├── templates/            # HTML templates
+│   └── static/               # CSS, JavaScript
+│
+├── data/                     # Local document storage
+├── vector_store/             # ChromaDB persistence
+├── logs/                     # Application logs
+└── prompts/                  # LLM prompt templates
 ```
 
-### **Key Technologies**
-- **Backend**: FastAPI + Python 3.11
-- **Frontend**: Pure HTML/CSS/JavaScript (no frameworks)
-- **AI**: Azure OpenAI (GPT-4 Turbo + text-embedding-ada-002)
-- **Vector DB**: ChromaDB with persistence
-- **Real-time**: Server-Sent Events for progress streaming
-- **Styling**: CSS animations with cubic-bezier transitions
+## API Reference
 
----
+### REST Endpoints
 
-## 🎯 Usage Examples
-
-### **CLI Commands**
-```bash
-# System operations
-python main.py --ingest                    # Re-index all documents
-python main.py --query "your question"    # Single query
-python main.py --ui                        # Launch web interface
-python main.py --status                    # System health check
-
-# Development
-python main.py --debug --ingest           # Debug mode ingestion
-python ui/app.py                          # Direct FastAPI launch
-```
-
-### **Web Interface**
-1. **Start server**: `python ui/app.py`
-2. **Open browser**: http://localhost:8000
-3. **Enter query**: Watch the transformer animation!
-4. **Continue chatting**: Ask follow-up questions
-
-### **API Integration**
 ```python
-from rag_ing.orchestrator import RAGOrchestrator
+# Search endpoint
+POST /api/search
+{
+    "query": "What is the process for X?",
+    "audience": "technical"  # or "business"
+}
 
-# Initialize system
-rag = RAGOrchestrator('./config.yaml')
+# Search with progress tracking
+POST /api/search-with-progress
+GET  /api/progress/{session_id}  # Server-Sent Events
+GET  /api/result/{session_id}
 
-# Process documents
-results = rag.process_corpus()
+# System endpoints
+GET  /api/health
+GET  /docs  # Interactive API documentation
+```
 
-# Query system
-response = rag.query_documents(
-    query="What is EOM?",
+### Programmatic Usage
+
+```python
+from src.rag_ing.orchestrator import RAGOrchestrator
+from src.rag_ing.config.settings import Settings
+
+# Load configuration
+settings = Settings.from_yaml('./config.yaml')
+rag = RAGOrchestrator(settings)
+
+# Index documents
+rag.process_corpus()
+
+# Query the system
+result = rag.query_documents(
+    query="your question",
     audience="technical"
 )
+
+print(result['response'])
+print(result['sources'])
 ```
 
----
+## Configuration
 
-## 🎨 UI Features
+### Main Settings (config.yaml)
 
-### **Progress Tracking**
-- **6-step progress bar**: Initialization → Search → Retrieval → Processing → Generation → Completion
-- **Flying words animation**: Context-aware words based on current step
-- **Real-time stats**: Elapsed time, estimated remaining, step counter
-- **Subtle styling**: Toned-down colors, 6px height progress bar
-
-### **Chat Interface**
-- **Message bubbles**: User (blue) and AI (green) with avatars
-- **Typing indicator**: Animated dots during AI processing
-- **Streaming text**: Fast character-by-character rendering
-- **Formatted responses**: Markdown rendering with headers, lists, code blocks
-- **Source attribution**: Confidence scores and processing time
-
-### **Transformer Animation**
-- **Smooth transitions**: 0.8s cubic-bezier animations
-- **Element morphing**: Header, search bar, and sources transform positions
-- **State management**: Clean switching between search and chat modes
-- **Reset functionality**: Return to search mode for new conversations
-
----
-
-## 🛠️ Configuration
-
-### **config.yaml Structure**
 ```yaml
-# Data Source
-data_source:
-  type: "local_file"
-  path: "./data/"
-  enabled: true
-
-# Embedding Model
+# Embedding configuration
 embedding_model:
   provider: "azure_openai"
   azure_model: "text-embedding-ada-002"
-  use_azure_primary: true
+  fallback_model: "all-MiniLM-L6-v2"
 
-# LLM Configuration
+# LLM configuration
 llm:
-  model: "gpt-5-nano"
+  model: "gpt-4"
   provider: "azure_openai"
   max_tokens: 4096
   temperature: 0.1
+  fallback_providers: ["openai", "anthropic"]
 
-# Vector Store
+# Vector store
 vector_store:
   type: "chroma"
   path: "./vector_store"
   collection_name: "enterprise_docs"
 
-# UI Configuration
+# Retrieval settings
+retrieval:
+  top_k: 5
+  strategy: "hybrid"  # semantic + keyword
+  rerank: true
+
+# UI settings
 ui:
   framework: "fastapi"
-  audience_toggle: true
-  feedback_enabled: true
+  port: 8000
+  enable_progress: true
 ```
 
----
+### Environment Variables
 
-## 📈 Performance & Monitoring
+Required variables in `.env`:
 
-### **Built-in Metrics**
-- **Retrieval Performance**: Precision@K, hit rate, latency
-- **Generation Quality**: Response relevance, citation coverage
-- **User Experience**: Search time, streaming speed, satisfaction
-- **System Health**: Error rates, memory usage, API quotas
-
-### **Log Files**
-```
-logs/
-├── evaluation.jsonl           # Complete query events
-├── retrieval_metrics.jsonl    # Search performance
-└── generation_metrics.jsonl   # AI response quality
-```
-
-### **Monitoring Dashboard**
-Access real-time metrics at: http://localhost:8000/docs
-
----
-
-## 🔒 Security & Compliance
-
-### **Data Privacy**
-- **Local processing**: Documents stay on your infrastructure
-- **Secure API keys**: Environment variable management
-- **No data leakage**: Queries and responses not stored by AI providers
-
-### **Enterprise Features**
-- **Error handling**: Comprehensive retry logic and fallbacks
-- **Audit logging**: Complete query and response tracking
-- **Rate limiting**: Built-in API quota management
-- **Health checks**: System monitoring and alerting
-
----
-
-## 🚀 Deployment Options
-
-### **Local Development**
 ```bash
-python ui/app.py
-# Access: http://localhost:8000
+# Azure OpenAI
+AZURE_OPENAI_API_KEY=
+AZURE_OPENAI_ENDPOINT=
+AZURE_OPENAI_API_VERSION=2024-02-15-preview
+
+# Fallback providers (optional)
+OPENAI_API_KEY=
+ANTHROPIC_API_KEY=
+
+# Data source credentials (optional)
+CONFLUENCE_TOKEN=
+JIRA_API_TOKEN=
 ```
 
-### **Docker Deployment**
+## Development
+
+### Technology Stack
+- **Python**: 3.8+
+- **Framework**: FastAPI
+- **AI/ML**: Azure OpenAI, LangChain, sentence-transformers
+- **Vector DB**: ChromaDB
+- **Frontend**: HTML/CSS/JavaScript (no framework dependencies)
+
+### Development Setup
+
 ```bash
-docker-compose up --build
-# Access: http://localhost:8000
-```
-
-### **Production Deployment**
-- **Azure App Service**: FastAPI deployment
-- **Azure OpenAI**: Managed AI services
-- **Azure Storage**: Document and vector storage
-- **Azure Monitor**: Logging and analytics
-
----
-
-## 🎯 Use Cases
-
-### **Enterprise Knowledge Management**
-- **Technical Documentation**: API docs, setup guides, troubleshooting
-- **Process Documentation**: SOPs, workflows, best practices
-- **Institutional Knowledge**: Tribal knowledge capture and sharing
-
-### **Customer Support**
-- **Ticket Assistance**: Auto-generate ticket descriptions
-- **Solution Lookup**: Find similar resolved issues
-- **Knowledge Base**: Self-service support with AI guidance
-
-### **Development Support**
-- **Code Documentation**: Architecture decisions, design patterns
-- **Onboarding**: New developer setup and training
-- **Troubleshooting**: Error resolution and debugging guides
-
----
-
-## 🤝 Contributing
-
-### **Development Setup**
-```bash
-# Install development dependencies
-pip install -e .[dev]
+# Install with development dependencies
+pip install -e ".[dev]"
 
 # Run tests
 pytest tests/ -v
 
-# Code quality
-black src/
-flake8 src/
+# Code formatting
+black src/ ui/
+flake8 src/ ui/
+
+# Type checking
 mypy src/
 ```
 
-### **Adding Features**
-1. **New data sources**: Update `config.yaml` and re-run `--ingest`
-2. **UI enhancements**: Modify files in `ui/static/`
-3. **AI improvements**: Update prompt templates in `prompts/`
-4. **New modules**: Follow the 5-module pattern in `src/rag_ing/modules/`
+### Package Status
 
----
+Run package status checker to view dependency health:
 
-## 📚 API Reference
-
-### **FastAPI Endpoints**
-```python
-# Main search endpoint
-POST /api/search
-{
-    "query": "What is avoidable diagnosis?",
-    "audience": "technical",
-    "sources": ["confluence", "jira", "internal"]
-}
-
-# Progress tracking (Server-Sent Events)
-POST /api/search-with-progress  # Start search with progress
-GET  /api/progress/{session_id} # Stream progress updates
-GET  /api/result/{session_id}   # Get final result
-
-# System endpoints
-GET  /api/health               # Health check
-GET  /docs                     # API documentation
+```bash
+python check_package_status.py
 ```
 
-### **Response Format**
-```json
-{
-    "success": true,
-    "response": "## 🎯 Answer\n**Avoidable diagnosis** refers to...",
-    "sources": [
-        {
-            "content": "Document excerpt...",
-            "metadata": {
-                "title": "Medical Documentation",
-                "source": "confluence"
-            },
-            "relevance_score": 0.92
-        }
-    ],
-    "metadata": {
-        "processing_time": 18.5,
-        "confidence_score": 0.89,
-        "source_count": 3,
-        "query_hash": "abc123"
-    }
-}
+Current status:
+- 27 packages on latest stable versions
+- 6 packages pinned for stability (major version updates require code migration)
+- 0 deprecated packages
+
+For major version migrations, see `MIGRATION_GUIDE.md`.
+
+### Project Dependencies
+
+Core dependencies (see `pyproject.toml`):
+- `langchain` and ecosystem (0.3.x, pinned until 1.0 migration)
+- `openai` (1.x, pinned until 2.0 migration)
+- `fastapi`, `uvicorn` (latest)
+- `pydantic` (latest)
+- `chromadb` (latest)
+- `sentence-transformers` (latest)
+
+## Deployment
+
+### Docker
+
+```bash
+# Quick start
+docker-compose up --build
+
+# Minimal deployment (no persistence)
+docker-compose -f docker-compose.minimal.yml up --build
+
+# Using deployment script
+./docker/deploy.sh start
+./docker/deploy.sh logs
+./docker/deploy.sh stop
 ```
 
----
+### Production Considerations
 
-## 🎬 Technical Implementation
+- **Azure App Service**: Deploy FastAPI application
+- **Azure OpenAI**: Use managed service for AI workloads
+- **Persistent Storage**: Mount volumes for `vector_store/` and `data/`
+- **Environment Variables**: Use Azure Key Vault or similar for secrets
+- **Monitoring**: Enable Application Insights for logging and metrics
 
-### **Transformer UI System**
-- **CSS Animations**: Smooth 0.8s transitions with cubic-bezier easing
-- **State Management**: Clean switching between search/chat modes
-- **Element Morphing**: Dynamic repositioning of header, search, sources
-- **Progress Integration**: Real-time updates during transformation
+See `DOCKER_QUICKSTART.md` for detailed deployment instructions.
 
-### **Progress Tracking**
-- **Server-Sent Events**: Live streaming of progress updates
-- **6-Step Pipeline**: Initialization → Search → Retrieval → Processing → Generation → Completion
-- **Flying Words**: Context-aware animation based on current processing step
-- **Performance**: Zero impact on main processing (runs in parallel)
+## Monitoring & Logs
 
-### **Text Streaming**
-- **Character-by-character**: 5ms per character with 3-5 char chunks
-- **Markdown Rendering**: Real-time formatting of headers, lists, code blocks
-- **Auto-scrolling**: Smooth scroll to follow streaming text
-- **Completion Effects**: Smooth transition to sources and actions
+### Log Files
 
----
+Structured JSON logs for analysis:
 
-## 📊 Current Status
+```
+logs/
+├── evaluation.jsonl          # Complete query/response events
+├── retrieval_metrics.jsonl   # Search performance metrics
+└── generation_metrics.jsonl  # LLM response quality
+```
 
-### **Data Corpus**
-- **169 documents** indexed
-- **1,582 text chunks** with embeddings
-- **Vector dimensions**: 1536 (Azure OpenAI ada-002)
-- **Storage**: ChromaDB with persistence
+### Health Monitoring
 
-### **Performance Benchmarks**
-- **Search time**: 1-2 seconds average
-- **AI response time**: 15-20 seconds
-- **Text streaming**: 3-5 seconds for 1000 characters
-- **Transformation animation**: 0.8 seconds
+```bash
+# System health check
+python main.py --status
 
-### **Supported Formats**
-- **Documents**: PDF, Markdown, TXT, HTML
-- **Sources**: Local files, Confluence (future), Jira (future)
-- **Outputs**: Formatted HTML with markdown support
+# Export metrics
+python main.py --export-metrics
 
----
+# View metrics in browser
+http://localhost:8000/docs  # FastAPI interactive docs
+```
 
-## 🔮 Future Enhancements
+### Performance Metrics
 
-### **Planned Features**
-- **Multi-modal search**: Image and document processing
-- **Voice interface**: Speech-to-text query input
-- **Mobile app**: React Native companion app
-- **Advanced analytics**: User behavior and query patterns
+The system tracks:
+- Query latency and throughput
+- Vector search performance
+- LLM token usage and cost
+- User satisfaction scores
+- Error rates and types
 
-### **Integration Roadmap**
-- **Confluence API**: Live document synchronization
-- **Jira Integration**: Ticket creation and management
-- **Salesforce**: CRM data integration
-- **Teams/Slack**: Bot interface for enterprise chat
+## Roadmap
 
----
+### Current Features
+- Local file ingestion (PDF, Markdown, TXT, HTML)
+- Azure OpenAI integration with fallback providers
+- ChromaDB vector storage
+- FastAPI web interface with progress tracking
+- Hybrid search (semantic + keyword)
+- Structured logging and metrics
 
-## 🏆 Achievements
+### Planned Enhancements
+- **Confluence Integration**: Live document synchronization
+- **Jira Integration**: Ticket and comment indexing
+- **Advanced Chunking**: Semantic splitting with context preservation
+- **Multi-modal Search**: Image and diagram processing
+- **Citation Tracking**: Improved source attribution
+- **Caching Layer**: Reduce redundant LLM calls
 
-✅ **Transformer UI**: Smooth search-to-chat transformation  
-✅ **Real-time Progress**: Live updates without performance impact  
-✅ **Fast Streaming**: 5x faster text rendering  
-✅ **Clean Architecture**: Modular, maintainable codebase  
-✅ **Enterprise Ready**: Security, logging, error handling  
-✅ **User-Friendly**: Intuitive interface with visual feedback  
+See `src/Requirement.md` for detailed technical requirements and implementation status.
+## Contributing
 
----
+Contributions are welcome. Please follow the development setup and coding standards outlined in this document.
 
-## 📄 License
+For major version updates or dependency changes, refer to:
+- `MIGRATION_GUIDE.md` - Step-by-step migration instructions
+- `check_package_status.py` - Dependency status checker
 
-MIT License - see [LICENSE](LICENSE) file for details.
+## License
 
-## 🙏 Acknowledgments
+MIT License - See LICENSE file for details.
 
-- **Azure OpenAI**: Advanced language models and embeddings
-- **ChromaDB**: Efficient vector database with persistence
-- **FastAPI**: Modern, fast web framework
-- **LangChain**: RAG framework and document processing
-- **Pydantic**: Configuration validation and settings management
+## Support
 
----
+- Technical documentation: `src/Requirement.md`
+- Configuration guide: `.github/copilot-instructions.md`
+- Deployment help: `DOCKER_QUICKSTART.md`
 
-**🎬 Experience the future of enterprise search with transformer-style UI animations and real-time AI assistance.**
-
-**Built for enterprise knowledge management, optimized for user experience.**
+For questions or issues, please open a GitHub issue.

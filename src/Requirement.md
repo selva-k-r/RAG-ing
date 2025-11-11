@@ -3,6 +3,129 @@
 ## Overview
 This document outlines the **completed implementation** of a modular RAG (Retrieval-Augmented Generation) system focused on oncology documentation. The system is fully implemented as **5 independent modules** with YAML-driven configuration, comprehensive evaluation metrics, and enterprise-grade Azure OpenAI integration.
 
+## Dependency Management & Version Control
+
+**Last Updated:** November 11, 2025
+
+### Current Dependency Status
+
+#### 🟢 Up-to-Date (5 packages)
+- `snowflake-sqlalchemy` 1.7.7
+- `requests` 2.32.5
+- `faiss-cpu` 1.12.0
+- `feedparser` 6.0.12
+- `markdown-it-py` 4.0.0
+
+#### 🟡 Phase 1: Low-Risk Updates (21 packages - Safe to update)
+All patch/minor version updates with minimal breaking changes:
+- `fastapi` 0.118.0 → 0.121.1
+- `uvicorn` 0.36.0 → 0.38.0
+- `beautifulsoup4` 4.13.4 → 4.14.2
+- `python-dotenv` 1.1.1 → 1.2.1
+- `pydantic` 2.11.9 → 2.12.4
+- `pydantic-settings` 2.10.1 → 2.12.0
+- `numpy` 2.3.1 → 2.3.4
+- `pandas` 2.3.1 → 2.3.3
+- `tiktoken` 0.11.0 → 0.12.0
+- `anthropic` 0.69.0 → 0.72.0
+- `chromadb` 1.1.0 → 1.3.4
+- `pdfplumber` 0.11.7 → 0.11.8
+- `pymupdf` 1.26.4 → 1.26.6
+- `sentence-transformers` 5.1.1 → 5.1.2
+- `PyYAML` 6.0.2 → 6.0.3
+- Plus dev tools: `pytest` 9.0.0, `pytest-cov` 7.0.0, `black` 25.11.0, `flake8` 7.3.0, `mypy` 1.18.2
+
+#### 🔴 Phase 2: High-Risk Major Version Updates (Requires Code Migration)
+
+**⚠️ WARNING: Do not update without code changes**
+
+1. **LangChain Ecosystem** (0.3.x → 1.x)
+   - **Current:** `langchain` 0.3.27, `langchain-community` 0.3.29, `langchain-openai` 0.3.33, `langchain-huggingface` 0.3.1
+   - **Target:** 1.0.5, 0.4.1, 1.0.2, 1.0.1
+   - **Breaking Changes:**
+     - `Document` moved: `langchain.docstore.document` → `langchain_core.documents`
+     - `Embeddings` moved: `langchain.embeddings.base` → `langchain_core.embeddings`
+     - `VectorStore` moved: `langchain.vectorstores.base` → `langchain_core.vectorstores`
+     - Text splitters now in separate `langchain_text_splitters` package
+   - **Impact:** 7 files affected across modules and UI
+   - **Estimated Effort:** 4-6 hours (import updates, testing)
+
+2. **OpenAI SDK** (1.x → 2.x)
+   - **Current:** 1.108.2
+   - **Target:** 2.7.2
+   - **Breaking Changes:**
+     - Changed client initialization pattern
+     - New async API patterns
+     - Updated response object structure
+     - Modified error handling classes
+   - **Impact:** 4 files in LLM orchestration and query retrieval
+   - **Estimated Effort:** 2-3 hours (client updates, response parsing)
+
+3. **Snowflake Connector** (3.x → 4.x)
+   - **Current:** 3.17.4
+   - **Target:** 4.0.0
+   - **Breaking Changes:**
+     - Requires Python 3.8+ (dropping 3.7 support)
+     - New authentication flow
+     - Updated connection parameters
+     - Changes in cursor behavior
+   - **Impact:** Currently no usage detected in codebase
+   - **Estimated Effort:** 0-1 hours (if connector is added later)
+
+### Update Strategy
+
+**Phase 1 (Immediate - Low Risk):**
+```bash
+pip install -e ".[dev]" --upgrade
+```
+This will update all safe packages while keeping major versions pinned.
+
+**Phase 2 (Planned - High Risk):**
+Requires code migration before updating. See migration guide below.
+
+### Migration Guide for Major Version Updates
+
+#### LangChain 1.0 Migration
+
+**Files to Update:**
+1. `src/rag_ing/modules/corpus_embedding.py`
+2. `src/rag_ing/modules/query_retrieval.py`
+3. `src/rag_ing/retrieval/hybrid_retrieval.py`
+4. `src/rag_ing/connectors/confluence_connector.py`
+5. `ui/enhanced_response.py`
+
+**Required Changes:**
+```python
+# OLD (0.3.x)
+from langchain.docstore.document import Document
+from langchain.embeddings.base import Embeddings
+from langchain.vectorstores.base import VectorStore
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+# NEW (1.0.x)
+from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
+from langchain_core.vectorstores import VectorStore
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+```
+
+#### OpenAI 2.0 Migration
+
+**Files to Update:**
+1. `src/rag_ing/modules/llm_orchestration.py`
+2. `src/rag_ing/modules/query_retrieval.py`
+
+**Required Changes:**
+```python
+# OLD (1.x)
+from openai import OpenAI, AzureOpenAI
+client = OpenAI(api_key=key)
+response = client.chat.completions.create(...)
+
+# NEW (2.x) - Pattern likely similar but verify response structure
+# Check official migration guide at: https://github.com/openai/openai-python/releases
+```
+
 ## Architecture Overview
 
 The RAG system consists of 5 **fully implemented** core modules:
