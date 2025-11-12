@@ -3,6 +3,67 @@
 ## Overview
 This document outlines the **completed implementation** of a modular RAG (Retrieval-Augmented Generation) system focused on oncology documentation. The system is fully implemented as **5 independent modules** with YAML-driven configuration, comprehensive evaluation metrics, and enterprise-grade Azure OpenAI integration.
 
+## Dependency Management & Version Control
+
+**Last Updated:** November 11, 2025
+
+### Current Dependency Status
+
+All dependencies are now on latest stable versions. Phase 2 major version migrations completed successfully.
+
+#### Production Dependencies (All up-to-date)
+- **Web Framework**: FastAPI 0.121.1, uvicorn 0.38.0
+- **Configuration**: pydantic 2.12.4, pydantic-settings 2.12.0, python-dotenv 1.2.1, PyYAML 6.0.3
+- **Data Science**: numpy 2.3.4, pandas 2.3.3
+- **AI/ML**: tiktoken 0.12.0, anthropic 0.72.0, sentence-transformers 5.1.2, ragas 0.3.8
+- **Vector DB**: faiss-cpu 1.12.0, chromadb 1.3.4, rank-bm25 0.2.2
+- **Document Processing**: pdfplumber 0.11.8, pymupdf 1.26.6, feedparser 6.0.12, markdown-it-py 4.0.0
+- **HTTP**: requests 2.32.5, beautifulsoup4 4.14.2
+
+#### LangChain Ecosystem (Upgraded to 1.x - November 2025)
+- `langchain` 1.0.5 (previously 0.3.27)
+- `langchain-community` 0.4.1 (previously 0.3.29)
+- `langchain-openai` 1.0.2 (previously 0.3.33)
+- `langchain-huggingface` 1.0.1 (previously 0.3.1)
+
+**Migration completed**: All import paths updated from `langchain.docstore.document` to `langchain_core.documents`, and text splitters moved to `langchain_text_splitters` package.
+
+#### OpenAI SDK (Upgraded to 2.x - November 2025)
+- `openai` 2.7.2 (previously 1.108.2)
+
+**Migration completed**: No code changes required - existing `chat.completions.create()` and `embeddings.create()` APIs are fully compatible with 2.x.
+
+#### Snowflake Connector (Maintained at 3.x)
+- `snowflake-connector-python` 3.17.4
+- `snowflake-sqlalchemy` 1.7.7
+
+**Status**: No upgrade needed - Snowflake connector not currently used in codebase.
+
+#### Development Dependencies (All up-to-date)
+- pytest 9.0.0, pytest-cov 7.0.0
+- black 25.11.0, flake8 7.3.0, mypy 1.18.2
+
+### Migration History
+
+**Phase 1 (Completed November 2025):**
+- Updated 21 production packages to latest stable versions
+- Installed 6 previously missing dev dependencies
+- Zero breaking changes, all backward compatible
+
+**Phase 2 (Completed November 2025):**
+- LangChain 0.3.x → 1.x: Updated 7 files with new import paths
+- OpenAI SDK 1.x → 2.x: No code changes required, fully compatible
+- System tested and verified operational
+
+### Update Strategy
+
+All packages are now on latest stable versions. For future updates:
+- Run `python check_package_status.py` to check for updates
+- Minor/patch updates: Can be applied immediately with `pip install -e ".[dev]" --upgrade`
+- Major updates: Review `MIGRATION_GUIDE.md` and test thoroughly
+
+No deprecated packages detected in current dependency tree.
+
 ## Architecture Overview
 
 The RAG system consists of 5 **fully implemented** core modules:

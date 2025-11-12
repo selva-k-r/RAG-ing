@@ -9,9 +9,9 @@ import time
 import hashlib
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
-from langchain.docstore.document import Document
-from langchain.embeddings.base import Embeddings
-from langchain.vectorstores.base import VectorStore
+from langchain_core.documents import Document
+from langchain_core.embeddings import Embeddings
+from langchain_core.vectorstores import VectorStore
 from ..config.settings import Settings, RetrievalConfig
 from ..utils.exceptions import RetrievalError
 
@@ -239,7 +239,7 @@ class QueryRetrievalModule:
             
             def similarity_search(self, query, k=3, **kwargs):
                 # Mock similarity search - return all documents for demo
-                from langchain.schema import Document
+                from langchain_core.documents import Document
                 return [Document(page_content=doc["content"], metadata=doc["metadata"]) for doc in self.documents[:k]]
         
         return MockVectorStore()

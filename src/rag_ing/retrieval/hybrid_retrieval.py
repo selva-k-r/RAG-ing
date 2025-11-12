@@ -26,7 +26,7 @@ except ImportError:
     CROSS_ENCODER_AVAILABLE = False
     logging.warning("CrossEncoder not available. Install with: pip install sentence-transformers")
 
-from langchain.docstore.document import Document
+from langchain_core.documents import Document
 from ..config.settings import Settings
 
 logger = logging.getLogger(__name__)
