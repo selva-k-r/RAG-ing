@@ -9,7 +9,7 @@ import logging
 import requests
 import base64
 from typing import List, Dict, Any, Optional
-from langchain.docstore.document import Document
+from langchain_core.documents import Document
 from ..utils.exceptions import ConnectionError, AuthenticationError, APIError
 
 logger = logging.getLogger(__name__)

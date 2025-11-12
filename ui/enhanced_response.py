@@ -5,7 +5,7 @@ This module provides a flexible, domain-agnostic response generation system.
 
 import logging
 from typing import Dict, List, Any
-from langchain.docstore.document import Document
+from langchain_core.documents import Document
 import re
 
 logger = logging.getLogger(__name__)

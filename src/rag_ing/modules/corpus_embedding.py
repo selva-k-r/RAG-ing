@@ -15,8 +15,8 @@ import time
 import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-from langchain.docstore.document import Document
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_core.documents import Document
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma, FAISS
 import chromadb

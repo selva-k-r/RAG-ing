@@ -56,23 +56,18 @@ dependencies = [
     # Document processing
     "pdfplumber>=0.11.8",
     "pymupdf>=1.26.6",
-    "feedparser>=6.0.12",
+    "feedparser>=0.12",
     "markdown-it-py>=4.0.0",
     
-    # LangChain ecosystem - Pinned at 0.3.x
-    # Version 1.x requires code migration (breaking API changes)
-    # See MIGRATION_GUIDE.md for upgrade instructions
-    "langchain>=0.3.27,<1.0.0",
-    "langchain-community>=0.3.29,<1.0.0",
-    "langchain-openai>=0.3.33,<1.0.0",
-    "langchain-huggingface>=0.3.1,<1.0.0",
+    # LangChain ecosystem - Updated to 1.x (November 2025)
+    "langchain>=1.0.5",
+    "langchain-community>=0.4.1",
+    "langchain-openai>=1.0.2",
+    "langchain-huggingface>=1.0.1",
     
-    # OpenAI SDK - Pinned at 1.x
-    # Version 2.x requires code migration (breaking API changes)
-    # See MIGRATION_GUIDE.md for upgrade instructions
-    "openai>=1.108.2,<2.0.0",
-    
-    # Snowflake - Pinned at 3.x
+    # OpenAI SDK - Updated to 2.x (November 2025)
+    # Compatible with existing code (chat.completions.create API unchanged)
+    "openai>=2.7.2",    # Snowflake - Pinned at 3.x
     # Version 4.x requires code migration (breaking API changes)
     # See MIGRATION_GUIDE.md for upgrade instructions
     "snowflake-connector-python>=3.17.4,<4.0.0",

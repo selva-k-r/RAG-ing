@@ -330,28 +330,21 @@ mypy src/
 
 ### Package Status
 
-Run package status checker to view dependency health:
+All dependencies are on latest stable versions as of November 2025:
+
+- **LangChain**: 1.0.5 (upgraded from 0.3.x)
+- **OpenAI SDK**: 2.7.2 (upgraded from 1.x)
+- **FastAPI**: 0.121.1
+- **ChromaDB**: 1.3.4
+- **Pydantic**: 2.12.4
+
+Run package status checker:
 
 ```bash
 python check_package_status.py
 ```
 
-Current status:
-- 27 packages on latest stable versions
-- 6 packages pinned for stability (major version updates require code migration)
-- 0 deprecated packages
-
-For major version migrations, see `MIGRATION_GUIDE.md`.
-
-### Project Dependencies
-
-Core dependencies (see `pyproject.toml`):
-- `langchain` and ecosystem (0.3.x, pinned until 1.0 migration)
-- `openai` (1.x, pinned until 2.0 migration)
-- `fastapi`, `uvicorn` (latest)
-- `pydantic` (latest)
-- `chromadb` (latest)
-- `sentence-transformers` (latest)
+For details on completed Phase 2 migrations, see `MIGRATION_GUIDE.md` and `src/Requirement.md`.
 
 ## Deployment
 
