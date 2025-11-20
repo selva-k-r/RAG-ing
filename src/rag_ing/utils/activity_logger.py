@@ -187,3 +187,4 @@ class ActivityLogger:
             'today_log_file': str(self._get_today_log_file())
         }
 
+

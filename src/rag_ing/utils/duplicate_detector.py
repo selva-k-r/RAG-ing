@@ -253,3 +253,4 @@ class DuplicateDetector:
             'fuzzy_available': FUZZY_AVAILABLE
         }
 
+

@@ -128,3 +128,4 @@ class DocumentSummarizer:
         logger.info(f"Created {len(summary_docs)} summaries from {len(documents)} documents")
         return summary_docs
 
+
