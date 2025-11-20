@@ -190,7 +190,7 @@ class RetrievalConfig(BaseModel):
 class LLMConfig(BaseModel):
     """LLM orchestration configuration."""
     model: str = Field(default="gpt-5-nano", description="Model name")
-    provider: str = Field(default="azure_openai", description="Provider: azure_openai, openai, anthropic, koboldcpp")
+    provider: str = Field(default="azure_openai", description="Provider: azure_openai or koboldcpp only")
     
     # Model configuration  
     max_tokens: int = Field(default=4096, description="Maximum tokens")
@@ -212,6 +212,19 @@ class LLMConfig(BaseModel):
     system_instruction: str = Field(
         default="You are an AI-powered enterprise search assistant specializing in oncology, clinical documentation, and technical systems with enhanced RAG capabilities."
     )
+    
+    @field_validator('provider')
+    @classmethod
+    def validate_provider(cls, v):
+        """Validate that only supported providers are used (OpenAI and Anthropic removed for PoC simplicity)."""
+        allowed = ['azure_openai', 'koboldcpp']
+        if v not in allowed:
+            raise ValueError(
+                f"Provider '{v}' is not supported. "
+                f"Allowed providers: {allowed}. "
+                f"Note: OpenAI and Anthropic support removed - use Azure OpenAI for cloud or KoboldCpp for local."
+            )
+        return v
 
 
 class UIConfig(BaseModel):
@@ -333,6 +346,35 @@ class VectorStoreConfig(BaseModel):
     collection_name: str = Field(default="oncology_docs", description="Collection name")
 
 
+class DuplicateDetectionConfig(BaseModel):
+    """Duplicate detection configuration."""
+    enabled: bool = True
+    exact_match: Dict[str, Any] = {"enabled": True, "hash_algorithm": "sha256"}
+    fuzzy_match: Dict[str, Any] = {"enabled": True, "similarity_threshold": 0.95}
+    semantic_match: Dict[str, Any] = {"enabled": False, "embedding_similarity_threshold": 0.98}
+    storage: Dict[str, Any] = {"database_path": "./vector_store/document_hashes.db"}
+
+
+class ActivityLoggingConfig(BaseModel):
+    """Activity logging configuration."""
+    enabled: bool = True
+    log_dir: str = "./logs/user_activity"
+    log_queries: bool = True
+    log_results: bool = True
+    log_feedback: bool = True
+    retention_days: int = 90
+
+
+class HierarchicalStorageConfig(BaseModel):
+    """Hierarchical storage configuration."""
+    enabled: bool = True
+    use_summaries: bool = True
+    summary_collection: str = "oncology_docs_summaries"
+    chunk_collection: str = "oncology_docs_chunks"
+    summary_prompt: str = "Summarize this document in 2-3 sentences, preserving key medical terms and concepts:"
+    routing_threshold: float = 0.7
+
+
 class TempFilesConfig(BaseModel):
     """Temporary files configuration."""
     directory: str = Field(default="./temp_helper_codes", description="Directory for temporary files")
@@ -357,6 +399,9 @@ class Settings(BaseSettings):
     ui: UIConfig = Field(default_factory=UIConfig)
     evaluation: EvaluationConfig = Field(default_factory=EvaluationConfig)
     vector_store: VectorStoreConfig = Field(default_factory=VectorStoreConfig)
+    duplicate_detection: DuplicateDetectionConfig = Field(default_factory=DuplicateDetectionConfig)
+    activity_logging: ActivityLoggingConfig = Field(default_factory=ActivityLoggingConfig)
+    hierarchical_storage: HierarchicalStorageConfig = Field(default_factory=HierarchicalStorageConfig)
     temp_files: TempFilesConfig = Field(default_factory=TempFilesConfig)
     
     # Environment variables

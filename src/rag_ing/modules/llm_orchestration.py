@@ -50,14 +50,10 @@ class LLMOrchestrationModule:
             
             if provider == "koboldcpp":
                 return self._initialize_koboldcpp()
-            elif provider == "openai":
-                return self._initialize_openai()
             elif provider == "azure_openai":
                 return self._initialize_azure_openai()
-            elif provider == "anthropic":
-                return self._initialize_anthropic()
             else:
-                raise ValueError(f"Unsupported LLM provider: {provider}")
+                raise ValueError(f"Unsupported LLM provider: {provider}. Supported: 'azure_openai', 'koboldcpp'")
                 
         except Exception as e:
             logger.error(f"Failed to initialize LLM: {e}")
@@ -84,23 +80,6 @@ class LLMOrchestrationModule:
             logger.error(f"Failed to connect to KoboldCpp server: {e}")
             return False
     
-    def _initialize_openai(self) -> bool:
-        """Initialize OpenAI client."""
-        try:
-            # Import and initialize OpenAI client
-            from openai import OpenAI
-            
-            api_key = self.config.get_api_key("openai")
-            if not api_key:
-                raise ValueError("OpenAI API key not found")
-            
-            self.client = OpenAI(api_key=api_key)
-            logger.info("OpenAI client initialized successfully")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize OpenAI client: {e}")
-            return False
     
     def _initialize_azure_openai(self) -> bool:
         """Initialize Azure OpenAI client."""
@@ -134,27 +113,6 @@ class LLMOrchestrationModule:
             logger.error(f"Failed to initialize Azure OpenAI client: {e}")
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
-            return False
-    def _initialize_anthropic(self) -> bool:
-        """Initialize Anthropic client."""
-        try:
-            # Import and initialize Anthropic client
-            try:
-                import anthropic
-            except ImportError:
-                logger.error("Anthropic package not installed. Install with: pip install anthropic")
-                return False
-            
-            api_key = self.config.get_api_key("anthropic")
-            if not api_key:
-                raise ValueError("Anthropic API key not found")
-            
-            self.client = anthropic.Anthropic(api_key=api_key)
-            logger.info("Anthropic client initialized successfully")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize Anthropic client: {e}")
             return False
     
     def load_prompt_template(self) -> str:
@@ -415,14 +373,10 @@ The following information requires careful medical reasoning. Consider:
             try:
                 if provider == "koboldcpp":
                     return self._invoke_koboldcpp(prompt)
-                elif provider == "openai":
-                    return self._invoke_openai(prompt)
                 elif provider == "azure_openai":
                     return self._invoke_azure_openai(prompt)
-                elif provider == "anthropic":
-                    return self._invoke_anthropic(prompt)
                 else:
-                    raise ValueError(f"Unsupported provider: {provider}")
+                    raise ValueError(f"Unsupported provider: {provider}. Supported: 'azure_openai', 'koboldcpp'")
                     
             except Exception as e:
                 if attempt == max_retries - 1:
@@ -462,27 +416,6 @@ The following information requires careful medical reasoning. Consider:
             logger.error(f"KoboldCpp invocation failed: {e}")
             raise
     
-    def _invoke_openai(self, prompt: str) -> str:
-        """Invoke OpenAI API."""
-        try:
-            response = self.client.chat.completions.create(
-                model=self.llm_config.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=self.llm_config.temperature,
-                max_tokens=self.llm_config.max_tokens
-            )
-            
-            generated_text = response.choices[0].message.content
-            
-            # Track token usage
-            if hasattr(response, 'usage'):
-                self._stats["total_tokens_used"] += response.usage.total_tokens
-            
-            return generated_text.strip()
-            
-        except Exception as e:
-            logger.error(f"OpenAI invocation failed: {e}")
-            raise
     
     def _invoke_azure_openai(self, prompt: str) -> str:
         """Invoke Azure OpenAI API with standard optimization."""
@@ -602,27 +535,6 @@ The following information requires careful medical reasoning. Consider:
             response = structured_response.strip()
         
         return response
-    def _invoke_anthropic(self, prompt: str) -> str:
-        """Invoke Anthropic API."""
-        try:
-            response = self.client.messages.create(
-                model=self.llm_config.model,
-                max_tokens=self.llm_config.max_tokens or 1024,
-                temperature=self.llm_config.temperature,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            
-            generated_text = response.content[0].text
-            
-            # Track token usage
-            if hasattr(response, 'usage'):
-                self._stats["total_tokens_used"] += response.usage.total_tokens
-            
-            return generated_text.strip()
-            
-        except Exception as e:
-            logger.error(f"Anthropic invocation failed: {e}")
-            raise
     
     def _parse_response(self, response: str) -> str:
         """Parse and clean the model response."""

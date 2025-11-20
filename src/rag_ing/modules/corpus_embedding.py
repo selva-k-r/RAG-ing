@@ -25,6 +25,8 @@ import chromadb
 from ..config.settings import Settings
 from ..connectors import ConfluenceConnector
 from ..utils.exceptions import IngestionError
+from ..utils.duplicate_detector import DuplicateDetector
+from ..utils.document_summarizer import DocumentSummarizer
 
 logger = logging.getLogger(__name__)
 
@@ -41,21 +43,45 @@ class CorpusEmbeddingModule:
     """
     
     def __init__(self, config: Settings):
-        """Initialize corpus embedding module with YAML configuration."""
+        """Initialize corpus embedding module."""
         self.config = config
         self.data_source_config = config.data_source
         self.chunking_config = config.chunking
         self.embedding_config = config.embedding_model
         self.vector_store_config = config.vector_store
         
+        # Initialize duplicate detector
+        if config.duplicate_detection.enabled:
+            db_path = config.duplicate_detection.storage.get('database_path', './vector_store/document_hashes.db')
+            self.duplicate_detector = DuplicateDetector(
+                config=config.duplicate_detection.dict(),
+                db_path=db_path
+            )
+            logger.info("Duplicate detection enabled")
+        else:
+            self.duplicate_detector = None
+            logger.info("Duplicate detection disabled")
+        
+        # Initialize hierarchical storage
+        self.hierarchical_config = config.hierarchical_storage
+        if self.hierarchical_config.enabled:
+            self.summary_vector_store = None  # Separate store for summaries
+            self.document_summarizer = None  # Will be initialized after LLM is available
+            logger.info("Hierarchical storage enabled")
+        else:
+            self.summary_vector_store = None
+            self.document_summarizer = None
+        
         # Initialize state
         self.embedding_model = None
-        self.vector_store = None
+        self.vector_store = None  # For detailed chunks
         self._stats = {
             "chunk_count": 0,
+            "summary_count": 0,
             "vector_size": 0,
             "processing_time": 0,
             "documents_processed": 0,
+            "duplicates_skipped": 0,
             "ontology_codes_extracted": 0
         }
         
@@ -649,9 +675,139 @@ class CorpusEmbeddingModule:
             
             logger.info(f"ChromaDB vector store initialized at {persist_directory}")
             
+            # Setup hierarchical storage with dual collections
+            if self.hierarchical_config.enabled:
+                self._setup_hierarchical_chroma()
+            
         except Exception as e:
             logger.error(f"Failed to setup ChromaDB: {e}")
             raise IngestionError(f"ChromaDB setup failed: {e}")
+    
+    def _setup_hierarchical_chroma(self) -> None:
+        """Setup dual ChromaDB collections for hierarchical storage."""
+        try:
+            persist_directory = Path(self.vector_store_config.path) / "summaries"
+            persist_directory.mkdir(parents=True, exist_ok=True)
+            
+            # Create summary collection
+            client = chromadb.PersistentClient(path=str(persist_directory))
+            summary_collection = self.hierarchical_config.summary_collection
+            
+            self.summary_vector_store = Chroma(
+                client=client,
+                collection_name=summary_collection,
+                embedding_function=self.embedding_model
+            )
+            
+            logger.info(f"Hierarchical storage: Summary collection '{summary_collection}' initialized")
+            
+        except Exception as e:
+            logger.warning(f"Failed to setup hierarchical storage: {e}. Continuing with single collection.")
+            self.summary_vector_store = None
+    
+    def _store_hierarchical(self, chunks: List[Document]) -> None:
+        """Store documents in hierarchical format (summaries + chunks).
+        
+        Groups chunks by source document, creates summaries, stores both.
+        """
+        logger.info("Storing in hierarchical format...")
+        
+        # Group chunks by source document
+        doc_groups = {}
+        for chunk in chunks:
+            doc_id = chunk.metadata.get('source', 'unknown')
+            if doc_id not in doc_groups:
+                doc_groups[doc_id] = []
+            doc_groups[doc_id].append(chunk)
+        
+        logger.info(f"Grouped {len(chunks)} chunks into {len(doc_groups)} documents")
+        
+        # Create summaries for each document
+        summaries = []
+        for doc_id, doc_chunks in doc_groups.items():
+            # Combine chunks into full document
+            full_text = "\n\n".join([c.page_content for c in doc_chunks])
+            full_doc = Document(
+                page_content=full_text[:2000],  # Limit to 2000 chars for summarization
+                metadata=doc_chunks[0].metadata  # Use metadata from first chunk
+            )
+            
+            # Create summary (fallback method - no LLM needed)
+            summary = full_text[:300]
+            if len(full_text) > 300:
+                summary += "..."
+            
+            summary_doc = Document(
+                page_content=summary,
+                metadata={
+                    **full_doc.metadata,
+                    "is_summary": True,
+                    "chunk_count": len(doc_chunks)
+                }
+            )
+            summaries.append(summary_doc)
+        
+        # Store summaries in summary collection
+        try:
+            cleaned_summaries = self._clean_metadata_for_chroma(summaries)
+            self.summary_vector_store.add_documents(cleaned_summaries)
+            self._stats["summary_count"] += len(summaries)
+            logger.info(f"Stored {len(summaries)} summaries")
+        except Exception as e:
+            logger.error(f"Failed to store summaries: {e}")
+        
+        # Store detailed chunks in main collection
+        try:
+            cleaned_chunks = self._clean_metadata_for_chroma(chunks)
+            self.vector_store.add_documents(cleaned_chunks)
+            self._stats["chunk_count"] += len(chunks)
+            logger.info(f"Stored {len(chunks)} detailed chunks")
+        except Exception as e:
+            logger.error(f"Failed to store chunks: {e}")
+    
+    def _clean_metadata_for_chroma(self, docs: List[Document]) -> List[Document]:
+        """Clean metadata for ChromaDB compatibility."""
+        cleaned = []
+        for doc in docs:
+            cleaned_metadata = {}
+            for key, value in doc.metadata.items():
+                if isinstance(value, list):
+                    cleaned_metadata[key] = ", ".join(str(v) for v in value)
+                elif isinstance(value, (str, int, float, bool)) or value is None:
+                    cleaned_metadata[key] = value
+                else:
+                    cleaned_metadata[key] = str(value)
+            cleaned.append(Document(page_content=doc.page_content, metadata=cleaned_metadata))
+        return cleaned
+    
+    # =============================================================================
+    # FAISS VECTOR STORE - OPTIONAL PRODUCTION SCALING FEATURE
+    # =============================================================================
+    # STATUS: Available but not currently used (config.yaml set to "chroma")
+    #
+    # WHEN TO USE FAISS:
+    #   - Document corpus > 50,000 documents
+    #   - Query latency requirement < 10ms
+    #   - Production deployment with high QPS (queries per second)
+    #   - Need specialized indices (IVF, HNSW, PQ for compression)
+    #
+    # WHEN TO USE CHROMADB (CURRENT DEFAULT):
+    #   - Document corpus < 50,000 documents
+    #   - PoC/Development phase (current status)
+    #   - Need persistent storage with minimal setup
+    #   - Metadata filtering is primary use case
+    #
+    # TO SWITCH TO FAISS:
+    #   1. Change config.yaml: vector_store.type = "faiss"
+    #   2. Re-run corpus ingestion to build FAISS index
+    #   3. Index saved to: ./vector_store/faiss_index/
+    #
+    # PERFORMANCE COMPARISON:
+    #   - ChromaDB: ~50ms query time, persistent, easy setup
+    #   - FAISS: ~5-10ms query time, requires save/load, production-grade
+    #
+    # MAINTAINED FOR: Future production scaling when corpus grows beyond 50K docs
+    # =============================================================================
     
     def _setup_faiss_store(self) -> None:
         """Setup FAISS vector store."""
@@ -662,13 +818,18 @@ class CorpusEmbeddingModule:
     def _store_embeddings(self, chunks: List[Document]) -> None:
         """Store document chunks with embeddings in vector store.
         
-        Stores vectors with metadata as required.
+        For hierarchical storage, also creates and stores summaries.
         """
         if not chunks:
             logger.warning("No chunks to store")
             return
         
         logger.info(f"Storing {len(chunks)} chunks with embeddings")
+        
+        # Handle hierarchical storage first
+        if self.hierarchical_config.enabled and self.summary_vector_store:
+            self._store_hierarchical(chunks)
+            return
         
         try:
             if self.vector_store_config.type == "chroma":
@@ -790,30 +951,52 @@ class CorpusEmbeddingModule:
             if file_path.is_file() and file_path.suffix.lower() in file_types:
                 try:
                     content = self._extract_file_content(file_path)
-                    if content.strip():
-                        # Extract ontology codes for medical domain
-                        ontology_codes = self._extract_ontology_codes(content)
-                        
-                        doc = Document(
-                            page_content=content,
-                            metadata={
-                                "source": str(file_path),
-                                "source_type": "local_file",
-                                "filename": file_path.name,
-                                "file_type": file_path.suffix,
-                                "date": file_path.stat().st_mtime,
-                                "ontology_codes": ontology_codes,
-                                "domain": "oncology",
-                                "description": source_config.get('description', 'Local file')
-                            }
+                    if not content.strip():
+                        continue
+                    
+                    # Check for duplicates
+                    if self.duplicate_detector:
+                        if self.duplicate_detector.is_exact_duplicate(content):
+                            logger.debug(f"⏭️ Skipping duplicate: {file_path.name}")
+                            self._stats["duplicates_skipped"] += 1
+                            continue
+                    
+                    # Extract ontology codes
+                    ontology_codes = self._extract_ontology_codes(content)
+                    
+                    # Create document
+                    doc = Document(
+                        page_content=content,
+                        metadata={
+                            "source": str(file_path),
+                            "source_type": "local_file",
+                            "filename": file_path.name,
+                            "file_type": file_path.suffix,
+                            "date": file_path.stat().st_mtime,
+                            "ontology_codes": ontology_codes,
+                            "domain": "oncology",
+                            "description": source_config.get('description', 'Local file')
+                        }
+                    )
+                    documents.append(doc)
+                    
+                    # Mark as processed for future duplicate checks
+                    if self.duplicate_detector:
+                        self.duplicate_detector.mark_as_processed(
+                            content,
+                            {"source": str(file_path), "source_url": str(file_path.absolute())}
                         )
-                        documents.append(doc)
-                        logger.debug(f"✅ Processed: {file_path.name}")
-                        
+                    
+                    logger.debug(f"✅ Processed: {file_path.name}")
+                    
                 except Exception as e:
                     logger.warning(f"⚠️ Failed to process {file_path}: {e}")
         
-        logger.info(f"📚 Local files: {len(documents)} documents processed")
+        # Log results
+        if self.duplicate_detector and self._stats["duplicates_skipped"] > 0:
+            logger.info(f"📚 Local files: {len(documents)} documents processed, {self._stats['duplicates_skipped']} duplicates skipped")
+        else:
+            logger.info(f"📚 Local files: {len(documents)} documents processed")
         return documents
     
     def _ingest_confluence_enhanced(self, source_config: Dict[str, Any]) -> List[Document]:
@@ -865,10 +1048,40 @@ class CorpusEmbeddingModule:
             return []
     
     def _ingest_jira_enhanced(self, source_config: Dict[str, Any]) -> List[Document]:
-        """Enhanced JIRA ingestion for tickets and requirements.
+        """
+        JIRA ingestion - NOT IMPLEMENTED (Placeholder for future)
         
-        Educational note: This method shows how to add new data source types
-        while following the same patterns as existing sources.
+        TODO: Implement when JIRA integration is required
+        
+        Implementation steps:
+        1. Create JiraConnector class in src/rag_ing/connectors/jira_connector.py
+           - Similar to ConfluenceConnector architecture
+           - Use JIRA REST API (https://developer.atlassian.com/server/jira/platform/rest-apis/)
+        
+        2. Required functionality:
+           - Authenticate with JIRA API (OAuth, basic auth, or API token)
+           - Fetch issues using JQL queries from config
+           - Extract content from:
+             * Issue descriptions
+             * Comments
+             * Custom fields
+             * Attachments (if needed)
+           - Map issue metadata (status, priority, assignee, labels) to document metadata
+        
+        3. Configuration (already in config.yaml):
+           - server_url: JIRA instance URL
+           - username: Authentication username
+           - auth_token: API token or password
+           - project_keys: List of project keys to ingest
+           - issue_types: Types of issues to include
+           - jql_filter: Custom JQL query for filtering
+        
+        4. Similar to Confluence pattern:
+           - Return List[Document] with metadata
+           - Handle pagination for large result sets
+           - Include error handling and logging
+        
+        For now, this returns empty list to avoid breaking multi-source ingestion.
         """
         jira_config = source_config.get('jira', {})
         
@@ -877,23 +1090,10 @@ class CorpusEmbeddingModule:
         missing_fields = [field for field in required_fields if not jira_config.get(field)]
         
         if missing_fields:
-            logger.warning(f"🔑 JIRA config missing fields: {missing_fields}")
+            logger.debug(f"🔑 JIRA config incomplete (missing: {missing_fields}) - skipping")
             return []
         
-        try:
-            # This is a placeholder for JIRA connector implementation
-            # Educational note: In a real implementation, you would:
-            # 1. Create a JiraConnector class similar to ConfluenceConnector
-            # 2. Use the JIRA API to fetch tickets based on JQL queries
-            # 3. Extract content from ticket descriptions, comments, etc.
-            
-            logger.info("🎫 JIRA ingestion - Implementation pending")
-            logger.info("💡 To implement: Create JiraConnector class with API integration")
-            
-            # For now, return empty list
-            # TODO: Implement JiraConnector when needed
-            return []
-            
-        except Exception as e:
-            logger.error(f"❌ JIRA ingestion failed: {e}")
-            return []
+        # Placeholder - not implemented
+        logger.info("🎫 JIRA ingestion requested but not yet implemented - skipping")
+        logger.debug("💡 See docstring for implementation steps")
+        return []

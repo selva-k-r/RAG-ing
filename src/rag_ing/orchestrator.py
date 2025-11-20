@@ -23,6 +23,7 @@ from .modules import (
 )
 from .modules.evaluation_logging import QueryEvent, RetrievalMetrics, GenerationMetrics
 from .utils.exceptions import RAGError, UIError
+from .utils.activity_logger import ActivityLogger
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,16 @@ class RAGOrchestrator:
         self.llm_orchestration = LLMOrchestrationModule(self.settings)
         self.ui_layer = UILayerModule(self.settings)
         self.evaluation_logging = EvaluationLoggingModule(self.settings)
+        
+        # Initialize activity logger
+        if self.settings.activity_logging.enabled:
+            self.activity_logger = ActivityLogger(
+                log_dir=self.settings.activity_logging.log_dir
+            )
+            logger.info("Activity logging enabled")
+        else:
+            self.activity_logger = None
+            logger.info("Activity logging disabled")
         
         logger.info("RAG Orchestrator initialized with all 5 modules")
     
@@ -187,6 +198,19 @@ class RAGOrchestrator:
                 success=True,
                 processing_time=total_time
             )
+            
+            # Log user activity for analytics
+            if self.activity_logger:
+                import uuid
+                session_id = (user_context or {}).get('session_id', str(uuid.uuid4()))
+                self.activity_logger.log_search(
+                    query=query,
+                    results=retrieved_docs,
+                    session_id=session_id,
+                    retrieval_time=retrieval_time,
+                    generation_time=generation_time,
+                    user_context=user_context
+                )
             
             logger.info(f"Query [{query_hash}] processed successfully in {total_time:.2f}s")
             return complete_response
