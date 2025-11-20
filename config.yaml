@@ -33,6 +33,19 @@ data_source:
         jql_filter: "project in (ONCOLOGY, RESEARCH) AND status != Closed"
         max_issues: 200
       description: "Project tickets and requirements from Jira"
+      
+    - type: "azure_devops"
+      enabled: true
+      azure_devops:
+        organization: "${AZURE_DEVOPS_ORG}"
+        project: "${AZURE_DEVOPS_PROJECT}"
+        pat_token: "${AZURE_DEVOPS_PAT}"
+        repo_name: "${AZURE_DEVOPS_REPO}"  # Optional: specific repo
+        branch: "main"  # Default branch
+        file_extensions: [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sql", ".csv"]
+        include_paths: ["/"]  # Paths to include (/ = all)
+        exclude_paths: ["/node_modules", "/bin", "/obj", "/.git"]  # Paths to exclude
+      description: "Project files and documentation from Azure DevOps"
 
 chunking:
   strategy: "recursive"  # recursive | semantic
@@ -107,12 +120,12 @@ retrieval:
 #   - koboldcpp: Local development, self-hosted models via KoboldCpp API
 # =============================================================================
 llm:
-  model: "gpt-5-nano"  # Your actual deployed model
+  model: "gpt-5-nano"  # Azure OpenAI model
   provider: "azure_openai"  # Options: azure_openai | koboldcpp
 
   # Standard settings for your deployed model
   max_tokens: 4096  # Reduced from 16384 
-  temperature: 0.1   # Lower for more focused responses
+  temperature: 0.2   # Lower for more focused responses
   
   # Token management
   use_smart_truncation: true

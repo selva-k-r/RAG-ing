@@ -89,13 +89,101 @@ class ConfluenceConnector:
             logger.error(f"Failed to connect to Confluence: {e}")
             raise ConnectionError(f"Confluence connection failed: {e}")
     
+    def fetch_page_by_title(self, space_key: str, page_title: str) -> Optional[Dict[str, Any]]:
+        """Fetch a specific page by space key and title.
+        
+        Args:
+            space_key: Confluence space key
+            page_title: Page title to search for
+            
+        Returns:
+            Page data dict or None if not found
+        """
+        try:
+            url = f"{self.base_url}/rest/api/content"
+            params = {
+                "spaceKey": space_key,
+                "title": page_title,
+                "expand": "body.storage,version,space,children.page",
+                "limit": 1
+            }
+            
+            response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            
+            if response.status_code != 200:
+                logger.error(f"Failed to fetch page '{page_title}': {response.status_code}")
+                return None
+            
+            data = response.json()
+            results = data.get("results", [])
+            
+            if results:
+                logger.info(f"Found page: '{page_title}'")
+                return results[0]
+            else:
+                logger.warning(f"Page not found: '{page_title}'")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error fetching page '{page_title}': {e}")
+            return None
+    
+    def fetch_child_pages(self, page_id: str, recursive: bool = True) -> List[Dict[str, Any]]:
+        """Fetch all child pages of a parent page, optionally recursive.
+        
+        Args:
+            page_id: Parent page ID
+            recursive: If True, fetch all descendants; if False, only direct children
+            
+        Returns:
+            List of child page data dicts
+        """
+        all_children = []
+        
+        try:
+            url = f"{self.base_url}/rest/api/content/{page_id}/child/page"
+            params = {
+                "expand": "body.storage,version,space,children.page",
+                "limit": 100
+            }
+            
+            response = requests.get(url, headers=self.headers, params=params, timeout=30)
+            
+            if response.status_code != 200:
+                logger.error(f"Failed to fetch children of page {page_id}: {response.status_code}")
+                return all_children
+            
+            data = response.json()
+            children = data.get("results", [])
+            
+            logger.info(f"Found {len(children)} direct children of page {page_id}")
+            
+            for child in children:
+                all_children.append(child)
+                
+                # Recursively fetch grandchildren
+                if recursive:
+                    child_id = child.get("id")
+                    grandchildren = self.fetch_child_pages(child_id, recursive=True)
+                    all_children.extend(grandchildren)
+            
+            return all_children
+            
+        except Exception as e:
+            logger.error(f"Error fetching child pages of {page_id}: {e}")
+            return all_children
+    
     def fetch_documents(self, space_key: Optional[str] = None, 
-                       page_filter: Optional[List[str]] = None) -> List[Document]:
-        """Fetch documents from Confluence by space key and page filter.
+                       page_filter: Optional[List[str]] = None,
+                       parent_page_title: Optional[str] = None,
+                       include_children: bool = True) -> List[Document]:
+        """Fetch documents from Confluence by space key, with optional parent page filtering.
         
         Args:
             space_key: Confluence space key (defaults to config space_key)
             page_filter: List of page title filters (defaults to config page_filter)
+            parent_page_title: If provided, fetch this page and all its children
+            include_children: If True and parent_page_title is set, fetch all child pages
             
         Returns:
             List[Document]: List of fetched documents with metadata
@@ -109,26 +197,50 @@ class ConfluenceConnector:
         if not space_key:
             raise ValueError("space_key is required for document fetching")
         
-        logger.info(f"Fetching documents from space '{space_key}' with filter: {page_filter}")
+        logger.info(f"Fetching documents from space '{space_key}'")
+        if parent_page_title:
+            logger.info(f"  Parent page: '{parent_page_title}' (include_children={include_children})")
+        if page_filter:
+            logger.info(f"  Page filter: {page_filter}")
         
         try:
             documents = []
+            pages = []
             
-            # First, get all pages from the space
-            params = {
-                "spaceKey": space_key,
-                "expand": "body.storage,version,space",
-                "limit": 50  # Fetch up to 50 pages
-            }
+            # If parent page specified, fetch it and its children
+            if parent_page_title:
+                parent_page = self.fetch_page_by_title(space_key, parent_page_title)
+                
+                if not parent_page:
+                    raise APIError(f"Parent page '{parent_page_title}' not found in space '{space_key}'")
+                
+                # Add parent page
+                pages.append(parent_page)
+                logger.info(f"Added parent page: '{parent_page_title}'")
+                
+                # Fetch all child pages recursively
+                if include_children:
+                    parent_id = parent_page.get("id")
+                    children = self.fetch_child_pages(parent_id, recursive=True)
+                    pages.extend(children)
+                    logger.info(f"Fetched {len(children)} child pages recursively")
             
-            url = f"{self.base_url}/rest/api/content"
-            response = requests.get(url, headers=self.headers, params=params, timeout=30)
-            
-            if response.status_code != 200:
-                raise APIError(f"Failed to fetch pages: {response.status_code} - {response.text}")
-            
-            data = response.json()
-            pages = data.get("results", [])
+            else:
+                # Original behavior: fetch all pages from space
+                params = {
+                    "spaceKey": space_key,
+                    "expand": "body.storage,version,space",
+                    "limit": 50  # Fetch up to 50 pages
+                }
+                
+                url = f"{self.base_url}/rest/api/content"
+                response = requests.get(url, headers=self.headers, params=params, timeout=30)
+                
+                if response.status_code != 200:
+                    raise APIError(f"Failed to fetch pages: {response.status_code} - {response.text}")
+                
+                data = response.json()
+                pages = data.get("results", [])
             
             logger.info(f"Found {len(pages)} pages in space '{space_key}'")
             

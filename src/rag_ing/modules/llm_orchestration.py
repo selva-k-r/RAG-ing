@@ -60,29 +60,76 @@ class LLMOrchestrationModule:
             return False
     
     def _initialize_koboldcpp(self) -> bool:
-        """Initialize KoboldCpp client."""
+        """Initialize KoboldCpp client with detailed error reporting."""
         try:
+            api_url = self.llm_config.api_url
+            logger.info(f"Attempting to connect to KoboldCpp at {api_url}")
+            
             # Test connection to KoboldCpp server
             response = requests.get(
-                f"{self.llm_config.api_url}/model", 
+                f"{api_url}/model", 
                 timeout=10
             )
             
             if response.status_code == 200:
-                logger.info(f"Connected to KoboldCpp at {self.llm_config.api_url}")
+                logger.info(f"✅ Connected to KoboldCpp at {api_url}")
                 self.client = "koboldcpp"
                 return True
             else:
-                logger.error(f"KoboldCpp server returned status {response.status_code}")
-                return False
+                error_msg = (
+                    f"❌ KoboldCpp Server Error!\n"
+                    f"Server at {api_url} returned status {response.status_code}\n\n"
+                    f"To fix this:\n"
+                    f"1. Check if KoboldCpp is running: curl {api_url}/model\n"
+                    f"2. Verify the port matches your configuration\n"
+                    f"3. Restart KoboldCpp if needed\n\n"
+                    f"Alternative: Switch to Azure OpenAI in config.yaml\n"
+                    f"See FIX_404_ERROR.md for instructions"
+                )
+                logger.error(error_msg)
+                raise ConnectionError(error_msg)
                 
+        except requests.Timeout as e:
+            error_msg = (
+                f"❌ KoboldCpp Connection Timeout!\n"
+                f"Server at {api_url} did not respond within 10 seconds\n\n"
+                f"To fix this:\n"
+                f"1. Check if KoboldCpp server is running\n"
+                f"2. Start server: koboldcpp --model your_model.gguf --port 5000\n"
+                f"3. Verify server responds: curl {api_url}/model\n\n"
+                f"Alternative: Switch to Azure OpenAI (run setup_azure_openai.py)"
+            )
+            logger.error(error_msg)
+            raise ConnectionError(error_msg)
+            
+        except requests.ConnectionError as e:
+            error_msg = (
+                f"❌ Cannot Connect to KoboldCpp!\n"
+                f"No server found at {api_url}\n\n"
+                f"To fix this:\n"
+                f"1. Install KoboldCpp: https://github.com/LostRuins/koboldcpp\n"
+                f"2. Start the server: koboldcpp --model your_model.gguf --port 5000\n"
+                f"3. Verify it's running: curl {api_url}/model\n\n"
+                f"Alternative: Switch to Azure OpenAI\n"
+                f"  - Run: python setup_azure_openai.py\n"
+                f"  - Update config.yaml provider to 'azure_openai'\n"
+                f"See FIX_404_ERROR.md for complete instructions"
+            )
+            logger.error(error_msg)
+            raise ConnectionError(error_msg)
+            
         except requests.RequestException as e:
-            logger.error(f"Failed to connect to KoboldCpp server: {e}")
-            return False
+            error_msg = (
+                f"❌ KoboldCpp Connection Error: {str(e)}\n"
+                f"Failed to connect to {api_url}\n\n"
+                f"Check the server status and configuration."
+            )
+            logger.error(error_msg)
+            raise ConnectionError(error_msg)
     
     
     def _initialize_azure_openai(self) -> bool:
-        """Initialize Azure OpenAI client."""
+        """Initialize Azure OpenAI client with detailed error reporting."""
         try:
             # Import and initialize Azure OpenAI client
             from openai import AzureOpenAI
@@ -92,27 +139,57 @@ class LLMOrchestrationModule:
             api_version = self.config.azure_openai_api_version
             
             logger.info(f"Azure OpenAI initialization attempt:")
-            logger.info(f"  API Key: {'*' * (len(api_key) if api_key else 0) if api_key else 'None'}")
-            logger.info(f"  Endpoint: {endpoint}")
+            logger.info(f"  API Key: {'*' * (len(api_key) if api_key else 0) if api_key else 'MISSING'}")
+            logger.info(f"  Endpoint: {endpoint if endpoint else 'MISSING'}")
             logger.info(f"  API Version: {api_version}")
+            logger.info(f"  Deployment: {self.llm_config.azure_deployment_name}")
             
-            if not api_key:
-                raise ValueError("Azure OpenAI API key not found")
-            if not endpoint:
-                raise ValueError("Azure OpenAI endpoint not found")
+            # Detailed validation with specific error messages
+            missing_configs = []
+            if not api_key or api_key.startswith("${"):
+                missing_configs.append("AZURE_OPENAI_API_KEY")
+            if not endpoint or endpoint.startswith("${"):
+                missing_configs.append("AZURE_OPENAI_ENDPOINT")
+            
+            if missing_configs:
+                error_msg = (
+                    f"❌ Azure OpenAI Configuration Error!\n"
+                    f"Missing environment variables: {', '.join(missing_configs)}\n\n"
+                    f"To fix this:\n"
+                    f"1. Create a .env file in the project root\n"
+                    f"2. Add these variables:\n"
+                    f"   AZURE_OPENAI_API_KEY=your_key_here\n"
+                    f"   AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/\n"
+                    f"   AZURE_DEPLOYMENT_NAME=gpt-4\n"
+                    f"3. Restart the application\n\n"
+                    f"Quick setup: Run 'python setup_azure_openai.py'\n"
+                    f"See FIX_404_ERROR.md for detailed instructions"
+                )
+                logger.error(error_msg)
+                raise ValueError(error_msg)
             
             self.client = AzureOpenAI(
                 api_key=api_key,
                 azure_endpoint=endpoint,
                 api_version=api_version
             )
-            logger.info("Azure OpenAI client initialized successfully")
+            logger.info("✅ Azure OpenAI client initialized successfully")
             return True
             
+        except ValueError as e:
+            # Configuration errors - re-raise with full context
+            logger.error(f"Azure OpenAI Configuration Error: {e}")
+            raise
         except Exception as e:
             logger.error(f"Failed to initialize Azure OpenAI client: {e}")
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
+            error_msg = (
+                f"❌ Azure OpenAI Initialization Failed: {str(e)}\n"
+                f"Check your credentials and network connection.\n"
+                f"See logs for detailed traceback."
+            )
+            raise ValueError(error_msg)
             return False
     
     def load_prompt_template(self) -> str:

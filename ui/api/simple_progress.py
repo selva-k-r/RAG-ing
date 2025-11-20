@@ -211,22 +211,79 @@ async def process_search_with_simulated_progress(session_id: str, request: Progr
             complete_progress(session_id, success=True)
                 
         except Exception as search_error:
+            import traceback
+            error_details = {
+                "error_type": type(search_error).__name__,
+                "error_message": str(search_error),
+                "traceback": traceback.format_exc()
+            }
             logger.error(f"Search function error: {search_error}")
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            
+            # Store error details for retrieval
+            progress_store[f"{session_id}_error"] = error_details
             complete_progress(session_id, success=False)
             
     except Exception as e:
+        import traceback
         logger.error(f"Progress tracking error: {e}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        
+        # Store error details
+        progress_store[f"{session_id}_error"] = {
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "traceback": traceback.format_exc()
+        }
         complete_progress(session_id, success=False)
 
 @router.get("/result/{session_id}")
 async def get_search_result(session_id: str):
-    """Get the final search result after processing is complete."""
+    """Get the final search result after processing is complete with detailed error reporting."""
     result = progress_store.get(f"{session_id}_result")
+    
     if not result:
         # Check if still processing
         progress_data = progress_store.get(session_id, {})
         if progress_data.get("status") == "processing":
             return {"error": "Still processing, please wait"}
+        
+        # Check if there was an error during search
+        error_details = progress_store.get(f"{session_id}_error")
+        if error_details:
+            logger.error(f"Returning stored error for session {session_id}: {error_details}")
+            return {
+                "error": f"Search failed: {error_details.get('error_message', 'Unknown error')}",
+                "error_type": error_details.get('error_type', 'Unknown'),
+                "error_details": error_details.get('error_message', ''),
+                "traceback": error_details.get('traceback', '') if logger.level <= 10 else None,  # Only in debug mode
+                "user_message": f"""## ❌ Search Processing Error
+
+The search failed during processing. This typically happens when the LLM provider is not properly configured.
+
+**Error**: {error_details.get('error_type', 'Unknown')}
+**Details**: {error_details.get('error_message', 'Unknown error')}
+
+### What Happened?
+The system retrieved documents from the database but failed to generate an AI response.
+
+### Quick Fix
+1. Check if LLM provider is configured: `python main.py --status`
+2. Set up Azure OpenAI: `python setup_azure_openai.py`
+3. See detailed guide: `FIX_404_ERROR.md`
+
+### For Developers
+Check the application logs for full traceback:
+- Session ID: {session_id}
+- Error stored in progress_store
+"""
+            }
         else:
-            return {"error": "Result not found"}
+            # Session not found at all
+            return {
+                "error": "Session not found or expired",
+                "message": "The search session was not found. This can happen if the server was restarted or the session expired.",
+                "action": "Please try your search again."
+            }
+    
     return result

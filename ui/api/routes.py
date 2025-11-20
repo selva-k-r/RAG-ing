@@ -148,40 +148,132 @@ async def search(request: SearchRequest):
             metadata={
                 "total_docs": len(docs),
                 "response_type": "enhanced",
-                "timestamp": datetime.now().isoformat()
+                "timestamp": datetime.now().isoformat(),
+                "response_time": round(response_time, 2),  # ✅ Added!
+                "unique_sources": unique_sources  # ✅ Added!
             },
             query_hash=query_hash
         )
         
-    except Exception as e:
-        # Fallback to basic response if enhanced fails
-        try:
-            # Create a proper fallback query hash
-            import hashlib
-            fallback_hash = hashlib.md5(f"fallback_{request.query}_{datetime.now().isoformat()}".encode()).hexdigest()[:8]
-            
-            basic_response = f"I found some relevant information for your query: '{request.query}'\n\nThe system is working but encountered an issue generating the enhanced response. Please try again or contact support if the problem persists.\n\nError details: {str(e)}"
-            
-            # Cache the fallback result too
-            search_results_cache[fallback_hash] = {
-                "query": request.query.strip(),
-                "response": basic_response,
-                "sources": [],
-                "metadata": {"error_fallback": True, "original_error": str(e)},
-                "timestamp": datetime.now().isoformat(),
-                "audience": request.audience,
-                "selected_sources": request.sources
+    except (ValueError, ConnectionError) as e:
+        # Configuration or connectivity errors - provide actionable guidance
+        import hashlib
+        error_hash = hashlib.md5(f"error_{request.query}_{datetime.now().isoformat()}".encode()).hexdigest()[:8]
+        
+        error_type = "Configuration Error" if isinstance(e, ValueError) else "Connection Error"
+        error_message = str(e)
+        
+        # Create user-friendly error response with markdown formatting
+        user_response = f"""## ⚠️ {error_type}
+
+{error_message}
+
+### What Happened?
+The RAG system successfully retrieved relevant documents, but failed to generate an AI response because the LLM (Language Model) provider is not properly configured or accessible.
+
+### Quick Diagnosis
+- ✅ Document retrieval: Working
+- ✅ Vector database: Working  
+- ❌ LLM provider: **Not configured or unreachable**
+
+### Need Help?
+- Run system diagnostics: `python main.py --status`
+- View troubleshooting guide: `TROUBLESHOOTING.md`
+- Quick setup for Azure OpenAI: `python setup_azure_openai.py`
+
+**Note**: This is a configuration issue, not a bug. Once the LLM provider is set up, your query will work perfectly.
+"""
+        
+        # Log detailed error for developers
+        logger.error(f"LLM {error_type} during search:")
+        logger.error(error_message)
+        logger.error(f"Query: {request.query}")
+        logger.error(f"Provider: {rag_system.llm_orchestration.llm_config.provider if rag_system else 'Unknown'}")
+        
+        # Cache error response
+        search_results_cache[error_hash] = {
+            "query": request.query.strip(),
+            "response": user_response,
+            "sources": [],
+            "metadata": {
+                "error": True,
+                "error_type": error_type,
+                "error_details": error_message,
+                "retrieval_status": "success",
+                "llm_status": "failed"
+            },
+            "timestamp": datetime.now().isoformat(),
+            "audience": request.audience,
+            "selected_sources": request.sources
+        }
+        
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": error_type,
+                "message": error_message,
+                "user_message": user_response,
+                "fix_instructions": "See FIX_404_ERROR.md or run setup_azure_openai.py",
+                "query_hash": error_hash
             }
-            
-            return SearchResponse(
-                success=True,
-                response=basic_response,
-                sources=[],
-                metadata={"error_fallback": True, "original_error": str(e)},
-                query_hash=fallback_hash
-            )
-        except Exception as fallback_error:
-            raise HTTPException(status_code=500, detail=f"Search failed: {str(e)} | Fallback failed: {str(fallback_error)}")
+        )
+        
+    except Exception as e:
+        # Unexpected errors - provide full context
+        import traceback
+        import hashlib
+        
+        error_hash = hashlib.md5(f"error_{request.query}_{datetime.now().isoformat()}".encode()).hexdigest()[:8]
+        full_traceback = traceback.format_exc()
+        
+        # Log for developers
+        logger.error("Unexpected error during search:")
+        logger.error(full_traceback)
+        
+        # User-friendly error message
+        user_response = f"""## ❌ Unexpected Error
+
+An unexpected error occurred while processing your query.
+
+**Error Type**: {type(e).__name__}  
+**Error Message**: {str(e)}
+
+### For Users
+Please try again in a moment. If the issue persists, contact your system administrator.
+
+### For Developers
+Check application logs for full traceback:
+- Location: `logs/evaluation.jsonl`
+- Run diagnostics: `python main.py --status`
+- View error details in terminal/console output
+
+**Error ID**: {error_hash}
+"""
+        
+        # Cache error
+        search_results_cache[error_hash] = {
+            "query": request.query.strip(),
+            "response": user_response,
+            "sources": [],
+            "metadata": {
+                "error": True,
+                "error_type": type(e).__name__,
+                "error_details": str(e),
+                "traceback": full_traceback
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": type(e).__name__,
+                "message": str(e),
+                "user_message": user_response,
+                "error_id": error_hash,
+                "traceback": full_traceback if rag_system and hasattr(rag_system, 'debug_mode') else None
+            }
+        )
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
@@ -280,28 +372,57 @@ async def chat(request: ChatRequest):
 
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
-    """Check system health and module status."""
+    """Check system health and module status with detailed diagnostics."""
     rag_system = get_rag_system()
     
     if not rag_system:
         return HealthResponse(
             status="error",
             timestamp=datetime.now().isoformat(),
-            modules={"rag_system": "not_initialized"}
+            modules={
+                "rag_system": "not_initialized",
+                "message": "⚠️ RAG system failed to initialize. Check startup logs for details.",
+                "action": "Run 'python setup_azure_openai.py' or check FIX_404_ERROR.md"
+            }
         )
     
     try:
         health_status = rag_system.health_check()
+        
+        # Add LLM connectivity details
+        llm_module = rag_system.llm_orchestration
+        llm_status = {
+            "provider": llm_module.llm_config.provider,
+            "model": llm_module.llm_config.model,
+            "initialized": llm_module.client is not None,
+            "status": "✅ Connected" if llm_module.client else "❌ Not connected"
+        }
+        
+        # Test LLM connection
+        try:
+            connection_test = llm_module.test_connection()
+            llm_status["connection_test"] = "✅ Passed" if connection_test else "⚠️ Failed"
+        except Exception as test_error:
+            llm_status["connection_test"] = f"❌ Failed: {str(test_error)}"
+            llm_status["action_required"] = "Check LLM provider configuration"
+        
+        health_status["modules"]["llm_details"] = llm_status
+        
         return HealthResponse(
             status=health_status.get("overall", "unknown"),
             timestamp=health_status.get("timestamp", datetime.now().isoformat()),
             modules=health_status.get("modules", {})
         )
     except Exception as e:
+        import traceback
         return HealthResponse(
             status="error",
             timestamp=datetime.now().isoformat(),
-            modules={"error": str(e)}
+            modules={
+                "error": str(e),
+                "traceback": traceback.format_exc(),
+                "message": "Health check failed. See logs for details."
+            }
         )
 
 @router.get("/status")

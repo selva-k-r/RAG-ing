@@ -5,7 +5,8 @@ A production-ready Retrieval-Augmented Generation (RAG) system for intelligent d
 ## Features
 
 ### Core Capabilities
-- **Multi-Source Integration**: Confluence, Jira, local files (PDF, Markdown, TXT, HTML)
+- **Multi-Source Integration**: Azure DevOps, Confluence, Jira, local files (PDF, Markdown, TXT, HTML)
+- **Code Intelligence**: Query your codebase for implementation details and documentation
 - **Hybrid Search**: Semantic vector search combined with keyword matching
 - **LLM Integration**: Azure OpenAI (GPT-4) with fallback to OpenAI and Anthropic
 - **Real-time Responses**: Streaming text output with progress tracking
@@ -60,6 +61,12 @@ CONFLUENCE_SPACE_KEY=YOUR_SPACE
 JIRA_SERVER=https://your-domain.atlassian.net
 JIRA_EMAIL=your_email@company.com
 JIRA_API_TOKEN=your_jira_token
+
+# Azure DevOps integration (optional)
+AZURE_DEVOPS_ORG=your_organization
+AZURE_DEVOPS_PROJECT=your_project
+AZURE_DEVOPS_PAT=your_personal_access_token
+AZURE_DEVOPS_REPO=your_repository  # Optional: specific repo
 ```
 
 Configure data sources in `config.yaml`:
@@ -149,6 +156,71 @@ data_source:
 
 The system indexes ticket descriptions, comments, and attachments.
 
+### Azure DevOps Integration
+
+**Why Azure DevOps?** Query your codebase for implementation details! Ask questions like:
+- "How is authentication implemented?"
+- "What files handle user management?"
+- "Explain the database schema design"
+
+**Quick Setup:**
+
+Add credentials to your `.env` file:
+
+```bash
+# Azure DevOps Integration
+AZURE_DEVOPS_ORG=your_organization
+AZURE_DEVOPS_PROJECT=your_project
+AZURE_DEVOPS_PAT=your_personal_access_token
+AZURE_DEVOPS_REPO=your_repository  # Optional: specific repo
+```
+
+**PAT Token Requirements:**
+- Generate at: `https://dev.azure.com/{org}/_usersSettings/tokens`
+- Required scope: **Code (Read)**
+
+**Manual Configuration:**
+
+In `config.yaml`:
+
+```yaml
+data_source:
+  sources:
+    - type: "azure_devops"
+      enabled: true
+      azure_devops:
+        organization: "${AZURE_DEVOPS_ORG}"
+        project: "${AZURE_DEVOPS_PROJECT}"
+        pat_token: "${AZURE_DEVOPS_PAT}"
+        repo_name: "${AZURE_DEVOPS_REPO}"  # Optional: specific repo
+        branch: "main"  # Default branch
+        file_extensions: [".md", ".py", ".txt", ".json", ".yaml", ".cs", ".java"]
+        include_paths: ["/"]  # Paths to include
+        exclude_paths: ["/node_modules", "/bin", "/obj"]  # Paths to exclude
+```
+
+**Enable in `config.yaml`:**
+
+```yaml
+data_source:
+  sources:
+    - type: "azure_devops"
+      enabled: true  # Set to true
+      # ... rest of config
+```
+
+**Ingest Repository Files:**
+
+```bash
+python main.py --ingest
+```
+
+The system will automatically:
+- Connect to Azure DevOps using your credentials
+- Fetch files from configured repositories
+- Filter by file extensions (.py, .md, .json, etc.)
+- Index code and documentation for semantic search
+
 ### Multi-Source Setup
 To index from multiple sources, run ingestion separately for each:
 
@@ -185,6 +257,7 @@ RAG-ing/
 │   ├── config/               # Settings management
 │   ├── connectors/           # Data source integrations
 │   │   ├── confluence_connector.py
+│   │   ├── azuredevops_connector.py
 │   │   └── (jira connector planned)
 │   └── utils/                # Shared utilities
 │
@@ -441,8 +514,13 @@ MIT License - See LICENSE file for details.
 
 ## Support
 
-- Technical documentation: `src/Requirement.md`
-- Configuration guide: `.github/copilot-instructions.md`
-- Deployment help: `DOCKER_QUICKSTART.md`
+**For Users:**
+- Quick start: See sections above
+- Configuration: `config.yaml` and `.env` setup
+
+**For Developers:**
+- **Internal navigation**: [`DEVELOPER_GUIDE.md`](DEVELOPER_GUIDE.md) - Code structure & review guide
+- Technical specs: `src/Requirement.md`
+- Requirements: `POC_REQUIREMENTS.md`
 
 For questions or issues, please open a GitHub issue.

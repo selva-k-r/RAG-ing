@@ -18,6 +18,13 @@ class CleanTransformer {
         console.log('🚗→🤖 Starting clean transformation');
         this.isTransforming = true;
         
+        // Fix #3: Clear search input on first search too
+        const searchInput = document.getElementById('searchInput');
+        if (searchInput) {
+            searchInput.value = '';
+            console.log('✅ Cleared search input on first search');
+        }
+        
         // Step 1: Add transforming class
         document.body.classList.add('transforming');
         
@@ -299,7 +306,18 @@ class CleanTransformer {
 
         } catch (error) {
             console.error('Search error:', error);
-            this.showAIError('Failed to start search');
+            
+            // Try to extract detailed error from response
+            if (error.response) {
+                try {
+                    const errorData = await error.response.json();
+                    this.showAIError(errorData.user_message || errorData.message || 'Failed to start search', errorData);
+                } catch (e) {
+                    this.showAIError('Failed to start search. Check console for details.', {error: error.message});
+                }
+            } else {
+                this.showAIError('Failed to start search. Check console for details.', {error: error.message});
+            }
         }
     }
 
@@ -368,6 +386,8 @@ class CleanTransformer {
             }
 
             console.log('✅ Final response loaded, starting text streaming');
+            console.log('📊 Result metadata:', result.metadata);
+            console.log('📊 Sources count:', result.sources?.length);
 
             // Find the LAST (most recent) typing indicator and response text
             const typingIndicators = document.querySelectorAll('.typing-indicator');
@@ -550,8 +570,20 @@ class CleanTransformer {
         if (!sources || sources.length === 0) return;
 
         const chatContainer = document.getElementById('chatMessages');
-        const processingTime = metadata?.processing_time || 0;
-        const confidenceScore = metadata?.confidence_score || 0.8;
+        
+        // DEBUG: Log what we receive
+        console.log('📊 addSourcesMessage called with:', {
+            sourcesCount: sources.length,
+            metadata: metadata
+        });
+        
+        // Fix #2: Use response_time instead of processing_time
+        const processingTime = metadata?.response_time || 0;
+        console.log('⏱️ Processing time:', processingTime);
+        
+        // Fix #1: Calculate confidence dynamically from sources
+        const confidenceScore = this.calculateConfidenceScore(sources, metadata);
+        console.log('🎯 Calculated confidence:', confidenceScore);
 
         const sourcesHTML = `
             <div class="chat-message ai-message" style="animation: slideInLeft 0.4s ease;">
@@ -577,16 +609,91 @@ class CleanTransformer {
     }
 
     formatSources(sources) {
-        return sources.map((source, index) => `
-            <div class="source-item" style="margin: 8px 0; padding: 10px; background: #f1f3f5; border-radius: 8px; border-left: 3px solid #007bff;">
-                <div style="font-weight: 600; color: #2c3e50; font-size: 13px; margin-bottom: 4px;">
-                    ${index + 1}. ${source.metadata?.title || 'Document'}
+        return sources.map((source, index) => {
+            const metadata = source.metadata || {};
+            const isCodeFile = metadata.type === 'azure_devops_file';
+            const hasLineNumbers = metadata.start_line && metadata.end_line;
+            
+            // Build source header
+            let sourceHeader = `${index + 1}. ${metadata.title || 'Document'}`;
+            
+            // Add code-specific metadata
+            let codeInfo = '';
+            if (isCodeFile) {
+                const language = metadata.language || 'code';
+                const citation = metadata.citation || '';
+                const repo = metadata.repository || 'Repository';
+                
+                // Add language badge
+                codeInfo += `<span style="display: inline-block; background: #e3f2fd; color: #1976d2; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">${language}</span>`;
+                
+                // Add line numbers if available
+                if (hasLineNumbers) {
+                    codeInfo += `<span style="display: inline-block; background: #f1f3f5; color: #495057; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 4px;">Lines ${metadata.start_line}-${metadata.end_line}</span>`;
+                }
+                
+                // Add repository info
+                sourceHeader = `${index + 1}. 📁 ${repo} / ${metadata.file_path || metadata.title}`;
+            }
+            
+            // Build Azure DevOps link if available
+            let linkHtml = '';
+            if (metadata.url && isCodeFile) {
+                const displayUrl = metadata.url.includes('dev.azure.com') ? '🔗 View in Azure DevOps' : '🔗 View Source';
+                linkHtml = `
+                    <div style="margin-top: 6px;">
+                        <a href="${metadata.url}" target="_blank" style="color: #1976d2; text-decoration: none; font-size: 11px; font-weight: 500;">
+                            ${displayUrl} →
+                        </a>
+                    </div>
+                `;
+            }
+            
+            // Format content preview
+            const previewLength = isCodeFile ? 150 : 120;
+            let contentPreview = source.content.substring(0, previewLength);
+            
+            // For code, preserve formatting
+            if (isCodeFile) {
+                contentPreview = `<pre style="background: #ffffff; padding: 8px; border-radius: 4px; margin-top: 6px; overflow-x: auto; font-size: 11px; line-height: 1.4; white-space: pre-wrap;">${contentPreview}...</pre>`;
+            } else {
+                contentPreview = `<div style="color: #6c757d; font-size: 12px; line-height: 1.4;">${contentPreview}...</div>`;
+            }
+            
+            return `
+                <div class="source-item" style="margin: 8px 0; padding: 10px; background: #f1f3f5; border-radius: 8px; border-left: 3px solid ${isCodeFile ? '#4caf50' : '#007bff'};">
+                    <div style="font-weight: 600; color: #2c3e50; font-size: 13px; margin-bottom: 4px;">
+                        ${sourceHeader}${codeInfo}
+                    </div>
+                    ${contentPreview}
+                    ${linkHtml}
                 </div>
-                <div style="color: #6c757d; font-size: 12px; line-height: 1.4;">
-                    ${source.content.substring(0, 120)}...
-                </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
+    }
+
+    calculateConfidenceScore(sources, metadata) {
+        // Calculate confidence based on multiple factors
+        if (!sources || sources.length === 0) return 0.5;
+        
+        // Factor 1: Number of sources (more sources = higher confidence)
+        const sourceCountScore = Math.min(sources.length / 5, 1.0) * 0.3;
+        
+        // Factor 2: Source diversity (different sources = higher confidence)
+        const uniqueSources = metadata?.unique_sources || sources.length;
+        const diversityScore = Math.min(uniqueSources / 3, 1.0) * 0.3;
+        
+        // Factor 3: Response time (faster = higher confidence, though less weight)
+        const responseTime = metadata?.response_time || 10;
+        const speedScore = Math.max(1.0 - (responseTime / 20), 0) * 0.1;
+        
+        // Factor 4: Base confidence (has relevant docs)
+        const baseScore = 0.3;
+        
+        const totalScore = baseScore + sourceCountScore + diversityScore + speedScore;
+        
+        // Return score between 0.5 and 1.0 for better UX
+        return Math.max(0.5, Math.min(totalScore, 1.0));
     }
 
     getConfidenceLevel(score) {
@@ -595,18 +702,58 @@ class CleanTransformer {
         return 'low';
     }
 
-    showAIError(message) {
-        const typingIndicator = document.getElementById('typingIndicator');
-        const responseText = document.getElementById('aiResponseText');
+    showAIError(message, errorDetails = null) {
+        // Find the most recent typing indicator and response text
+        const typingIndicators = document.querySelectorAll('.typing-indicator');
+        const responseTexts = document.querySelectorAll('#aiResponseText, .message-text');
+        
+        const typingIndicator = typingIndicators[typingIndicators.length - 1];
+        const responseText = responseTexts[responseTexts.length - 1];
         
         if (typingIndicator) typingIndicator.style.display = 'none';
         if (responseText) {
             responseText.style.display = 'block';
-            responseText.innerHTML = `
-                <div style="color: #dc3545; padding: 15px; background: #f8d7da; border-radius: 8px; border: 1px solid #f5c6cb;">
-                    ❌ ${message}
+            
+            // If message contains markdown formatting, render it properly
+            let formattedMessage = message;
+            if (message.includes('##') || message.includes('**') || message.includes('- ') || message.includes('`')) {
+                // Use the same markdown formatting as regular responses
+                formattedMessage = this.formatText(message);
+            } else {
+                // Simple text error
+                formattedMessage = `<div style="color: #dc3545;">${message}</div>`;
+            }
+            
+            // Build error display
+            let errorHtml = `
+                <div style="background: linear-gradient(135deg, #fff5f5 0%, #ffe5e5 100%); padding: 20px; border-radius: 12px; border-left: 4px solid #dc3545; margin-bottom: 15px;">
+                    ${formattedMessage}
                 </div>
             `;
+            
+            // Add developer details if available
+            if (errorDetails && (errorDetails.error_details || errorDetails.traceback)) {
+                errorHtml += `
+                    <details style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px; cursor: pointer;">
+                        <summary style="font-weight: bold; color: #495057; cursor: pointer;">
+                            🔍 Developer Details (Click to expand)
+                        </summary>
+                        <div style="margin-top: 10px; padding: 10px; background: #ffffff; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 12px; color: #212529; white-space: pre-wrap; overflow-x: auto;">
+                            ${errorDetails.error_details || errorDetails.message || ''}
+                            ${errorDetails.traceback ? '\n\nTraceback:\n' + errorDetails.traceback : ''}
+                            ${errorDetails.fix_instructions ? '\n\nFix Instructions:\n' + errorDetails.fix_instructions : ''}
+                        </div>
+                    </details>
+                `;
+            }
+            
+            responseText.innerHTML = errorHtml;
+        }
+        
+        // Log to console for developers
+        console.error('AI Error displayed:', message);
+        if (errorDetails) {
+            console.error('Error details:', errorDetails);
         }
     }
 
@@ -716,6 +863,11 @@ window.handleCleanTransformerSearch = async function(event) {
     }
 
     console.log('🚀 Clean transformer search:', query);
+    
+    // Fix #3: Clear search input after submission
+    if (searchInput) {
+        searchInput.value = '';
+    }
     await cleanTransformer.transformToChat(query);
 };
 

@@ -124,6 +124,17 @@
             margin-bottom: var(--title-margin-bottom);
             position: relative;
             display: inline-block;
+            cursor: pointer; /* Make it clickable */
+            transition: transform 0.2s ease, opacity 0.8s ease;
+        }
+        
+        .main-title:hover {
+            transform: scale(1.05);
+            opacity: 0.8;
+        }
+        
+        .main-title:active {
+            transform: scale(0.98);
         }
         
         .main-title::after {
@@ -588,7 +599,7 @@
             <!-- Main Title -->
             <div class="header-section">
             <div class="title-container">
-                <div class="main-title">iConnect</div>
+                <div class="main-title" id="logoTitle" onclick="refreshToHome()" title="Click to refresh and return to home">iConnect</div>
                 <div class="subtitle">IntegraConnect AI-Powered Search</div>
                 </div>
             </div>
@@ -754,6 +765,12 @@
             }
         });
         
+        // Logo refresh functionality - reload page to return to home
+        function refreshToHome() {
+            console.log('🔄 Refreshing to home page...');
+            window.location.reload();
+        }
+        
         // Unified search handler that works in both modes
         async function handleSearchClick() {
             const searchInput = document.getElementById('searchInput');
@@ -912,8 +929,8 @@
             window.searchStatusInterval = interval;
         }
     </script>
-    <script src="/static/js/progress.js"></script>
-    <script src="/static/js/clean_transformer.js"></script>
+    <script src="/static/js/progress.js?v=20251120d"></script>
+    <script src="/static/js/clean_transformer.js?v=20251120d"></script>
     <script>
         // Initialize progress tracker
         window.progressTracker = new ProgressTracker();

@@ -27,6 +27,7 @@ from ..connectors import ConfluenceConnector
 from ..utils.exceptions import IngestionError
 from ..utils.duplicate_detector import DuplicateDetector
 from ..utils.document_summarizer import DocumentSummarizer
+from ..utils.code_chunker import CodeChunker
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +108,14 @@ class CorpusEmbeddingModule:
         logger.info("🚀 Starting enhanced multi-source corpus processing pipeline")
         start_time = time.time()
         
+        # Initialize universal ingestion tracker (SQLite)
+        from ..utils.ingestion_tracker_sqlite import IngestionTrackerSQLite
+        self._ingestion_tracker = IngestionTrackerSQLite(db_path="ingestion_tracking.db")
+        
+        # Get statistics
+        stats = self._ingestion_tracker.get_statistics()
+        logger.info(f"📋 Loaded tracking database: {stats.get('total_documents', 0)} documents, {stats.get('total_chunks', 0)} chunks")
+        
         try:
             # Step 1: Enhanced Multi-Source Ingestion Logic
             logger.info("📂 Step 1: Multi-source document ingestion")
@@ -184,6 +193,8 @@ class CorpusEmbeddingModule:
                     docs = self._ingest_confluence_enhanced(source)
                 elif source_type == 'jira':
                     docs = self._ingest_jira_enhanced(source)
+                elif source_type == 'azure_devops':
+                    docs = self._ingest_azuredevops_enhanced(source)
                 else:
                     logger.warning(f"❓ Unknown source type: {source_type}, skipping...")
                     continue
@@ -197,9 +208,9 @@ class CorpusEmbeddingModule:
                 continue
         
         if not all_documents:
-            # Fall back to legacy single-source method for backward compatibility
-            logger.info("🔄 No documents from multi-source, trying legacy method...")
-            return self._ingest_documents()
+            # No documents ingested from any source
+            logger.warning("No documents ingested from any enabled source")
+            return []
         
         return all_documents
         """YAML-driven document ingestion.
@@ -410,24 +421,51 @@ class CorpusEmbeddingModule:
             raise ValueError(f"Unsupported chunking strategy: {strategy}")
     
     def _recursive_chunking(self, documents: List[Document]) -> List[Document]:
-        """Apply recursive character-based chunking with configured parameters."""
-        text_splitter = RecursiveCharacterTextSplitter(
+        """Apply recursive character-based chunking with configured parameters.
+        
+        Uses code-aware chunking for Azure DevOps files to preserve structure
+        and add line number metadata for citations.
+        """
+        chunks = []
+        code_chunker = CodeChunker(
             chunk_size=self.chunking_config.chunk_size,
-            chunk_overlap=self.chunking_config.overlap,
-            separators=["\n\n", "\n", ". ", " ", ""],
-            keep_separator=True
+            overlap=self.chunking_config.overlap
         )
         
-        chunks = text_splitter.split_documents(documents)
+        for doc in documents:
+            # Check if this is a code file from Azure DevOps
+            is_code_file = (
+                doc.metadata.get('type') == 'azure_devops_file' and
+                doc.metadata.get('is_code', False)
+            )
+            
+            if is_code_file:
+                # Use code-aware chunking with line numbers
+                logger.debug(f"Using code chunking for {doc.metadata.get('file_path')}")
+                code_chunks = code_chunker.chunk_code_file(doc.page_content, doc.metadata)
+                chunks.extend(code_chunks)
+            else:
+                # Standard recursive chunking for non-code documents
+                text_splitter = RecursiveCharacterTextSplitter(
+                    chunk_size=self.chunking_config.chunk_size,
+                    chunk_overlap=self.chunking_config.overlap,
+                    separators=["\n\n", "\n", ". ", " ", ""],
+                    keep_separator=True
+                )
+                
+                doc_chunks = text_splitter.split_documents([doc])
+                
+                # Enhance chunk metadata
+                for i, chunk in enumerate(doc_chunks):
+                    chunk.metadata.update({
+                        "chunk_index": i,
+                        "chunk_method": "recursive",
+                        "chunk_size": len(chunk.page_content)
+                    })
+                
+                chunks.extend(doc_chunks)
         
-        # Enhance chunk metadata
-        for i, chunk in enumerate(chunks):
-            chunk.metadata.update({
-                "chunk_index": i,
-                "chunk_method": "recursive",
-                "chunk_size": len(chunk.page_content)
-            })
-        
+        logger.info(f"Created {len(chunks)} chunks from {len(documents)} documents")
         return chunks
     
     def _semantic_chunking(self, documents: List[Document]) -> List[Document]:
@@ -815,10 +853,68 @@ class CorpusEmbeddingModule:
         self.vector_store = None
         logger.info("FAISS vector store will be initialized on first document addition")
     
+    def _delete_old_vectors(self, source_type: str, document_id: str, source_location: str, source_branch: str) -> int:
+        """Delete old vectors for a document being updated.
+        
+        Args:
+            source_type: Source type (azure_devops, confluence, etc.)
+            document_id: Document identifier
+            source_location: Source location
+            source_branch: Branch/version
+            
+        Returns:
+            Number of vectors deleted
+        """
+        if self.vector_store_config.type != "chroma":
+            logger.warning("Vector cleanup only supported for ChromaDB")
+            return 0
+        
+        try:
+            # Build query based on source type
+            if source_type == 'azure_devops':
+                query_filter = {
+                    "$and": [
+                        {"file_path": document_id},
+                        {"repository": source_location},
+                        {"branch": source_branch}
+                    ]
+                }
+            elif source_type == 'confluence':
+                query_filter = {
+                    "$and": [
+                        {"page_id": document_id},
+                        {"space_key": source_location}
+                    ]
+                }
+            elif source_type == 'local_file':
+                query_filter = {"source": document_id}
+            else:
+                # Generic fallback
+                query_filter = {"source": document_id}
+            
+            # Query for existing chunks matching this document
+            results = self.vector_store._collection.get(where=query_filter)
+            
+            if results and results['ids']:
+                # Delete matching vectors
+                self.vector_store._collection.delete(ids=results['ids'])
+                deleted_count = len(results['ids'])
+                logger.info(f"🗑️  Deleted {deleted_count} old vectors for [{source_type}]: {document_id}")
+                return deleted_count
+            
+            return 0
+        
+        except Exception as e:
+            logger.warning(f"Failed to delete old vectors for [{source_type}]: {document_id}: {e}")
+            return 0
+    
     def _store_embeddings(self, chunks: List[Document]) -> None:
         """Store document chunks with embeddings in vector store.
         
-        For hierarchical storage, also creates and stores summaries.
+        Handles:
+        - Cleanup of old vectors for updated files
+        - Recording processed files in tracker
+        - Hierarchical storage if enabled
         """
         if not chunks:
             logger.warning("No chunks to store")
@@ -826,9 +922,58 @@ class CorpusEmbeddingModule:
         
         logger.info(f"Storing {len(chunks)} chunks with embeddings")
         
+        # Group chunks by source document for cleanup and tracking
+        document_chunks_map = {}
+        for chunk in chunks:
+            metadata = chunk.metadata
+            
+            # Determine source type and identifiers (check both 'type' and 'source_type' for compatibility)
+            doc_type = metadata.get('type') or metadata.get('source_type')
+            
+            if doc_type == 'azure_devops_file' or doc_type == 'azure_devops':
+                source_type = 'azure_devops'
+                document_id = metadata.get('file_path', metadata.get('source'))
+                source_location = metadata.get('repository', 'unknown')
+                source_branch = metadata.get('branch', '')
+            elif doc_type == 'confluence':
+                source_type = 'confluence'
+                document_id = metadata.get('page_id', metadata.get('source'))
+                source_location = metadata.get('space_key', '')
+                source_branch = ''
+            elif doc_type == 'local_file':
+                source_type = 'local_file'
+                document_id = metadata.get('source', metadata.get('filename', 'unknown'))
+                source_location = 'local'
+                source_branch = ''
+            else:
+                # Skip unknown types
+                logger.debug(f"Skipping chunk with unknown type: {doc_type}")
+                continue
+            
+            key = (source_type, document_id, source_location, source_branch)
+            if key not in document_chunks_map:
+                document_chunks_map[key] = {
+                    'chunks': [],
+                    'needs_cleanup': metadata.get('needs_vector_cleanup', False),
+                    'metadata': metadata
+                }
+            document_chunks_map[key]['chunks'].append(chunk)
+        
+        # Handle vector cleanup for updated documents
+        total_deleted = 0
+        for (source_type, document_id, source_location, source_branch), doc_data in document_chunks_map.items():
+            if doc_data['needs_cleanup']:
+                deleted = self._delete_old_vectors(source_type, document_id, source_location, source_branch)
+                total_deleted += deleted
+        
+        if total_deleted > 0:
+            logger.info(f"🗑️  Cleaned up {total_deleted} old vectors for updated documents")
+        
         # Handle hierarchical storage first
         if self.hierarchical_config.enabled and self.summary_vector_store:
             self._store_hierarchical(chunks)
+            # Record in tracker after successful storage
+            self._record_processed_documents(document_chunks_map)
             return
         
         try:
@@ -864,9 +1009,54 @@ class CorpusEmbeddingModule:
             
             logger.info(f"Successfully stored {len(chunks)} chunks in {self.vector_store_config.type}")
             
+            # Record processed documents in tracker after successful storage
+            self._record_processed_documents(document_chunks_map)
+            
         except Exception as e:
             logger.error(f"Failed to store embeddings: {e}")
             raise IngestionError(f"Vector storage failed: {e}")
+    
+    def _record_processed_documents(self, document_chunks_map: Dict) -> None:
+        """Record processed documents in universal ingestion tracker.
+        
+        Supports all source types: Azure DevOps, Confluence, local files, Jira.
+        
+        Args:
+            document_chunks_map: Map of document info to chunks and metadata
+        """
+        if not hasattr(self, '_ingestion_tracker'):
+            logger.warning("Ingestion tracker not initialized - skipping recording")
+            return
+        
+        tracker = self._ingestion_tracker
+        
+        for (source_type, document_id, source_location, source_branch), doc_data in document_chunks_map.items():
+            metadata = doc_data['metadata']
+            chunk_count = len(doc_data['chunks'])
+            
+            # Get the original document content for hash computation
+            # Use first chunk's full content or reconstruct
+            content = '\n'.join(chunk.page_content for chunk in doc_data['chunks'])
+            
+            # Get document title
+            document_title = metadata.get('title', metadata.get('filename', document_id))
+            
+            tracker.record_processed_document(
+                source_type=source_type,
+                document_id=document_id,
+                source_location=source_location,
+                source_branch=source_branch,
+                content=content,
+                chunk_count=chunk_count,
+                last_modified_date=metadata.get('last_modified_date'),
+                last_modified_by=metadata.get('last_modified_by'),
+                document_title=document_title,
+                status='success'
+            )
+        
+        # Save tracker to CSV
+        tracker.save()
+        logger.info(f"📝 Updated tracking file for {len(document_chunks_map)} documents")
     
     def validate_embeddings(self) -> bool:
         """Validate vector dimensions and schema as required by Requirement.md.
@@ -969,13 +1159,15 @@ class CorpusEmbeddingModule:
                         page_content=content,
                         metadata={
                             "source": str(file_path),
-                            "source_type": "local_file",
+                            "type": "local_file",  # Standardized field name
+                            "source_type": "local_file",  # Keep for backward compatibility
                             "filename": file_path.name,
                             "file_type": file_path.suffix,
                             "date": file_path.stat().st_mtime,
                             "ontology_codes": ontology_codes,
                             "domain": "oncology",
-                            "description": source_config.get('description', 'Local file')
+                            "description": source_config.get('description', 'Local file'),
+                            "title": file_path.name  # For tracking
                         }
                     )
                     documents.append(doc)
@@ -1097,3 +1289,158 @@ class CorpusEmbeddingModule:
         logger.info("🎫 JIRA ingestion requested but not yet implemented - skipping")
         logger.debug("💡 See docstring for implementation steps")
         return []
+    
+    def _ingest_azuredevops_enhanced(self, source_config: Dict[str, Any]) -> List[Document]:
+        """Enhanced Azure DevOps ingestion with incremental processing and change tracking.
+        
+        Features:
+        - Tracks processed files in CSV for incremental ingestion
+        - Only processes new or modified files
+        - Deletes old vectors when files are updated
+        - Records processing metadata (who, when, commit info)
+        """
+        azuredevops_config = source_config.get('azure_devops', {})
+        
+        # Check if Azure DevOps is properly configured
+        required_fields = ['organization', 'project', 'pat_token']
+        missing_fields = [field for field in required_fields if not azuredevops_config.get(field)]
+        
+        if missing_fields:
+            logger.warning(f"🔑 Azure DevOps config missing fields: {missing_fields}")
+            return []
+        
+        try:
+            # Initialize Azure DevOps connector
+            from ..connectors.azuredevops_connector import AzureDevOpsConnector
+            
+            connector = AzureDevOpsConnector(azuredevops_config)
+            connector.connect()
+            
+            # Use the global ingestion tracker
+            tracker = self._ingestion_tracker
+            
+            # Get repository configuration
+            repo_name = azuredevops_config.get('repo_name')
+            branch = azuredevops_config.get('branch', 'main')
+            include_paths = azuredevops_config.get('include_paths', ['/'])
+            
+            all_docs = []
+            files_processed = 0
+            files_skipped = 0
+            files_updated = 0
+            
+            # Fetch files from repository
+            if repo_name:
+                logger.info(f"💻 Fetching from Azure DevOps repository: {repo_name}")
+                for path in include_paths:
+                    raw_docs = connector.fetch_repository_files(
+                        repo_name=repo_name,
+                        branch=branch,
+                        path=path,
+                        recursive=True,
+                        include_commit_info=True  # Get commit metadata
+                    )
+                    
+                    # Filter based on tracking status
+                    for doc in raw_docs:
+                        metadata = doc.metadata
+                        file_path = metadata.get('file_path')
+                        repository = metadata.get('repository')
+                        branch_name = metadata.get('branch')
+                        content = doc.page_content
+                        last_modified = metadata.get('last_modified_date')
+                        
+                        # Check if file needs processing
+                        should_process = tracker.should_process_document(
+                            source_type='azure_devops',
+                            document_id=file_path,
+                            source_location=repository,
+                            source_branch=branch_name,
+                            content=content,
+                            last_modified_date=last_modified
+                        )
+                        
+                        if should_process:
+                            # Check if this is an update (document exists in tracker)
+                            key = tracker._make_key('azure_devops', repository, branch_name, file_path)
+                            is_update = key in tracker.tracking_data
+                            
+                            if is_update:
+                                logger.info(f"🔄 Updating: {file_path}")
+                                files_updated += 1
+                                # Mark for vector cleanup
+                                doc.metadata['needs_vector_cleanup'] = True
+                                doc.metadata['cleanup_patterns'] = tracker.get_documents_to_cleanup(
+                                    'azure_devops', repository, branch_name, file_path
+                                )
+                            else:
+                                logger.debug(f"✨ New file: {file_path}")
+                                files_processed += 1
+                            
+                            all_docs.append(doc)
+                        else:
+                            files_skipped += 1
+                    
+                    logger.info(f"   📂 {path}: {len(raw_docs)} files found, {len([d for d in all_docs if d.metadata.get('file_path', '').startswith(path)])} to process")
+            else:
+                # Fetch from all repositories
+                repos = connector.list_repositories()
+                logger.info(f"💻 Found {len(repos)} repositories in project")
+                
+                for repo in repos[:5]:  # Limit to first 5 repos
+                    repo_name = repo['name']
+                    logger.info(f"   Fetching from: {repo_name}")
+                    
+                    for path in include_paths:
+                        raw_docs = connector.fetch_repository_files(
+                            repo_name=repo_name,
+                            branch=branch,
+                            path=path,
+                            recursive=True,
+                            include_commit_info=True
+                        )
+                        
+                        # Same filtering logic as above
+                        for doc in raw_docs:
+                            metadata = doc.metadata
+                            should_process = tracker.should_process_document(
+                                source_type='azure_devops',
+                                document_id=metadata.get('file_path'),
+                                source_location=metadata.get('repository'),
+                                source_branch=metadata.get('branch'),
+                                content=doc.page_content,
+                                last_modified_date=metadata.get('last_modified_date')
+                            )
+                            
+                            if should_process:
+                                key = tracker._make_key(
+                                    'azure_devops',
+                                    metadata.get('repository'),
+                                    metadata.get('branch'),
+                                    metadata.get('file_path')
+                                )
+                                if key in tracker.tracking_data:
+                                    files_updated += 1
+                                    doc.metadata['needs_vector_cleanup'] = True
+                                    doc.metadata['cleanup_patterns'] = tracker.get_documents_to_cleanup(
+                                        'azure_devops',
+                                        metadata.get('repository'),
+                                        metadata.get('branch'),
+                                        metadata.get('file_path')
+                                    )
+                                else:
+                                    files_processed += 1
+                                
+                                all_docs.append(doc)
+                            else:
+                                files_skipped += 1
+            
+            logger.info(f"✅ Azure DevOps: {len(all_docs)} files to process ({files_processed} new, {files_updated} updated, {files_skipped} skipped)")
+            
+            return all_docs
+            
+        except Exception as e:
+            logger.error(f"❌ Azure DevOps ingestion failed: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+            return []
