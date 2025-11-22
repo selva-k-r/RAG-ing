@@ -621,7 +621,6 @@ class CleanTransformer {
             let codeInfo = '';
             if (isCodeFile) {
                 const language = metadata.language || 'code';
-                const citation = metadata.citation || '';
                 const repo = metadata.repository || 'Repository';
                 
                 // Add language badge
