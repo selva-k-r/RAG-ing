@@ -128,10 +128,12 @@ class UIPersonalization {
     /**
      * Sanitize HTML to prevent XSS attacks
      * Escapes special characters that could be used for HTML injection
+     * Note: Ampersand must be escaped first to prevent double-escaping
      * @param {string} str - The string to sanitize
      * @returns {string} - Sanitized string safe for HTML injection
      */
     sanitizeHTML(str) {
+        if (!str) return '';
         return str
             .replace(/&/g, '&amp;')
             .replace(/</g, '&lt;')
@@ -155,11 +157,11 @@ class UIPersonalization {
         html += '<div class="recent-header">Recent Searches</div>';
         html += '<ul class="search-list">';
         
-        searches.forEach(entry => {
+        searches.forEach((entry, index) => {
             const date = new Date(entry.timestamp).toLocaleDateString();
             const sanitizedQuery = this.sanitizeHTML(entry.query);
             html += `
-                <li class="search-item" onclick="document.querySelector('input[name=query]').value='${sanitizedQuery}'">
+                <li class="search-item" data-query-index="${index}">
                     <span class="search-query">${sanitizedQuery}</span>
                     <span class="search-date">${date}</span>
                 </li>
@@ -167,10 +169,37 @@ class UIPersonalization {
         });
         
         html += '</ul>';
-        html += '<button class="clear-history-btn" onclick="uiPersonalization.clearHistory(); uiPersonalization.renderRecentSearches(\'' + containerId + '\')">Clear History</button>';
+        html += '<button class="clear-history-btn">Clear History</button>';
         html += '</div>';
         
         container.innerHTML = html;
+        
+        // Add event listeners using event delegation (safer than inline onclick)
+        const searchList = container.querySelector('.search-list');
+        if (searchList) {
+            searchList.addEventListener('click', (e) => {
+                const listItem = e.target.closest('.search-item');
+                if (listItem) {
+                    const queryIndex = parseInt(listItem.dataset.queryIndex);
+                    const entry = searches[queryIndex];
+                    if (entry) {
+                        const queryInput = document.querySelector('input[name=query]');
+                        if (queryInput) {
+                            // Use the unsanitized original query for the input field
+                            queryInput.value = entry.query;
+                        }
+                    }
+                }
+            });
+        }
+        
+        const clearBtn = container.querySelector('.clear-history-btn');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+                this.clearHistory();
+                this.renderRecentSearches(containerId);
+            });
+        }
     }
     
     renderThemeSelector(containerId) {
