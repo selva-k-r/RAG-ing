@@ -14,6 +14,14 @@ class UIPersonalization {
         this.historyKey = 'rag_search_history';
         this.maxHistory = 20;
         
+        // Default preferences - used as fallback for corrupted data
+        this.defaultPrefs = {
+            theme: 'light',
+            preferredSources: [],
+            compactMode: false,
+            resultsPerPage: 10
+        };
+        
         // Load preferences
         this.prefs = this.loadPreferences();
         
@@ -23,13 +31,13 @@ class UIPersonalization {
     
     // Preference Management
     loadPreferences() {
-        const stored = localStorage.getItem(this.storageKey);
-        return stored ? JSON.parse(stored) : {
-            theme: 'light',
-            preferredSources: [],
-            compactMode: false,
-            resultsPerPage: 10
-        };
+        try {
+            const stored = localStorage.getItem(this.storageKey);
+            return stored ? JSON.parse(stored) : { ...this.defaultPrefs };
+        } catch (error) {
+            console.warn('Failed to parse preferences, using defaults:', error);
+            return { ...this.defaultPrefs };
+        }
     }
     
     savePreferences() {
@@ -69,8 +77,13 @@ class UIPersonalization {
     
     // Search History Management
     loadSearchHistory() {
-        const stored = localStorage.getItem(this.historyKey);
-        return stored ? JSON.parse(stored) : [];
+        try {
+            const stored = localStorage.getItem(this.historyKey);
+            return stored ? JSON.parse(stored) : [];
+        } catch (error) {
+            console.warn('Failed to parse search history, using empty array:', error);
+            return [];
+        }
     }
     
     addToHistory(query, source = null) {
@@ -124,6 +137,24 @@ class UIPersonalization {
     }
     
     // UI Utilities
+    
+    /**
+     * Sanitize HTML to prevent XSS attacks
+     * Escapes special characters that could be used for HTML injection
+     * Note: Ampersand must be escaped first to prevent double-escaping
+     * @param {string} str - The string to sanitize
+     * @returns {string} - Sanitized string safe for HTML content rendering
+     */
+    sanitizeHTML(str) {
+        if (!str) return '';
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+    
     renderRecentSearches(containerId) {
         const container = document.getElementById(containerId);
         if (!container) return;
@@ -139,21 +170,51 @@ class UIPersonalization {
         html += '<div class="recent-header">Recent Searches</div>';
         html += '<ul class="search-list">';
         
-        searches.forEach(entry => {
+        searches.forEach((entry, index) => {
             const date = new Date(entry.timestamp).toLocaleDateString();
+            const sanitizedQuery = this.sanitizeHTML(entry.query);
             html += `
-                <li class="search-item" onclick="document.querySelector('input[name=query]').value='${entry.query}'">
-                    <span class="search-query">${entry.query}</span>
+                <li class="search-item" data-query-index="${index}">
+                    <span class="search-query">${sanitizedQuery}</span>
                     <span class="search-date">${date}</span>
                 </li>
             `;
         });
         
         html += '</ul>';
-        html += '<button class="clear-history-btn" onclick="uiPersonalization.clearHistory(); uiPersonalization.renderRecentSearches(\'' + containerId + '\')">Clear History</button>';
+        html += '<button class="clear-history-btn">Clear History</button>';
         html += '</div>';
         
         container.innerHTML = html;
+        
+        // Add event listeners using event delegation (safer than inline onclick)
+        const searchList = container.querySelector('.search-list');
+        if (searchList) {
+            searchList.addEventListener('click', (e) => {
+                const listItem = e.target.closest('.search-item');
+                if (listItem) {
+                    const queryIndex = parseInt(listItem.dataset.queryIndex, 10);
+                    // Re-fetch searches to avoid stale closure data
+                    const currentSearches = this.getRecentSearches();
+                    // Validate queryIndex is a valid array index
+                    if (!isNaN(queryIndex) && queryIndex >= 0 && queryIndex < currentSearches.length) {
+                        const queryInput = document.querySelector('input[name=query]');
+                        if (queryInput) {
+                            // Use the unsanitized original query for the input field
+                            queryInput.value = currentSearches[queryIndex].query;
+                        }
+                    }
+                }
+            });
+        }
+        
+        const clearBtn = container.querySelector('.clear-history-btn');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', () => {
+                this.clearHistory();
+                this.renderRecentSearches(containerId);
+            });
+        }
     }
     
     renderThemeSelector(containerId) {
@@ -165,17 +226,28 @@ class UIPersonalization {
         const html = `
             <div class="theme-selector">
                 <button class="theme-btn ${currentTheme === 'light' ? 'active' : ''}" 
-                        onclick="uiPersonalization.setTheme('light')">
+                        data-theme="light">
                     ☀️ Light
                 </button>
                 <button class="theme-btn ${currentTheme === 'dark' ? 'active' : ''}" 
-                        onclick="uiPersonalization.setTheme('dark')">
+                        data-theme="dark">
                     🌙 Dark
                 </button>
             </div>
         `;
         
         container.innerHTML = html;
+        
+        // Add event listeners using event delegation (safer than inline onclick)
+        const themeButtons = container.querySelectorAll('.theme-btn');
+        themeButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const theme = button.dataset.theme;
+                if (theme === 'light' || theme === 'dark') {
+                    this.setTheme(theme);
+                }
+            });
+        });
     }
 }
 
