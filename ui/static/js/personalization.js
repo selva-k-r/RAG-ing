@@ -181,15 +181,14 @@ class UIPersonalization {
                 const listItem = e.target.closest('.search-item');
                 if (listItem) {
                     const queryIndex = parseInt(listItem.dataset.queryIndex, 10);
+                    // Re-fetch searches to avoid stale closure data
+                    const currentSearches = this.getRecentSearches();
                     // Validate queryIndex is a valid array index
-                    if (!isNaN(queryIndex) && queryIndex >= 0 && queryIndex < searches.length) {
-                        const entry = searches[queryIndex];
-                        if (entry) {
-                            const queryInput = document.querySelector('input[name=query]');
-                            if (queryInput) {
-                                // Use the unsanitized original query for the input field
-                                queryInput.value = entry.query;
-                            }
+                    if (!isNaN(queryIndex) && queryIndex >= 0 && queryIndex < currentSearches.length) {
+                        const queryInput = document.querySelector('input[name=query]');
+                        if (queryInput) {
+                            // Use the unsanitized original query for the input field
+                            queryInput.value = currentSearches[queryIndex].query;
                         }
                     }
                 }
