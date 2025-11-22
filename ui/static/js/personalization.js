@@ -14,6 +14,14 @@ class UIPersonalization {
         this.historyKey = 'rag_search_history';
         this.maxHistory = 20;
         
+        // Default preferences - used as fallback for corrupted data
+        this.defaultPrefs = {
+            theme: 'light',
+            preferredSources: [],
+            compactMode: false,
+            resultsPerPage: 10
+        };
+        
         // Load preferences
         this.prefs = this.loadPreferences();
         
@@ -25,20 +33,10 @@ class UIPersonalization {
     loadPreferences() {
         try {
             const stored = localStorage.getItem(this.storageKey);
-            return stored ? JSON.parse(stored) : {
-                theme: 'light',
-                preferredSources: [],
-                compactMode: false,
-                resultsPerPage: 10
-            };
+            return stored ? JSON.parse(stored) : { ...this.defaultPrefs };
         } catch (error) {
             console.warn('Failed to parse preferences, using defaults:', error);
-            return {
-                theme: 'light',
-                preferredSources: [],
-                compactMode: false,
-                resultsPerPage: 10
-            };
+            return { ...this.defaultPrefs };
         }
     }
     
