@@ -124,6 +124,22 @@ class UIPersonalization {
     }
     
     // UI Utilities
+    
+    /**
+     * Sanitize HTML to prevent XSS attacks
+     * Escapes special characters that could be used for HTML injection
+     * @param {string} str - The string to sanitize
+     * @returns {string} - Sanitized string safe for HTML injection
+     */
+    sanitizeHTML(str) {
+        return str
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+    
     renderRecentSearches(containerId) {
         const container = document.getElementById(containerId);
         if (!container) return;
@@ -141,9 +157,10 @@ class UIPersonalization {
         
         searches.forEach(entry => {
             const date = new Date(entry.timestamp).toLocaleDateString();
+            const sanitizedQuery = this.sanitizeHTML(entry.query);
             html += `
-                <li class="search-item" onclick="document.querySelector('input[name=query]').value='${entry.query}'">
-                    <span class="search-query">${entry.query}</span>
+                <li class="search-item" onclick="document.querySelector('input[name=query]').value='${sanitizedQuery}'">
+                    <span class="search-query">${sanitizedQuery}</span>
                     <span class="search-date">${date}</span>
                 </li>
             `;
