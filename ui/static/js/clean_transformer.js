@@ -680,8 +680,17 @@ class CleanTransformer {
             let linkHtml = '';
             if (metadata.url && isCodeFile && this.isValidUrl(metadata.url)) {
                 // URL is validated and safe to use directly in href (no HTML escaping needed)
-                // Sanitize the display text to prevent XSS
-                const displayText = metadata.url.includes('dev.azure.com') ? 'View in Azure DevOps' : 'View Source';
+                // Determine display text based on hostname (not substring search)
+                let displayText = 'View Source';
+                try {
+                    const urlObj = new URL(metadata.url);
+                    // Check if hostname ends with dev.azure.com to avoid substring attacks
+                    if (urlObj.hostname.endsWith('dev.azure.com')) {
+                        displayText = 'View in Azure DevOps';
+                    }
+                } catch (e) {
+                    // If URL parsing fails, use generic text (shouldn't happen as isValidUrl already checked)
+                }
                 const safeDisplayText = this.escapeHtml(displayText);
                 linkHtml = `
                     <div style="margin-top: 6px;">
