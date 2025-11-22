@@ -23,13 +23,23 @@ class UIPersonalization {
     
     // Preference Management
     loadPreferences() {
-        const stored = localStorage.getItem(this.storageKey);
-        return stored ? JSON.parse(stored) : {
-            theme: 'light',
-            preferredSources: [],
-            compactMode: false,
-            resultsPerPage: 10
-        };
+        try {
+            const stored = localStorage.getItem(this.storageKey);
+            return stored ? JSON.parse(stored) : {
+                theme: 'light',
+                preferredSources: [],
+                compactMode: false,
+                resultsPerPage: 10
+            };
+        } catch (error) {
+            console.warn('Failed to parse preferences, using defaults:', error);
+            return {
+                theme: 'light',
+                preferredSources: [],
+                compactMode: false,
+                resultsPerPage: 10
+            };
+        }
     }
     
     savePreferences() {
@@ -69,8 +79,13 @@ class UIPersonalization {
     
     // Search History Management
     loadSearchHistory() {
-        const stored = localStorage.getItem(this.historyKey);
-        return stored ? JSON.parse(stored) : [];
+        try {
+            const stored = localStorage.getItem(this.historyKey);
+            return stored ? JSON.parse(stored) : [];
+        } catch (error) {
+            console.warn('Failed to parse search history, using empty array:', error);
+            return [];
+        }
     }
     
     addToHistory(query, source = null) {
