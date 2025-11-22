@@ -642,7 +642,7 @@ class AzureDevOpsConnector:
                 try:
                     # Extract just the date part (YYYY-MM-DD)
                     date_str = date_str.split("T")[0]
-                except:
+                except Exception:
                     pass
             
             # Clean commit message (first line only, truncate if too long)
