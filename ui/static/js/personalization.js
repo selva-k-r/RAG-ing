@@ -130,7 +130,7 @@ class UIPersonalization {
      * Escapes special characters that could be used for HTML injection
      * Note: Ampersand must be escaped first to prevent double-escaping
      * @param {string} str - The string to sanitize
-     * @returns {string} - Sanitized string safe for HTML injection
+     * @returns {string} - Sanitized string safe for HTML content rendering
      */
     sanitizeHTML(str) {
         if (!str) return '';
@@ -180,7 +180,7 @@ class UIPersonalization {
             searchList.addEventListener('click', (e) => {
                 const listItem = e.target.closest('.search-item');
                 if (listItem) {
-                    const queryIndex = parseInt(listItem.dataset.queryIndex);
+                    const queryIndex = parseInt(listItem.dataset.queryIndex, 10);
                     // Validate queryIndex is a valid array index
                     if (!isNaN(queryIndex) && queryIndex >= 0 && queryIndex < searches.length) {
                         const entry = searches[queryIndex];
