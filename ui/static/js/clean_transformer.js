@@ -298,6 +298,18 @@ class CleanTransformer {
                 })
             });
 
+            // Check if response is OK (status in 200-299 range)
+            if (!response.ok) {
+                try {
+                    const errorData = await response.json();
+                    this.showAIError(errorData.user_message || errorData.message || 'Failed to start search', errorData);
+                } catch (e) {
+                    // Handle non-JSON error responses (e.g., HTML error pages)
+                    this.showAIError(`Search failed with status ${response.status}`, {status: response.status, statusText: response.statusText});
+                }
+                return;
+            }
+
             const data = await response.json();
             this.currentSessionId = data.session_id;
 
@@ -306,18 +318,7 @@ class CleanTransformer {
 
         } catch (error) {
             console.error('Search error:', error);
-            
-            // Try to extract detailed error from response
-            if (error.response) {
-                try {
-                    const errorData = await error.response.json();
-                    this.showAIError(errorData.user_message || errorData.message || 'Failed to start search', errorData);
-                } catch (e) {
-                    this.showAIError('Failed to start search. Check console for details.', {error: error.message});
-                }
-            } else {
-                this.showAIError('Failed to start search. Check console for details.', {error: error.message});
-            }
+            this.showAIError('Failed to start search. Check console for details.', {error: error.message});
         }
     }
 
