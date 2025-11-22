@@ -30,7 +30,7 @@ class LLMOrchestrationModule:
             "reasoning_tokens_used": 0,  # GPT-4o nano specific
             "smart_truncation_applied": 0,
             "context_optimization_applied": 0,
-            "medical_disclaimers_added": 0
+            "domain_disclaimers_added": 0
         }
         
         # Initialize the LLM client
@@ -50,60 +50,86 @@ class LLMOrchestrationModule:
             
             if provider == "koboldcpp":
                 return self._initialize_koboldcpp()
-            elif provider == "openai":
-                return self._initialize_openai()
             elif provider == "azure_openai":
                 return self._initialize_azure_openai()
-            elif provider == "anthropic":
-                return self._initialize_anthropic()
             else:
-                raise ValueError(f"Unsupported LLM provider: {provider}")
+                raise ValueError(f"Unsupported LLM provider: {provider}. Supported: 'azure_openai', 'koboldcpp'")
                 
         except Exception as e:
             logger.error(f"Failed to initialize LLM: {e}")
             return False
     
     def _initialize_koboldcpp(self) -> bool:
-        """Initialize KoboldCpp client."""
+        """Initialize KoboldCpp client with detailed error reporting."""
         try:
+            api_url = self.llm_config.api_url
+            logger.info(f"Attempting to connect to KoboldCpp at {api_url}")
+            
             # Test connection to KoboldCpp server
             response = requests.get(
-                f"{self.llm_config.api_url}/model", 
+                f"{api_url}/model", 
                 timeout=10
             )
             
             if response.status_code == 200:
-                logger.info(f"Connected to KoboldCpp at {self.llm_config.api_url}")
+                logger.info(f"Connected to KoboldCpp at {api_url}")
                 self.client = "koboldcpp"
                 return True
             else:
-                logger.error(f"KoboldCpp server returned status {response.status_code}")
-                return False
+                error_msg = (
+                    f"KoboldCpp Server Error!\n"
+                    f"Server at {api_url} returned status {response.status_code}\n\n"
+                    f"To fix this:\n"
+                    f"1. Check if KoboldCpp is running: curl {api_url}/model\n"
+                    f"2. Verify the port matches your configuration\n"
+                    f"3. Restart KoboldCpp if needed\n\n"
+                    f"Alternative: Switch to Azure OpenAI in config.yaml\n"
+                    f"See FIX_404_ERROR.md for instructions"
+                )
+                logger.error(error_msg)
+                raise ConnectionError(error_msg)
                 
+        except requests.Timeout as e:
+            error_msg = (
+                f"KoboldCpp Connection Timeout!\n"
+                f"Server at {api_url} did not respond within 10 seconds\n\n"
+                f"To fix this:\n"
+                f"1. Check if KoboldCpp server is running\n"
+                f"2. Start server: koboldcpp --model your_model.gguf --port 5000\n"
+                f"3. Verify server responds: curl {api_url}/model\n\n"
+                f"Alternative: Switch to Azure OpenAI (run setup_azure_openai.py)"
+            )
+            logger.error(error_msg)
+            raise ConnectionError(error_msg)
+            
+        except requests.ConnectionError as e:
+            error_msg = (
+                f"Cannot Connect to KoboldCpp!\n"
+                f"No server found at {api_url}\n\n"
+                f"To fix this:\n"
+                f"1. Install KoboldCpp: https://github.com/LostRuins/koboldcpp\n"
+                f"2. Start the server: koboldcpp --model your_model.gguf --port 5000\n"
+                f"3. Verify it's running: curl {api_url}/model\n\n"
+                f"Alternative: Switch to Azure OpenAI\n"
+                f"  - Run: python setup_azure_openai.py\n"
+                f"  - Update config.yaml provider to 'azure_openai'\n"
+                f"See FIX_404_ERROR.md for complete instructions"
+            )
+            logger.error(error_msg)
+            raise ConnectionError(error_msg)
+            
         except requests.RequestException as e:
-            logger.error(f"Failed to connect to KoboldCpp server: {e}")
-            return False
+            error_msg = (
+                f"KoboldCpp Connection Error: {str(e)}\n"
+                f"Failed to connect to {api_url}\n\n"
+                f"Check the server status and configuration."
+            )
+            logger.error(error_msg)
+            raise ConnectionError(error_msg)
     
-    def _initialize_openai(self) -> bool:
-        """Initialize OpenAI client."""
-        try:
-            # Import and initialize OpenAI client
-            from openai import OpenAI
-            
-            api_key = self.config.get_api_key("openai")
-            if not api_key:
-                raise ValueError("OpenAI API key not found")
-            
-            self.client = OpenAI(api_key=api_key)
-            logger.info("OpenAI client initialized successfully")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize OpenAI client: {e}")
-            return False
     
     def _initialize_azure_openai(self) -> bool:
-        """Initialize Azure OpenAI client."""
+        """Initialize Azure OpenAI client with detailed error reporting."""
         try:
             # Import and initialize Azure OpenAI client
             from openai import AzureOpenAI
@@ -113,14 +139,34 @@ class LLMOrchestrationModule:
             api_version = self.config.azure_openai_api_version
             
             logger.info(f"Azure OpenAI initialization attempt:")
-            logger.info(f"  API Key: {'*' * (len(api_key) if api_key else 0) if api_key else 'None'}")
-            logger.info(f"  Endpoint: {endpoint}")
+            logger.info(f"  API Key: {'*' * (len(api_key) if api_key else 0) if api_key else 'MISSING'}")
+            logger.info(f"  Endpoint: {endpoint if endpoint else 'MISSING'}")
             logger.info(f"  API Version: {api_version}")
+            logger.info(f"  Deployment: {self.llm_config.azure_deployment_name}")
             
-            if not api_key:
-                raise ValueError("Azure OpenAI API key not found")
-            if not endpoint:
-                raise ValueError("Azure OpenAI endpoint not found")
+            # Detailed validation with specific error messages
+            missing_configs = []
+            if not api_key or api_key.startswith("${"):
+                missing_configs.append("AZURE_OPENAI_API_KEY")
+            if not endpoint or endpoint.startswith("${"):
+                missing_configs.append("AZURE_OPENAI_ENDPOINT")
+            
+            if missing_configs:
+                error_msg = (
+                    f"Azure OpenAI Configuration Error!\n"
+                    f"Missing environment variables: {', '.join(missing_configs)}\n\n"
+                    f"To fix this:\n"
+                    f"1. Create a .env file in the project root\n"
+                    f"2. Add these variables:\n"
+                    f"   AZURE_OPENAI_API_KEY=your_key_here\n"
+                    f"   AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/\n"
+                    f"   AZURE_DEPLOYMENT_NAME=gpt-4\n"
+                    f"3. Restart the application\n\n"
+                    f"Quick setup: Run 'python setup_azure_openai.py'\n"
+                    f"See FIX_404_ERROR.md for detailed instructions"
+                )
+                logger.error(error_msg)
+                raise ValueError(error_msg)
             
             self.client = AzureOpenAI(
                 api_key=api_key,
@@ -130,31 +176,20 @@ class LLMOrchestrationModule:
             logger.info("Azure OpenAI client initialized successfully")
             return True
             
+        except ValueError as e:
+            # Configuration errors - re-raise with full context
+            logger.error(f"Azure OpenAI Configuration Error: {e}")
+            raise
         except Exception as e:
             logger.error(f"Failed to initialize Azure OpenAI client: {e}")
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
-            return False
-    def _initialize_anthropic(self) -> bool:
-        """Initialize Anthropic client."""
-        try:
-            # Import and initialize Anthropic client
-            try:
-                import anthropic
-            except ImportError:
-                logger.error("Anthropic package not installed. Install with: pip install anthropic")
-                return False
-            
-            api_key = self.config.get_api_key("anthropic")
-            if not api_key:
-                raise ValueError("Anthropic API key not found")
-            
-            self.client = anthropic.Anthropic(api_key=api_key)
-            logger.info("Anthropic client initialized successfully")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize Anthropic client: {e}")
+            error_msg = (
+                f"Azure OpenAI Initialization Failed: {str(e)}\n"
+                f"Check your credentials and network connection.\n"
+                f"See logs for detailed traceback."
+            )
+            raise ValueError(error_msg)
             return False
     
     def load_prompt_template(self) -> str:
@@ -295,13 +330,8 @@ Please provide a clear, direct answer based on the context above.'''
         """Score documents by relevance for smart truncation."""
         query_terms = set(query.lower().split())
         
-        # Medical terms get higher weight for clinical audience
-        medical_terms = {
-            'cancer', 'oncology', 'tumor', 'chemotherapy', 'radiation', 'immunotherapy',
-            'metastasis', 'carcinoma', 'lymphoma', 'leukemia', 'biopsy', 'malignant',
-            'benign', 'staging', 'prognosis', 'diagnosis', 'treatment', 'therapy',
-            'clinical', 'patient', 'medical', 'healthcare', 'disease', 'symptom'
-        }
+        # Domain-specific terms (can be configured per use case)
+        domain_terms = set()  # Empty set - can be populated from config if needed
         
         # Technical terms get higher weight for technical audience
         technical_terms = {
@@ -320,11 +350,12 @@ Please provide a clear, direct answer based on the context above.'''
                 score += doc_lower.count(term) * 2.0
             
             # Audience-specific term boosting
-            if audience == "clinical":
-                for term in medical_terms:
-                    score += doc_lower.count(term) * 1.5
-            elif audience == "technical":
+            if audience == "technical":
                 for term in technical_terms:
+                    score += doc_lower.count(term) * 1.5
+            elif domain_terms:
+                # Boost domain-specific terms if configured
+                for term in domain_terms:
                     score += doc_lower.count(term) * 1.5
             
             # Document length penalty (prefer concise, relevant docs)
@@ -368,10 +399,9 @@ Please provide a clear, direct answer based on the context above.'''
         
         # For GPT-4o nano, optimize for medical reasoning if applicable
         if "nano" in self.llm_config.model.lower():
-            # Add reasoning prompt hints for medical queries
-            if audience == "clinical" or any(term in query.lower() for term in 
-                                           ['cancer', 'treatment', 'therapy', 'medical', 'clinical']):
-                optimization_prefix = """[Medical Context Analysis Required]
+            # Add reasoning prompt hints for complex queries
+            if audience == "technical" or len(query.split()) > 10:
+                optimization_prefix = """[Detailed Analysis Required]
 The following information requires careful medical reasoning. Consider:
 - Clinical evidence and safety implications
 - Biomedical mechanisms and pathways  
@@ -415,14 +445,10 @@ The following information requires careful medical reasoning. Consider:
             try:
                 if provider == "koboldcpp":
                     return self._invoke_koboldcpp(prompt)
-                elif provider == "openai":
-                    return self._invoke_openai(prompt)
                 elif provider == "azure_openai":
                     return self._invoke_azure_openai(prompt)
-                elif provider == "anthropic":
-                    return self._invoke_anthropic(prompt)
                 else:
-                    raise ValueError(f"Unsupported provider: {provider}")
+                    raise ValueError(f"Unsupported provider: {provider}. Supported: 'azure_openai', 'koboldcpp'")
                     
             except Exception as e:
                 if attempt == max_retries - 1:
@@ -462,27 +488,6 @@ The following information requires careful medical reasoning. Consider:
             logger.error(f"KoboldCpp invocation failed: {e}")
             raise
     
-    def _invoke_openai(self, prompt: str) -> str:
-        """Invoke OpenAI API."""
-        try:
-            response = self.client.chat.completions.create(
-                model=self.llm_config.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=self.llm_config.temperature,
-                max_tokens=self.llm_config.max_tokens
-            )
-            
-            generated_text = response.choices[0].message.content
-            
-            # Track token usage
-            if hasattr(response, 'usage'):
-                self._stats["total_tokens_used"] += response.usage.total_tokens
-            
-            return generated_text.strip()
-            
-        except Exception as e:
-            logger.error(f"OpenAI invocation failed: {e}")
-            raise
     
     def _invoke_azure_openai(self, prompt: str) -> str:
         """Invoke Azure OpenAI API with standard optimization."""
@@ -490,16 +495,17 @@ The following information requires careful medical reasoning. Consider:
             logger.info(f"Invoking Azure OpenAI model: {self.llm_config.model}")
             
             # Customize system instruction based on audience
-            audience = getattr(self, '_current_audience', 'clinical')
-            if audience == "clinical":
+            audience = getattr(self, '_current_audience', 'general')
+            if audience == "general":
                 system_instruction = ("You are an AI assistant that provides well-formatted answers using Markdown. "
                                     "Use **bold** for key terms, *italics* for emphasis, tables for data, and bullet points for lists. "
-                                    "Focus on clinical relevance and practical applications. "
+                                    "Answer STRICTLY based on the provided context - never use external knowledge. "
                                     "Start with a direct answer, then provide supporting details in a structured format.")
             elif audience == "technical":
                 system_instruction = ("You are an AI assistant that provides well-formatted answers using Markdown. "
                                     "Use **bold** for key terms, *italics* for emphasis, `code blocks` for technical terms, "
                                     "tables for comparisons, numbered lists for procedures, and Mermaid diagrams for workflows. "
+                                    "Answer STRICTLY based on the provided context - never use external knowledge. "
                                     "Focus on technical implementation and system configuration. "
                                     "Start with a direct answer, then provide detailed structured information.")
             else:
@@ -572,13 +578,9 @@ The following information requires careful medical reasoning. Consider:
         if not response or response == "No response generated.":
             return response
         
-        # Add medical disclaimer for clinical responses
-        if any(term in response.lower() for term in ['treatment', 'therapy', 'diagnosis', 'medication', 'clinical']):
-            disclaimer = "\n\n⚠️ **Medical Disclaimer**: This information is for educational purposes only and should not replace professional medical advice. Always consult with qualified healthcare professionals for medical decisions."
-            
-            # Only add if not already present
-            if "medical disclaimer" not in response.lower() and "consult" not in response.lower():
-                response += disclaimer
+        # Add informational disclaimer if response seems to provide advice
+        # Note: This is optional and can be configured based on use case
+        # Removed automatic disclaimers - strict grounding in prompt is the primary safety mechanism
         
         # Enhance response structure for better readability
         if len(response) > 500 and response.count('\n') < 3:
@@ -602,27 +604,6 @@ The following information requires careful medical reasoning. Consider:
             response = structured_response.strip()
         
         return response
-    def _invoke_anthropic(self, prompt: str) -> str:
-        """Invoke Anthropic API."""
-        try:
-            response = self.client.messages.create(
-                model=self.llm_config.model,
-                max_tokens=self.llm_config.max_tokens or 1024,
-                temperature=self.llm_config.temperature,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            
-            generated_text = response.content[0].text
-            
-            # Track token usage
-            if hasattr(response, 'usage'):
-                self._stats["total_tokens_used"] += response.usage.total_tokens
-            
-            return generated_text.strip()
-            
-        except Exception as e:
-            logger.error(f"Anthropic invocation failed: {e}")
-            raise
     
     def _parse_response(self, response: str) -> str:
         """Parse and clean the model response."""

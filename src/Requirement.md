@@ -244,7 +244,7 @@ Provide user interface for query input and response display.
 Tasks
 Frontend Setup
 
-Use Streamlit or Flask
+Use FastAPI
 
 Build query input box
 
@@ -265,7 +265,7 @@ Store feedback with timestamp and query hash
 ## YAML Configuration
 ```yaml
 ui:
-  framework: streamlit
+  framework: fastapi
   feedback_enabled: true
   show_chunk_metadata: true
   default_model: biomistral
@@ -566,10 +566,9 @@ The system has been successfully tested end-to-end and is ready for production d
 
 ## Recent Updates & Migration
 
-### FastAPI Migration (December 2024) ✅
-- **Migration Completed:** Streamlit → FastAPI for 100% UI control
-- **Archived Code:** All Streamlit implementation safely stored in `archived/streamlit/`
-- **Benefits Achieved:** 
+### FastAPI Implementation (Current) ✅
+- **Current Framework:** FastAPI for 100% UI control
+- **Benefits:** 
   - Complete design control matching home.html mockup
   - Pure HTML/CSS/JS frontend without framework limitations
   - Dynamic result page generation with faq1.html styling
@@ -583,8 +582,6 @@ The system has been successfully tested end-to-end and is ready for production d
 - **Features:** Real-time search, dynamic results, audience toggle, confidence scoring
 
 ### Code Organization
-- **Active Implementation:** `web_app.py` (FastAPI server) + `index.html` (frontend)
-- **Archived Code:** `archived/streamlit/` (complete Streamlit implementation)
-- **Module Updates:** UI Layer module migrated to FastAPI-compatible version
-- **Dependencies:** Updated to FastAPI + Uvicorn (Streamlit removed)
->>>>>>> step1
+- **Active Implementation:** `ui/app.py` (FastAPI server) + templates + static files
+- **Module Updates:** UI Layer module uses FastAPI
+- **Dependencies:** FastAPI + Uvicorn

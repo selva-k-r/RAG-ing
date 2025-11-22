@@ -15,6 +15,10 @@ import argparse
 import logging
 import time
 from pathlib import Path
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Add src to path for development
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -40,16 +44,16 @@ def load_configuration(config_path: str) -> Settings:
     config_file = Path(config_path)
     
     if not config_file.exists():
-        print(f"❌ Configuration file not found: {config_path}")
-        print("💡 Please ensure config.yaml exists or provide a valid path with --config")
+        print(f"[ERROR] Configuration file not found: {config_path}")
+        print("[INFO] Please ensure config.yaml exists or provide a valid path with --config")
         sys.exit(1)
     
     try:
         settings = Settings.from_yaml(config_path)
-        print(f"✅ Configuration loaded from: {config_path}")
+        print(f"[OK] Configuration loaded from: {config_path}")
         return settings
     except Exception as e:
-        print(f"❌ Failed to load configuration: {e}")
+        print(f"[ERROR] Failed to load configuration: {e}")
         sys.exit(1)
 
 
@@ -130,21 +134,21 @@ def main():
     # Setup logging
     setup_logging(args.debug)
     
-    print("� RAG-ing Modular PoC - Oncology-Focused RAG System")
+    print("RAG-ing Modular PoC - Oncology-Focused RAG System")
     print("=" * 60)
-    print(f"📁 Configuration: {args.config}")
-    print(f"🐛 Debug Mode: {args.debug}")
+    print(f"Configuration: {args.config}")
+    print(f"Debug Mode: {args.debug}")
     
     # Load configuration and initialize orchestrator
     try:
         settings = load_configuration(args.config)
-        print(f"🏗️  Initializing RAG Orchestrator with 5 modules...")
+        print(f"Initializing RAG Orchestrator with 5 modules...")
         
         orchestrator = RAGOrchestrator(args.config)
-        print("✅ RAG Orchestrator initialized successfully")
+        print("[OK] RAG Orchestrator initialized successfully")
         
     except Exception as e:
-        print(f"❌ Failed to initialize RAG system: {e}")
+        print(f"[ERROR] Failed to initialize RAG system: {e}")
         if args.debug:
             import traceback
             traceback.print_exc()
@@ -153,30 +157,30 @@ def main():
     # Execute requested action
     try:
         if args.ingest:
-            print("\n📚 Starting corpus ingestion...")
+            print("\nStarting corpus ingestion...")
             results = orchestrator.ingest_corpus()
-            print("✅ Corpus ingestion completed successfully")
-            print(f"📊 Processing time: {results['processing_time']:.2f}s")
+            print("[OK] Corpus ingestion completed successfully")
+            print(f"Processing time: {results['processing_time']:.2f}s")
             if 'statistics' in results:
                 stats = results['statistics']
-                print(f"📄 Documents processed: {stats.get('documents_processed', 'N/A')}")
-                print(f"🧩 Chunks created: {stats.get('chunks_created', 'N/A')}")
-                print(f"🔢 Embeddings generated: {stats.get('embeddings_generated', 'N/A')}")
+                print(f"Documents processed: {stats.get('documents_processed', 'N/A')}")
+                print(f"Chunks created: {stats.get('chunks_created', 'N/A')}")
+                print(f"Embeddings generated: {stats.get('embeddings_generated', 'N/A')}")
         
         elif args.query:
-            print(f"\n🔍 Processing query...")
-            print(f"❓ Query: {args.query}")
+            print(f"\nProcessing query...")
+            print(f"Query: {args.query}")
             
             result = orchestrator.query_documents(
                 query=args.query
             )
             
-            print("✅ Query processed successfully")
-            print(f"⏱️  Total time: {result['metadata']['total_processing_time']:.2f}s")
-            print(f"📋 Sources found: {len(result['sources'])}")
-            print(f"🤖 Model used: {result['metadata']['model_used']}")
-            print(f"🛡️  Safety score: {result['metadata']['safety_score']:.2f}")
-            print("\n📝 Response:")
+            print("[OK] Query processed successfully")
+            print(f"Total time: {result['metadata']['total_processing_time']:.2f}s")
+            print(f"Sources found: {len(result['sources'])}")
+            print(f"Model used: {result['metadata']['model_used']}")
+            print(f"Safety score: {result['metadata']['safety_score']:.2f}")
+            print("\nResponse:")
             print("-" * 40)
             print(result['response'])
             print("-" * 40)
@@ -234,7 +238,7 @@ def main():
                 status_icon = "🟢" if status['status'] == 'healthy' else "🔴"
                 print(f"  {status_icon} {module}: {status['status']}")
                 if 'error' in status:
-                    print(f"    ❌ {status['error']}")
+                    print(f"    [ERROR] {status['error']}")
         
         elif args.ui:
             print("\n🚀 Launching UI Layer (Module 4)...")
@@ -248,23 +252,23 @@ def main():
             orchestrator.run_web_app()
             
         else:
-            print("\n❓ No action specified. Use --help for available options.")
+            print("\n[INFO] No action specified. Use --help for available options.")
             print("\n💡 Quick start:")
             print("  python main.py --ingest    # First, ingest your corpus")
             print("  python main.py --ui        # Then, launch the UI")
     
     except KeyboardInterrupt:
-        print("\n\n🛑 Application interrupted by user")
+        print("\n\n[STOP] Application interrupted by user")
         
     except Exception as e:
-        print(f"\n❌ Error during execution: {e}")
+        print(f"\n[ERROR] Error during execution: {e}")
         if args.debug:
             import traceback
             traceback.print_exc()
         sys.exit(1)
     
     finally:
-        print("\n👋 Thank you for using RAG-ing Modular PoC!")
+        print("\nThank you for using RAG-ing Modular PoC!")
 
 if __name__ == "__main__":
     main()

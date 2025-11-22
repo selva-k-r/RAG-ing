@@ -28,11 +28,57 @@ data_source:
         server_url: "${JIRA_URL}"
         username: "${JIRA_USER}"
         auth_token: "${JIRA_TOKEN}"
-        project_keys: ["ONCOLOGY", "RESEARCH", "CLINICAL"]
+        project_keys: ["PROJECT1", "PROJECT2", "PROJECT3"]
         issue_types: ["Story", "Task", "Bug", "Epic", "Requirement"]
-        jql_filter: "project in (ONCOLOGY, RESEARCH) AND status != Closed"
+        jql_filter: "project in (PROJECT1, PROJECT2) AND status != Closed"
         max_issues: 200
       description: "Project tickets and requirements from Jira"
+      
+    - type: "azure_devops"
+      enabled: true
+      azure_devops:
+        organization: "${AZURE_DEVOPS_ORG}"
+        project: "${AZURE_DEVOPS_PROJECT}"
+        pat_token: "${AZURE_DEVOPS_PAT}"
+        repo_name: "${AZURE_DEVOPS_REPO}"  # dbt-pophealth
+        branch: "develop"  # Default branch
+        
+        # PATH FILTERING - Load only specific folders
+        include_paths:
+          - "/path1"
+        
+        exclude_paths:
+          - "/path1/tests/fixtures"  # Skip test fixture data
+          - "/path1/libraries"  # Skip third-party libraries
+          - "/path1/.github"    # Skip GitHub config
+        
+        # FILE TYPE FILTERING
+        include_file_types:
+          - ".sql"     # DBT models
+          - ".py"      # Python scripts
+          - ".yaml"    # Configurations
+          - ".yml"     # Configurations
+          - ".md"      # Documentation
+          - ".csv"     # Seed files
+          - ".bim"     # Power BI models
+        
+        exclude_file_types:
+          - ".pbix"       # Power BI binaries
+          - ".dll"        # Binary files
+          - ".sln"        # Visual Studio files
+          - ".smproj"     # SQL Server projects
+          - ".gitignore"  # Git files
+          - ".gitkeep"    # Git files
+        
+        # COMMIT HISTORY TRACKING (NEW!)
+        fetch_commit_history: true    # Enable commit history
+        commits_per_file: 10          # Fetch last 10 commits per file
+        
+        # BATCH PROCESSING (NEW!)
+        enable_streaming: true        # Process files in batches (recommended)
+        batch_size: 50                # Files per batch (50 = ~3-5 min per batch)
+        
+      description: "Project files and documentation from Azure DevOps with commit history"
 
 chunking:
   strategy: "recursive"  # recursive | semantic
@@ -99,29 +145,36 @@ retrieval:
     date_range: "last_12_months"
 
 # Module 3: Enhanced LLM Orchestration Configuration
+# =============================================================================
+# LLM PROVIDER CONFIGURATION
+# =============================================================================
+# SUPPORTED PROVIDERS (OpenAI and Anthropic removed for PoC simplicity):
+#   - azure_openai: Production use, Azure OpenAI service (gpt-4, gpt-5-nano, etc.)
+#   - koboldcpp: Local development, self-hosted models via KoboldCpp API
+# =============================================================================
 llm:
-  model: "gpt-5-nano"  # Your actual deployed model
-  provider: "azure_openai"  # Primary provider
+  model: "gpt-5-nano"  # Azure OpenAI model
+  provider: "azure_openai"  # Options: azure_openai | koboldcpp
 
   # Standard settings for your deployed model
   max_tokens: 4096  # Reduced from 16384 
-  temperature: 0.1   # Lower for more focused responses
+  temperature: 0.2   # Lower for more focused responses
   
   # Token management
   use_smart_truncation: true
   context_optimization: true
   token_buffer: 2000  # Reduced from 6000
   
-  # Azure OpenAI configuration
+  # Azure OpenAI configuration (cloud - primary)
   azure_endpoint: "${AZURE_OPENAI_ENDPOINT}"
   azure_api_key: "${AZURE_OPENAI_API_KEY}"
   azure_api_version: "${AZURE_OPENAI_API_VERSION}"  # Standard API version
   azure_deployment_name: "${AZURE_DEPLOYMENT_NAME}"  # Your actual deployment
   
-  # Fallback configuration
+  # Local fallback configuration (koboldcpp)
   api_url: "http://localhost:5000/v1"  # For local models
-  prompt_template: "./prompts/oncology.txt"
-  system_instruction: "You are an AI assistant that provides clear, concise answers. IMPORTANT: Give direct answers first, then supporting details. For questions about when something started, provide the specific date or timeframe immediately. Format responses with clear structure and avoid lengthy technical paragraphs."
+  prompt_template: "./prompts/general.txt"
+  system_instruction: "You are an AI assistant that provides clear, concise answers based STRICTLY on the provided context. CRITICAL: Answer ONLY from the given context - never use external knowledge. If the answer is not in the context, clearly state this and suggest rephrasing based on available information. Give direct answers first, then supporting details. Format responses with clear structure."
   
   # Response formatting preferences
   response_style: "concise"           # concise | detailed | technical
@@ -131,7 +184,7 @@ llm:
 
 # Module 4: UI Layer Configuration
 ui:
-  framework: "fastapi"  # Current framework (streamlit archived)
+  framework: "fastapi"  # FastAPI web interface
   port: 8000
   host: "0.0.0.0"
   debug: false
@@ -199,10 +252,56 @@ evaluation:
   retention_days: 30
 
 # Vector Store Configuration
+# Options: "chroma" (default, <50K docs) | "faiss" (production, >50K docs, <10ms queries)
+# FAISS available but not currently used - see corpus_embedding.py for switching guide
 vector_store:
   type: "chroma"
   path: "./vector_store"
-  collection_name: "oncology_docs"
+  collection_name: "rag_documents"
+
+# Duplicate Detection Configuration
+# Prevents same document from being indexed multiple times
+duplicate_detection:
+  enabled: true
+  
+  # Exact match: SHA256 hash comparison (fast, catches identical docs)
+  exact_match:
+    enabled: true
+    hash_algorithm: "sha256"
+  
+  # Fuzzy match: String similarity (catches minor variations)
+  fuzzy_match:
+    enabled: true
+    similarity_threshold: 0.95  # 95% similar = duplicate
+  
+  # Semantic match: Embedding similarity (catches paraphrased content)
+  semantic_match:
+    enabled: false  # Not yet implemented
+    embedding_similarity_threshold: 0.98
+  
+  # Storage location for hash database
+  storage:
+    database_path: "./vector_store/document_hashes.db"
+
+# Activity Logging Configuration  
+# Tracks user interactions for analytics and fine-tuning
+activity_logging:
+  enabled: true
+  log_dir: "./logs/user_activity"
+  log_queries: true  # Log all search queries
+  log_results: true  # Log search results
+  log_feedback: true  # Log user feedback (thumbs up/down)
+  retention_days: 90  # Keep logs for 90 days
+
+# Hierarchical Storage Configuration
+# Dual-layer storage: summaries for broad search, chunks for details
+hierarchical_storage:
+  enabled: true
+  use_summaries: true  # Use LLM to create document summaries
+  summary_collection: "rag_documents_summaries"  # Separate collection for summaries
+  chunk_collection: "rag_documents_chunks"  # Collection for detailed chunks
+  summary_prompt: "Summarize this document in 2-3 sentences, preserving key terms and concepts:"
+  routing_threshold: 0.7  # If summary match > 0.7, fetch detailed chunks
 
 # Temporary Files Configuration
 temp_files:

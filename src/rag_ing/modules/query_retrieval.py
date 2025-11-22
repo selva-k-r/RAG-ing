@@ -25,6 +25,10 @@ class QueryRetrievalModule:
         self.config = config
         self.retrieval_config = config.retrieval
         
+        # Hierarchical storage support (must be before _initialize_components)
+        self.hierarchical_config = config.hierarchical_storage
+        self.summary_vector_store = None
+        
         # Initialize vector store and embedding model internally
         self.vector_store = None
         self.embedding_model = None
@@ -45,7 +49,8 @@ class QueryRetrievalModule:
             "hit_rate": 0,
             "hybrid_queries": 0,
             "reranked_queries": 0,
-            "medical_boosted_queries": 0
+            "medical_boosted_queries": 0,
+            "hierarchical_queries": 0
         }
     
     def _initialize_components(self):
@@ -85,6 +90,21 @@ class QueryRetrievalModule:
                         embedding_function=self.embedding_model
                     )
                     logger.info(f"ChromaDB vector store loaded from {persist_directory}")
+                    
+                    # Load summary collection if hierarchical storage is enabled
+                    if self.hierarchical_config.enabled:
+                        try:
+                            summary_dir = Path(vector_store_config.path) / "summaries"
+                            if summary_dir.exists():
+                                self.summary_vector_store = Chroma(
+                                    collection_name=self.hierarchical_config.summary_collection,
+                                    persist_directory=str(summary_dir),
+                                    embedding_function=self.embedding_model
+                                )
+                                logger.info(f"Hierarchical storage: Summary collection loaded")
+                        except Exception as e:
+                            logger.warning(f"Failed to load summary collection: {e}")
+                
                 except Exception as e:
                     logger.warning(f"Failed to load existing vector store: {e}")
                     logger.info("Using mock vector store for demonstration")
@@ -250,6 +270,10 @@ class QueryRetrievalModule:
         start_time = time.time()
         
         try:
+            # Use hierarchical retrieval if enabled
+            if self.hierarchical_config.enabled and self.summary_vector_store:
+                return self._hierarchical_retrieve(query, filters, start_time)
+            
             # Step 1: Query Input validation and normalization
             normalized_query = self._normalize_query(query)
             query_hash = self._generate_query_hash(normalized_query, filters)
@@ -319,76 +343,7 @@ class QueryRetrievalModule:
             else:
                 del self._query_cache[query_hash]
         
-
-        class QueryRetrievalModule:
-            """Module for YAML-driven query processing and document retrieval."""
-            def __init__(self, config: Settings, vector_store: VectorStore, embedding_model: Embeddings):
-                self.config = config
-                self.retrieval_config = config.retrieval
-                self.vector_store = vector_store
-                self.embedding_model = embedding_model
-                self._query_cache = {}
-                self._cache_ttl = 300  # 5 minutes
-                self._metrics = {
-                    "total_queries": 0,
-                    "cache_hits": 0,
-                    "avg_retrieval_time": 0,
-                    "hit_rate": 0
-        }
-
-    def process_query(self, query: str, filters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Main entry point for query processing and retrieval."""
-        logger.info(f"Processing query: {query[:50]}...")
-        start_time = time.time()
-        try:
-            normalized_query = self._normalize_query(query)
-            query_hash = self._generate_query_hash(normalized_query, filters)
-            cached_result = self._get_cached_result(query_hash)
-            if cached_result:
-                self._metrics["cache_hits"] += 1
-                logger.info("Retrieved result from cache")
-                return cached_result
-            query_embedding = self._convert_to_embedding(normalized_query)
-            retrieved_docs = self._retrieve_documents(query_embedding, filters, query)
-            context_result = self._package_context(query, retrieved_docs)
-            retrieval_time = time.time() - start_time
-            self._update_metrics(retrieval_time, len(retrieved_docs))
-            self._cache_result(query_hash, context_result)
-            logger.info(f"Query processed successfully in {retrieval_time:.2f}s")
-            return context_result
-        except Exception as e:
-            logger.error(f"Query processing failed: {e}")
-            raise RetrievalError(f"Failed to process query: {e}")
-
-    def _normalize_query(self, query: str) -> str:
-        """Normalize and clean query text."""
-        if not query or not query.strip():
-            raise ValueError("Query cannot be empty")
-        normalized = query.strip().lower()
-        normalized = ' '.join(normalized.split())
-        if len(normalized) < 3:
-            raise ValueError("Query too short (minimum 3 characters)")
-        if len(normalized) > 1000:
-            logger.warning("Query exceeds recommended length, truncating")
-            normalized = normalized[:1000]
-        return normalized
-
-    def _generate_query_hash(self, query: str, filters: Optional[Dict[str, Any]] = None) -> str:
-        """Generate hash for query caching."""
-        cache_key = f"{query}_{str(filters or {})}"
-        return hashlib.md5(cache_key.encode()).hexdigest()
-
-    def _get_cached_result(self, query_hash: str) -> Optional[Dict[str, Any]]:
-        """Retrieve cached result if available and not expired."""
-        if query_hash not in self._query_cache:
-            return None
-        
-        cached_data = self._query_cache[query_hash]
-        if time.time() - cached_data['timestamp'] > self._cache_ttl:
-            del self._query_cache[query_hash]
-            return None
-        
-        return cached_data['result']
+        return None
     
     def _convert_to_embedding(self, query: str) -> List[float]:
         """Convert query text to embedding using the embedding model."""
@@ -793,6 +748,73 @@ class QueryRetrievalModule:
                 "ontology_code_weighting": True,  # Always enabled for medical domain
                 "deduplication": True
             }
+        }
+    
+    def _hierarchical_retrieve(
+        self, 
+        query: str, 
+        filters: Optional[Dict[str, Any]], 
+        start_time: float
+    ) -> Dict[str, Any]:
+        """Hierarchical retrieval: search summaries first, then fetch details.
+        
+        Smart routing:
+        1. Search summary collection for high-level matches
+        2. If relevance > threshold, fetch detailed chunks from those documents
+        3. Otherwise, return summary results
+        """
+        logger.info("Using hierarchical retrieval")
+        self._metrics["hierarchical_queries"] += 1
+        
+        # Step 1: Search summaries
+        summary_results = self.summary_vector_store.similarity_search_with_score(
+            query,
+            k=self.retrieval_config.top_k
+        )
+        
+        # Check if summaries are relevant enough to fetch details
+        threshold = self.hierarchical_config.routing_threshold
+        relevant_docs = []
+        detailed_chunks = []
+        
+        for doc, score in summary_results:
+            # Lower score = higher relevance in some implementations
+            relevance = 1 - score if score < 1 else score
+            
+            if relevance >= threshold:
+                # Fetch detailed chunks from this document
+                source = doc.metadata.get('source', '')
+                if source:
+                    # Search chunk collection for this source
+                    chunk_results = self.vector_store.similarity_search(
+                        query,
+                        k=3,  # Get top 3 chunks from this document
+                        filter={"source": source}
+                    )
+                    detailed_chunks.extend(chunk_results)
+            else:
+                # Use summary only
+                relevant_docs.append(doc)
+        
+        # Combine results
+        final_docs = detailed_chunks if detailed_chunks else relevant_docs
+        
+        if not final_docs:
+            final_docs = [doc for doc, _ in summary_results[:self.retrieval_config.top_k]]
+        
+        retrieval_time = time.time() - start_time
+        
+        return {
+            "documents": final_docs,
+            "stats": {
+                "num_results": len(final_docs),
+                "retrieval_strategy": "hierarchical",
+                "summaries_searched": len(summary_results),
+                "details_fetched": len(detailed_chunks),
+                "retrieval_time": retrieval_time
+            },
+            "query": query,
+            "filters": filters
         }
     
     def _update_metrics(self, retrieval_time: float, num_docs: int) -> None:
