@@ -10,6 +10,39 @@ class CleanTransformer {
         this.currentSessionId = null;
     }
 
+    /**
+     * Sanitize text content to prevent XSS attacks
+     * @param {string} text - The text to sanitize
+     * @returns {string} - HTML-safe text
+     */
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    /**
+     * Validate URL to prevent protocol attacks and ensure well-formed URLs
+     * @param {string} url - The URL to validate
+     * @returns {boolean} - True if URL is safe and well-formed
+     */
+    isValidUrl(url) {
+        if (!url) return false;
+        
+        try {
+            // Use URL constructor for proper validation
+            const urlObj = new URL(url);
+            
+            // Only allow http and https protocols
+            const allowedProtocols = ['http:', 'https:'];
+            return allowedProtocols.includes(urlObj.protocol);
+        } catch (e) {
+            // Invalid URL format
+            return false;
+        }
+    }
+
     async transformToChat(query) {
         if (this.isTransforming || !this.isSearchMode) {
             return this.addChatMessage(query); // Just add to existing chat
@@ -240,11 +273,14 @@ class CleanTransformer {
         const chatContainer = document.getElementById('chatMessages');
         if (!chatContainer) return;
 
+        // Sanitize user query to prevent XSS
+        const safeQuery = this.escapeHtml(query);
+
         const messageHTML = `
             <div class="chat-message user-message" style="animation: slideInRight 0.4s ease;">
                 <div class="message-avatar user-chat-avatar">👤</div>
                 <div class="message-content user-content">
-                    <div class="message-text">${query}</div>
+                    <div class="message-text">${safeQuery}</div>
                     <div class="message-time">${new Date().toLocaleTimeString()}</div>
                 </div>
             </div>
@@ -615,49 +651,69 @@ class CleanTransformer {
             const isCodeFile = metadata.type === 'azure_devops_file';
             const hasLineNumbers = metadata.start_line && metadata.end_line;
             
+            // Sanitize all metadata fields to prevent XSS
+            const safeTitle = this.escapeHtml(metadata.title || 'Document');
+            const safeLanguage = this.escapeHtml(metadata.language || 'code');
+            const safeRepo = this.escapeHtml(metadata.repository || 'Repository');
+            const safeFilePath = this.escapeHtml(metadata.file_path || safeTitle);
+            
             // Build source header
-            let sourceHeader = `${index + 1}. ${metadata.title || 'Document'}`;
+            let sourceHeader = `${index + 1}. ${safeTitle}`;
             
             // Add code-specific metadata
             let codeInfo = '';
             if (isCodeFile) {
-                const language = metadata.language || 'code';
-                const repo = metadata.repository || 'Repository';
+                // Add language badge with sanitized content
+                codeInfo += `<span style="display: inline-block; background: #e3f2fd; color: #1976d2; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">${safeLanguage}</span>`;
                 
-                // Add language badge
-                codeInfo += `<span style="display: inline-block; background: #e3f2fd; color: #1976d2; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 8px;">${language}</span>`;
-                
-                // Add line numbers if available
+                // Add line numbers if available (numbers are safe)
                 if (hasLineNumbers) {
-                    codeInfo += `<span style="display: inline-block; background: #f1f3f5; color: #495057; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 4px;">Lines ${metadata.start_line}-${metadata.end_line}</span>`;
+                    const startLine = parseInt(metadata.start_line, 10) || 0;
+                    const endLine = parseInt(metadata.end_line, 10) || 0;
+                    codeInfo += `<span style="display: inline-block; background: #f1f3f5; color: #495057; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 4px;">Lines ${startLine}-${endLine}</span>`;
                 }
                 
-                // Add repository info
-                sourceHeader = `${index + 1}. 📁 ${repo} / ${metadata.file_path || metadata.title}`;
+                // Add repository info with sanitized content
+                sourceHeader = `${index + 1}. 📁 ${safeRepo} / ${safeFilePath}`;
             }
             
-            // Build Azure DevOps link if available
+            // Build Azure DevOps link if available - validate URL first
             let linkHtml = '';
-            if (metadata.url && isCodeFile) {
-                const displayUrl = metadata.url.includes('dev.azure.com') ? '🔗 View in Azure DevOps' : '🔗 View Source';
+            if (metadata.url && isCodeFile && this.isValidUrl(metadata.url)) {
+                // URL is validated and safe to use directly in href (no HTML escaping needed)
+                // Determine display text based on hostname (not substring search)
+                let displayText = 'View Source';
+                try {
+                    const urlObj = new URL(metadata.url);
+                    // Check if hostname is dev.azure.com or a subdomain of it
+                    const hostname = urlObj.hostname;
+                    if (hostname === 'dev.azure.com' || hostname.endsWith('.dev.azure.com')) {
+                        displayText = 'View in Azure DevOps';
+                    }
+                } catch (e) {
+                    // If URL parsing fails, use generic text (shouldn't happen as isValidUrl already checked)
+                }
+                const safeDisplayText = this.escapeHtml(displayText);
                 linkHtml = `
                     <div style="margin-top: 6px;">
-                        <a href="${metadata.url}" target="_blank" style="color: #1976d2; text-decoration: none; font-size: 11px; font-weight: 500;">
-                            ${displayUrl} →
+                        <a href="${metadata.url}" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: none; font-size: 11px; font-weight: 500;">
+                            🔗 ${safeDisplayText} →
                         </a>
                     </div>
                 `;
             }
             
-            // Format content preview
+            // Format content preview with sanitization
             const previewLength = isCodeFile ? 150 : 120;
-            let contentPreview = source.content.substring(0, previewLength);
+            const rawContent = (source.content || '').substring(0, previewLength);
+            const safeContent = this.escapeHtml(rawContent);
             
             // For code, preserve formatting
+            let contentPreview;
             if (isCodeFile) {
-                contentPreview = `<pre style="background: #ffffff; padding: 8px; border-radius: 4px; margin-top: 6px; overflow-x: auto; font-size: 11px; line-height: 1.4; white-space: pre-wrap;">${contentPreview}...</pre>`;
+                contentPreview = `<pre style="background: #ffffff; padding: 8px; border-radius: 4px; margin-top: 6px; overflow-x: auto; font-size: 11px; line-height: 1.4; white-space: pre-wrap;">${safeContent}...</pre>`;
             } else {
-                contentPreview = `<div style="color: #6c757d; font-size: 12px; line-height: 1.4;">${contentPreview}...</div>`;
+                contentPreview = `<div style="color: #6c757d; font-size: 12px; line-height: 1.4;">${safeContent}...</div>`;
             }
             
             return `
@@ -714,14 +770,17 @@ class CleanTransformer {
         if (responseText) {
             responseText.style.display = 'block';
             
+            // Sanitize error message first
+            const safeMessage = this.escapeHtml(message);
+            
             // If message contains markdown formatting, render it properly
-            let formattedMessage = message;
+            let formattedMessage;
             if (message.includes('##') || message.includes('**') || message.includes('- ') || message.includes('`')) {
-                // Use the same markdown formatting as regular responses
-                formattedMessage = this.formatText(message);
+                // Use the same markdown formatting as regular responses (on sanitized text)
+                formattedMessage = this.formatText(safeMessage);
             } else {
                 // Simple text error
-                formattedMessage = `<div style="color: #dc3545;">${message}</div>`;
+                formattedMessage = `<div style="color: #dc3545;">${safeMessage}</div>`;
             }
             
             // Build error display
@@ -731,17 +790,21 @@ class CleanTransformer {
                 </div>
             `;
             
-            // Add developer details if available
+            // Add developer details if available - sanitize all error details
             if (errorDetails && (errorDetails.error_details || errorDetails.traceback)) {
+                const safeErrorDetails = this.escapeHtml(errorDetails.error_details || errorDetails.message || '');
+                const safeTraceback = this.escapeHtml(errorDetails.traceback || '');
+                const safeFixInstructions = this.escapeHtml(errorDetails.fix_instructions || '');
+                
                 errorHtml += `
                     <details style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px; cursor: pointer;">
                         <summary style="font-weight: bold; color: #495057; cursor: pointer;">
                             🔍 Developer Details (Click to expand)
                         </summary>
                         <div style="margin-top: 10px; padding: 10px; background: #ffffff; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 12px; color: #212529; white-space: pre-wrap; overflow-x: auto;">
-                            ${errorDetails.error_details || errorDetails.message || ''}
-                            ${errorDetails.traceback ? '\n\nTraceback:\n' + errorDetails.traceback : ''}
-                            ${errorDetails.fix_instructions ? '\n\nFix Instructions:\n' + errorDetails.fix_instructions : ''}
+                            ${safeErrorDetails}
+                            ${safeTraceback ? '\n\nTraceback:\n' + safeTraceback : ''}
+                            ${safeFixInstructions ? '\n\nFix Instructions:\n' + safeFixInstructions : ''}
                         </div>
                     </details>
                 `;
