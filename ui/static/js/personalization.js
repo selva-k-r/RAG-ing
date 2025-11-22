@@ -181,12 +181,15 @@ class UIPersonalization {
                 const listItem = e.target.closest('.search-item');
                 if (listItem) {
                     const queryIndex = parseInt(listItem.dataset.queryIndex);
-                    const entry = searches[queryIndex];
-                    if (entry) {
-                        const queryInput = document.querySelector('input[name=query]');
-                        if (queryInput) {
-                            // Use the unsanitized original query for the input field
-                            queryInput.value = entry.query;
+                    // Validate queryIndex is a valid array index
+                    if (!isNaN(queryIndex) && queryIndex >= 0 && queryIndex < searches.length) {
+                        const entry = searches[queryIndex];
+                        if (entry) {
+                            const queryInput = document.querySelector('input[name=query]');
+                            if (queryInput) {
+                                // Use the unsanitized original query for the input field
+                                queryInput.value = entry.query;
+                            }
                         }
                     }
                 }
@@ -211,17 +214,28 @@ class UIPersonalization {
         const html = `
             <div class="theme-selector">
                 <button class="theme-btn ${currentTheme === 'light' ? 'active' : ''}" 
-                        onclick="uiPersonalization.setTheme('light')">
+                        data-theme="light">
                     ☀️ Light
                 </button>
                 <button class="theme-btn ${currentTheme === 'dark' ? 'active' : ''}" 
-                        onclick="uiPersonalization.setTheme('dark')">
+                        data-theme="dark">
                     🌙 Dark
                 </button>
             </div>
         `;
         
         container.innerHTML = html;
+        
+        // Add event listeners using event delegation (safer than inline onclick)
+        const themeButtons = container.querySelectorAll('.theme-btn');
+        themeButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const theme = button.dataset.theme;
+                if (theme === 'light' || theme === 'dark') {
+                    this.setTheme(theme);
+                }
+            });
+        });
     }
 }
 
