@@ -667,8 +667,8 @@ class CleanTransformer {
                 
                 // Add line numbers if available (numbers are safe)
                 if (hasLineNumbers) {
-                    const startLine = parseInt(metadata.start_line) || 0;
-                    const endLine = parseInt(metadata.end_line) || 0;
+                    const startLine = parseInt(metadata.start_line, 10) || 0;
+                    const endLine = parseInt(metadata.end_line, 10) || 0;
                     codeInfo += `<span style="display: inline-block; background: #f1f3f5; color: #495057; padding: 2px 8px; border-radius: 4px; font-size: 11px; margin-left: 4px;">Lines ${startLine}-${endLine}</span>`;
                 }
                 
@@ -679,14 +679,13 @@ class CleanTransformer {
             // Build Azure DevOps link if available - validate URL first
             let linkHtml = '';
             if (metadata.url && isCodeFile && this.isValidUrl(metadata.url)) {
-                // URL is already validated, use it directly in href (no HTML escaping needed for URLs)
-                // But sanitize the display text to prevent XSS
-                const safeUrl = metadata.url;  // Validated URL, safe to use in href
+                // URL is validated and safe to use directly in href (no HTML escaping needed)
+                // Sanitize the display text to prevent XSS
                 const displayText = metadata.url.includes('dev.azure.com') ? 'View in Azure DevOps' : 'View Source';
                 const safeDisplayText = this.escapeHtml(displayText);
                 linkHtml = `
                     <div style="margin-top: 6px;">
-                        <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: none; font-size: 11px; font-weight: 500;">
+                        <a href="${metadata.url}" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: none; font-size: 11px; font-weight: 500;">
                             🔗 ${safeDisplayText} →
                         </a>
                     </div>
@@ -695,7 +694,7 @@ class CleanTransformer {
             
             // Format content preview with sanitization
             const previewLength = isCodeFile ? 150 : 120;
-            const rawContent = String(source.content || '').substring(0, previewLength);
+            const rawContent = (source.content || '').substring(0, previewLength);
             const safeContent = this.escapeHtml(rawContent);
             
             // For code, preserve formatting
