@@ -1,95 +1,90 @@
-# RAG-ing: Enterprise RAG System
+# RAG-ing: General-Purpose RAG System
 
-A production-ready Retrieval-Augmented Generation (RAG) system for intelligent document search and question answering. Connect to multiple data sources including Confluence, Jira, and local documents with Azure OpenAI integration.
+A production-ready Retrieval-Augmented Generation (RAG) system for intelligent document search and question answering. Strictly grounds answers in your documents with no hallucination. Connect to Azure DevOps, Confluence, and local files with Azure OpenAI integration.
 
-## Features
+## ✨ Key Features
 
-### Core Capabilities
-- **Multi-Source Integration**: Azure DevOps, Confluence, Jira, local files (PDF, Markdown, TXT, HTML)
-- **Code Intelligence**: Query your codebase for implementation details and documentation
-- **Hybrid Search**: Semantic vector search combined with keyword matching
-- **LLM Integration**: Azure OpenAI (GPT-4) with fallback to OpenAI and Anthropic
-- **Real-time Responses**: Streaming text output with progress tracking
-- **Vector Storage**: ChromaDB for persistent embeddings
+### Strict Document Grounding
+- **Zero Hallucination**: Answers ONLY from provided documents
+- **Helpful Guidance**: Suggests question rephrasing when information unavailable
+- **Source Attribution**: Clear citation of document sources
 
-### Architecture
-Five-module system following YAML-driven configuration:
-1. **Corpus Embedding**: Document ingestion, chunking, and vector generation
-2. **Query Retrieval**: Hybrid search with semantic and keyword matching
-3. **LLM Orchestration**: Multi-provider AI response generation
-4. **UI Layer**: FastAPI web interface with real-time progress
-5. **Evaluation & Logging**: Performance metrics and structured logging
+### Multi-Source Integration
+- **Azure DevOps**: Query your codebase with commit history tracking
+  - Path and file type filtering
+  - Batch processing (configurable batch size)
+  - Incremental updates (track changes, skip unchanged files)
+  - Last N commits per file
+- **Confluence**: Wiki pages and documentation (planned)
+- **Local Files**: PDF, Markdown, TXT, HTML
+- **Jira**: Tickets and requirements (planned)
 
-## Quick Start
+### Production-Ready
+- **FastAPI Web Interface**: Modern REST API with SSE progress tracking
+- **Hybrid Search**: Semantic vector search + keyword matching
+- **Azure OpenAI Integration**: GPT-4/GPT-4o with fallback providers
+- **Persistent Storage**: ChromaDB vector database
+- **Structured Logging**: JSON logs for analysis and monitoring
+
+### Code Quality
+- **ASCII-Safe**: No emoji encoding issues (Windows compatible)
+- **Domain-Agnostic**: Works for any use case (tech, business, finance, etc.)
+- **Professional Standards**: Clear error messages with system codes
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+- Python 3.8+
+- Azure OpenAI API key
+- Git (for Azure DevOps integration)
 
 ### Installation
 
 ```bash
 # Clone repository
-git clone https://github.com/selva-k-r/RAG-ing.git
+git clone https://github.com/your-org/RAG-ing.git
 cd RAG-ing
 
-# Create and activate virtual environment
+# Create virtual environment
 python -m venv .venv
 source .venv/bin/activate  # Linux/Mac
 # .venv\Scripts\Activate.ps1  # Windows
 
 # Install dependencies
-pip install -e ".[dev]"
+pip install -e .
 ```
 
 ### Configuration
 
-Create `.env` file with your API credentials:
+**1. Create `.env` file:**
 
 ```bash
-# Azure OpenAI (Primary)
+# Azure OpenAI (Required)
 AZURE_OPENAI_API_KEY=your_key_here
 AZURE_OPENAI_ENDPOINT=https://your-endpoint.openai.azure.com/
 AZURE_OPENAI_API_VERSION=2024-02-15-preview
 
-# Optional fallback providers
-OPENAI_API_KEY=your_openai_key
-ANTHROPIC_API_KEY=your_anthropic_key
+# Azure OpenAI Embedding (Required)
+AZURE_OPENAI_EMBEDDING_API_KEY=your_embedding_key
+AZURE_OPENAI_EMBEDDING_ENDPOINT=https://your-endpoint.openai.azure.com/
 
-# Confluence integration (optional)
-CONFLUENCE_BASE_URL=https://your-domain.atlassian.net/wiki
-CONFLUENCE_TOKEN=your_confluence_token
-CONFLUENCE_SPACE_KEY=YOUR_SPACE
-
-# Jira integration (optional)
-JIRA_SERVER=https://your-domain.atlassian.net
-JIRA_EMAIL=your_email@company.com
-JIRA_API_TOKEN=your_jira_token
-
-# Azure DevOps integration (optional)
+# Azure DevOps (Optional - for code intelligence)
 AZURE_DEVOPS_ORG=your_organization
 AZURE_DEVOPS_PROJECT=your_project
 AZURE_DEVOPS_PAT=your_personal_access_token
-AZURE_DEVOPS_REPO=your_repository  # Optional: specific repo
+AZURE_DEVOPS_REPO=your_repository
+
+# Confluence (Optional - planned feature)
+CONFLUENCE_BASE_URL=https://your-domain.atlassian.net/wiki
+CONFLUENCE_TOKEN=your_token
+CONFLUENCE_SPACE_KEY=YOUR_SPACE
 ```
 
-Configure data sources in `config.yaml`:
+**2. Configure `config.yaml`:**
 
-```yaml
-data_source:
-  type: "local_file"  # Options: local_file, confluence, jira
-  path: "./data/"
-  
-  # Confluence configuration
-  confluence:
-    base_url: "${CONFLUENCE_BASE_URL}"
-    auth_token: "${CONFLUENCE_TOKEN}"
-    space_key: "${CONFLUENCE_SPACE_KEY}"
-    page_filter: ["documentation", "guides"]
-  
-  # Jira configuration
-  jira:
-    server: "${JIRA_SERVER}"
-    email: "${JIRA_EMAIL}"
-    api_token: "${JIRA_API_TOKEN}"
-    project_keys: ["PROJ1", "PROJ2"]
-```
+See [Configuration](#configuration) section below for detailed settings.
 
 ### Usage
 
@@ -103,85 +98,48 @@ python main.py --ui
 # Step 3: Access at http://localhost:8000
 ```
 
-Alternative commands:
+**Alternative commands:**
 
 ```bash
 # Single query via CLI
-python main.py --query "your question here"
+python main.py --query "What SQL models exist in the repository?"
 
 # System health check
 python main.py --status
 
-# Export performance metrics
-python main.py --export-metrics
+# Debug mode
+python main.py --ingest --debug
 ```
 
-## Data Source Configuration
+---
 
-### Local Files
-Place documents in the `./data/` directory. Supported formats:
-- PDF documents
-- Markdown (.md)
-- Text files (.txt)
-- HTML files (.html)
+## 📁 Data Sources
 
-### Confluence Integration
-Configure Confluence in `config.yaml`:
+### Azure DevOps (Primary Feature)
 
-```yaml
-data_source:
-  type: "confluence"
-  confluence:
-    base_url: "https://your-domain.atlassian.net/wiki"
-    auth_token: "${CONFLUENCE_TOKEN}"
-    space_key: "DOCS"
-    page_filter: ["guides", "api"]  # Optional: filter by labels
-```
+**Query your codebase with advanced intelligence:**
 
-The system will automatically fetch and index pages from specified spaces.
-
-### Jira Integration
-Configure Jira in `config.yaml`:
-
-```yaml
-data_source:
-  type: "jira"
-  jira:
-    server: "https://your-domain.atlassian.net"
-    email: "your-email@company.com"
-    api_token: "${JIRA_API_TOKEN}"
-    project_keys: ["PROJ"]
-    jql_filter: "project = PROJ AND type = Story"  # Optional
-```
-
-The system indexes ticket descriptions, comments, and attachments.
-
-### Azure DevOps Integration
-
-**Why Azure DevOps?** Query your codebase for implementation details! Ask questions like:
+#### What You Can Ask:
 - "How is authentication implemented?"
-- "What files handle user management?"
-- "Explain the database schema design"
+- "What SQL models are in the dbt-anthem repository?"
+- "When was the avoidable admissions logic last changed?"
+- "What files handle data transformation?"
 
-**Quick Setup:**
+#### Features:
+- **Commit History**: Tracks last N commits for each file (default: 10)
+- **Smart Filtering**: Include/exclude paths and file types
+- **Batch Processing**: Configurable batch size (default: 50 files)
+- **Incremental Updates**: Only processes changed files
+- **Change Detection**: Content hash-based tracking
 
-Add credentials to your `.env` file:
+#### Setup:
 
-```bash
-# Azure DevOps Integration
-AZURE_DEVOPS_ORG=your_organization
-AZURE_DEVOPS_PROJECT=your_project
-AZURE_DEVOPS_PAT=your_personal_access_token
-AZURE_DEVOPS_REPO=your_repository  # Optional: specific repo
-```
+**Generate PAT Token:**
+1. Go to `https://dev.azure.com/{org}/_usersSettings/tokens`
+2. Create new token with **Code (Read)** scope
+3. Add to `.env` file
 
-**PAT Token Requirements:**
-- Generate at: `https://dev.azure.com/{org}/_usersSettings/tokens`
-- Required scope: **Code (Read)**
-
-**Manual Configuration:**
-
-In `config.yaml`:
+**Configure in `config.yaml`:**
 
 ```yaml
 data_source:
@@ -192,88 +150,203 @@ data_source:
         organization: "${AZURE_DEVOPS_ORG}"
         project: "${AZURE_DEVOPS_PROJECT}"
         pat_token: "${AZURE_DEVOPS_PAT}"
-        repo_name: "${AZURE_DEVOPS_REPO}"  # Optional: specific repo
-        branch: "main"  # Default branch
-        file_extensions: [".md", ".py", ".txt", ".json", ".yaml", ".cs", ".java"]
-        include_paths: ["/"]  # Paths to include
-        exclude_paths: ["/node_modules", "/bin", "/obj"]  # Paths to exclude
+        repo_name: "dbt-anthem"
+        branch: "develop"
+        
+        # Path filtering
+        include_paths:
+          - "/dbt_anthem/models"
+          - "/dbt_anthem/macros"
+          - "/dbt_anthem/tests"
+        
+        exclude_paths:
+          - "/dbt_anthem/tests/fixtures"
+        
+        # File type filtering
+        include_file_types: [".sql", ".yml", ".py", ".md"]
+        exclude_file_types: [".gitignore", ".gitkeep"]
+        
+        # Commit history
+        fetch_commit_history: true
+        commits_per_file: 10
+        
+        # Batch processing
+        batch_size: 50
 ```
 
-**Enable in `config.yaml`:**
+**Run ingestion:**
+
+```bash
+python main.py --ingest
+```
+
+The system will:
+1. Connect to Azure DevOps
+2. Fetch files matching filters
+3. Track last N commits per file
+4. Process in batches (default: 50 files)
+5. Create searchable embeddings
+6. Store in vector database
+
+### Local Files
+
+Place documents in `./data/` directory:
+
+```bash
+data/
+├── documentation.pdf
+├── guide.md
+├── notes.txt
+└── reference.html
+```
+
+Supported formats: PDF, Markdown, TXT, HTML
+
+### Confluence (Planned)
+
+Wiki pages and documentation import.
+
+**Status**: Connector code exists, needs testing and configuration.
+
+### Jira (Planned)
+
+Ticket descriptions, comments, and requirements.
+
+**Status**: API integration planned.
+
+---
+
+## ⚙️ Configuration
+
+### Main Settings (`config.yaml`)
 
 ```yaml
-data_source:
-  sources:
-    - type: "azure_devops"
-      enabled: true  # Set to true
-      # ... rest of config
+# Vector Store
+vector_store:
+  type: "chroma"
+  path: "./vector_store"
+  collection_name: "rag_documents"  # Generic collection name
+
+# Embedding Model
+embedding_model:
+  provider: "azure_openai"
+  azure_model: "text-embedding-ada-002"
+  azure_deployment_name: "text-embedding-ada-002"
+
+# LLM Configuration
+llm:
+  model: "gpt-4o"
+  provider: "azure_openai"
+  temperature: 0.1
+  max_tokens: 4096
+  prompt_template: "./prompts/general.txt"  # Enforces strict grounding
+  system_instruction: "Answer STRICTLY from context..."
+
+# Retrieval Settings
+retrieval:
+  top_k: 5
+  strategy: "hybrid"  # Semantic + keyword
+  rerank: true
+
+# UI Settings
+ui:
+  framework: "fastapi"
+  port: 8000
+  host: "0.0.0.0"
+  debug: false
 ```
 
-**Ingest Repository Files:**
+### Prompt Templates
 
-```bash
-python main.py --ingest
+System uses strict grounding prompts in `prompts/`:
+
+- **`general.txt`**: Default (enforces document-only answers) ← **PRIMARY**
+- **`simple.txt`**: Minimal style
+- **`iconnect_concise.txt`**: Concise with visual elements
+- **`iconnect_enterprise.txt`**: Detailed explanatory style
+
+All prompts enforce: **Answer ONLY from provided context, suggest rephrasing if information unavailable.**
+
+---
+
+## 🏗️ Architecture
+
+### 5-Module System
+
+```
+┌─────────────────────────────────────────────────┐
+│ Module 1: Corpus Embedding                      │
+│ - Multi-source ingestion (Azure DevOps, Local)  │
+│ - Chunking with configurable strategies         │
+│ - Azure OpenAI embeddings                       │
+└─────────────────────────────────────────────────┘
+                      ↓
+┌─────────────────────────────────────────────────┐
+│ Module 2: Query Retrieval                       │
+│ - Hybrid search (semantic + keyword)            │
+│ - Metadata filtering                            │
+│ - Result reranking                              │
+└─────────────────────────────────────────────────┘
+                      ↓
+┌─────────────────────────────────────────────────┐
+│ Module 3: LLM Orchestration                     │
+│ - Azure OpenAI GPT-4/GPT-4o                     │
+│ - Fallback providers (OpenAI, Anthropic)        │
+│ - Strict grounding enforcement                  │
+└─────────────────────────────────────────────────┘
+                      ↓
+┌─────────────────────────────────────────────────┐
+│ Module 4: UI Layer (FastAPI)                    │
+│ - REST API endpoints                            │
+│ - Server-Sent Events for progress              │
+│ - HTML templates + static assets               │
+└─────────────────────────────────────────────────┘
+                      ↓
+┌─────────────────────────────────────────────────┐
+│ Module 5: Evaluation & Logging                  │
+│ - Structured JSON logs                          │
+│ - Performance metrics                           │
+│ - Query/response tracking                       │
+└─────────────────────────────────────────────────┘
 ```
 
-The system will automatically:
-- Connect to Azure DevOps using your credentials
-- Fetch files from configured repositories
-- Filter by file extensions (.py, .md, .json, etc.)
-- Index code and documentation for semantic search
-
-### Multi-Source Setup
-To index from multiple sources, run ingestion separately for each:
-
-```bash
-# Index local files
-python main.py --ingest
-
-# Switch to Confluence in config.yaml, then:
-python main.py --ingest
-
-# Switch to Jira in config.yaml, then:
-python main.py --ingest
-```
-
-All sources are stored in the same vector database for unified search.
-
-## Project Structure
+### Project Structure
 
 ```
 RAG-ing/
 ├── main.py                    # CLI entry point
-├── config.yaml                # System configuration
+├── config.yaml                # System configuration (SINGLE SOURCE OF TRUTH)
 ├── .env                       # API credentials (create this)
-├── pyproject.toml             # Dependencies and project metadata
 │
 ├── src/rag_ing/              # Core application
-│   ├── orchestrator.py       # Main RAG coordinator
+│   ├── orchestrator.py       # Coordinates all modules
 │   ├── modules/              # Five core modules
-│   │   ├── corpus_embedding.py
-│   │   ├── query_retrieval.py
-│   │   ├── llm_orchestration.py
-│   │   ├── ui_layer.py
-│   │   └── evaluation_logging.py
-│   ├── config/               # Settings management
+│   │   ├── corpus_embedding.py      # Module 1
+│   │   ├── query_retrieval.py       # Module 2
+│   │   ├── llm_orchestration.py     # Module 3
+│   │   ├── ui_layer.py              # Module 4
+│   │   └── evaluation_logging.py    # Module 5
 │   ├── connectors/           # Data source integrations
-│   │   ├── confluence_connector.py
 │   │   ├── azuredevops_connector.py
-│   │   └── (jira connector planned)
-│   └── utils/                # Shared utilities
+│   │   └── confluence_connector.py
+│   ├── config/               # Settings management
+│   └── utils/                # Utilities (tracking, chunking, etc.)
 │
-├── ui/                       # Web interface
+├── ui/                       # FastAPI web interface
 │   ├── app.py                # FastAPI application
-│   ├── api/                  # API routes
-│   ├── templates/            # HTML templates
+│   ├── api/                  # REST endpoints
+│   ├── templates/            # Jinja2 HTML templates
 │   └── static/               # CSS, JavaScript
 │
+├── prompts/                  # LLM prompt templates (strict grounding)
 ├── data/                     # Local document storage
 ├── vector_store/             # ChromaDB persistence
-├── logs/                     # Application logs
-└── prompts/                  # LLM prompt templates
+└── logs/                     # Structured JSON logs
 ```
 
-## API Reference
+---
+
+## 🔌 API Reference
 
 ### REST Endpoints
 
@@ -281,8 +354,8 @@ RAG-ing/
 # Search endpoint
 POST /api/search
 {
-    "query": "What is the process for X?",
-    "audience": "technical"  # or "business"
+    "query": "What SQL models exist?",
+    "audience": "general"  # or "technical"
 }
 
 # Search with progress tracking
@@ -292,7 +365,7 @@ GET  /api/result/{session_id}
 
 # System endpoints
 GET  /api/health
-GET  /docs  # Interactive API documentation
+GET  /docs  # Interactive API documentation (Swagger UI)
 ```
 
 ### Programmatic Usage
@@ -306,11 +379,11 @@ settings = Settings.from_yaml('./config.yaml')
 rag = RAGOrchestrator(settings)
 
 # Index documents
-rag.process_corpus()
+rag.ingest_corpus()
 
 # Query the system
 result = rag.query_documents(
-    query="your question",
+    query="How is data transformation implemented?",
     audience="technical"
 )
 
@@ -318,116 +391,87 @@ print(result['response'])
 print(result['sources'])
 ```
 
-## Configuration
+---
 
-### Main Settings (config.yaml)
+## 📊 Monitoring & Logs
 
-```yaml
-# Embedding configuration
-embedding_model:
-  provider: "azure_openai"
-  azure_model: "text-embedding-ada-002"
-  fallback_model: "all-MiniLM-L6-v2"
+### Structured Logging
 
-# LLM configuration
-llm:
-  model: "gpt-4"
-  provider: "azure_openai"
-  max_tokens: 4096
-  temperature: 0.1
-  fallback_providers: ["openai", "anthropic"]
+JSON logs for analysis:
 
-# Vector store
-vector_store:
-  type: "chroma"
-  path: "./vector_store"
-  collection_name: "enterprise_docs"
-
-# Retrieval settings
-retrieval:
-  top_k: 5
-  strategy: "hybrid"  # semantic + keyword
-  rerank: true
-
-# UI settings
-ui:
-  framework: "fastapi"
-  port: 8000
-  enable_progress: true
+```
+logs/
+├── evaluation.jsonl          # Query/response events
+├── retrieval_metrics.jsonl   # Search performance
+└── generation_metrics.jsonl  # LLM quality metrics
 ```
 
-### Environment Variables
-
-Required variables in `.env`:
+### Health Monitoring
 
 ```bash
-# Azure OpenAI
-AZURE_OPENAI_API_KEY=
-AZURE_OPENAI_ENDPOINT=
-AZURE_OPENAI_API_VERSION=2024-02-15-preview
+# System health check
+python main.py --status
 
-# Fallback providers (optional)
-OPENAI_API_KEY=
-ANTHROPIC_API_KEY=
-
-# Data source credentials (optional)
-CONFLUENCE_TOKEN=
-JIRA_API_TOKEN=
+# View logs
+tail -f logs/evaluation.jsonl
 ```
 
-## Development
+### Performance Metrics
+
+Tracks:
+- Query latency and throughput
+- Vector search performance
+- LLM token usage
+- Embedding API calls
+- Batch processing stats
+
+---
+
+## 🛠️ Development
 
 ### Technology Stack
 - **Python**: 3.8+
 - **Framework**: FastAPI
-- **AI/ML**: Azure OpenAI, LangChain, sentence-transformers
+- **AI/ML**: Azure OpenAI, LangChain
 - **Vector DB**: ChromaDB
-- **Frontend**: HTML/CSS/JavaScript (no framework dependencies)
+- **Frontend**: HTML/CSS/JavaScript (vanilla - no framework)
 
 ### Development Setup
 
 ```bash
-# Install with development dependencies
+# Install with dev dependencies
 pip install -e ".[dev]"
 
 # Run tests
 pytest tests/ -v
 
-# Code formatting
+# Code quality
 black src/ ui/
 flake8 src/ ui/
-
-# Type checking
 mypy src/
 ```
 
-### Package Status
+### Coding Standards
 
-All dependencies are on latest stable versions as of November 2025:
+See `.github/copilot-instructions.md` for comprehensive guidelines:
 
-- **LangChain**: 1.0.5 (upgraded from 0.3.x)
-- **OpenAI SDK**: 2.7.2 (upgraded from 1.x)
-- **FastAPI**: 0.121.1
-- **ChromaDB**: 1.3.4
-- **Pydantic**: 2.12.4
+1. **NO EMOJIS** in production code (encoding issues)
+2. Comments describe CURRENT state (not history)
+3. Error messages: polite + system error + solution
+4. Strict grounding in all LLM prompts
+5. Generic/domain-agnostic code
 
-Run package status checker:
+---
 
-```bash
-python check_package_status.py
-```
-
-For details on completed Phase 2 migrations, see `MIGRATION_GUIDE.md` and `src/Requirement.md`.
-
-## Deployment
+## 🚢 Deployment
 
 ### Docker
 
 ```bash
-# Quick start
+# Standard deployment
 docker-compose up --build
 
-# Minimal deployment (no persistence)
+# Minimal (no persistence)
 docker-compose -f docker-compose.minimal.yml up --build
 
 # Using deployment script
@@ -439,88 +483,127 @@ docker-compose -f docker-compose.minimal.yml up --build
 ### Production Considerations
 
 - **Azure App Service**: Deploy FastAPI application
-- **Azure OpenAI**: Use managed service for AI workloads
+- **Azure OpenAI**: Use managed AI service
 - **Persistent Storage**: Mount volumes for `vector_store/` and `data/`
-- **Environment Variables**: Use Azure Key Vault or similar for secrets
-- **Monitoring**: Enable Application Insights for logging and metrics
+- **Secrets Management**: Azure Key Vault for credentials
+- **Monitoring**: Application Insights integration
 
-See `DOCKER_QUICKSTART.md` for detailed deployment instructions.
+---
 
-## Monitoring & Logs
+## 🗺️ Roadmap
 
-### Log Files
+### ✅ Current Features (v0.1.0)
 
-Structured JSON logs for analysis:
-
-```
-logs/
-├── evaluation.jsonl          # Complete query/response events
-├── retrieval_metrics.jsonl   # Search performance metrics
-└── generation_metrics.jsonl  # LLM response quality
-```
-
-### Health Monitoring
-
-```bash
-# System health check
-python main.py --status
-
-# Export metrics
-python main.py --export-metrics
-
-# View metrics in browser
-http://localhost:8000/docs  # FastAPI interactive docs
-```
-
-### Performance Metrics
-
-The system tracks:
-- Query latency and throughput
-- Vector search performance
-- LLM token usage and cost
-- User satisfaction scores
-- Error rates and types
-
-## Roadmap
-
-### Current Features
-- Local file ingestion (PDF, Markdown, TXT, HTML)
-- Azure OpenAI integration with fallback providers
+**Core System**:
+- General-purpose RAG (domain-agnostic)
+- Strict document grounding (zero hallucination)
+- Azure OpenAI integration (GPT-4/GPT-4o)
 - ChromaDB vector storage
-- FastAPI web interface with progress tracking
+- FastAPI web interface
+- Structured logging
+
+**Azure DevOps Integration**:
+- Multi-repository support
+- Commit history tracking (last N commits per file)
+- Path and file type filtering
+- Batch processing (configurable size)
+- Incremental updates (change detection)
+- SQLite-based ingestion tracking
+
+**Data Processing**:
+- Local file ingestion (PDF, MD, TXT, HTML)
 - Hybrid search (semantic + keyword)
-- Structured logging and metrics
+- Generic domain code extraction (error codes, tickets, versions)
 
-### Planned Enhancements
-- **Confluence Integration**: Live document synchronization
-- **Jira Integration**: Ticket and comment indexing
-- **Advanced Chunking**: Semantic splitting with context preservation
-- **Multi-modal Search**: Image and diagram processing
-- **Citation Tracking**: Improved source attribution
-- **Caching Layer**: Reduce redundant LLM calls
+### 🎯 Planned Features (v0.2.0)
 
-See `src/Requirement.md` for detailed technical requirements and implementation status.
-## Contributing
+**Enhanced Azure DevOps** (Q1 2026):
+- [ ] PR and commit message analysis
+- [ ] Code diff tracking
+- [ ] Branch comparison
+- [ ] Author-based filtering
+- [ ] Time-range queries ("changes in last 3 months")
 
-Contributions are welcome. Please follow the development setup and coding standards outlined in this document.
+**Additional Connectors** (Q1-Q2 2026):
+- [ ] **Confluence**: Live wiki synchronization
+- [ ] **Jira**: Ticket and comment indexing
+- [ ] **SharePoint**: Document library integration
+- [ ] **GitHub**: Repository and PR analysis
 
-For major version updates or dependency changes, refer to:
-- `MIGRATION_GUIDE.md` - Step-by-step migration instructions
-- `check_package_status.py` - Dependency status checker
+**Advanced Features** (Q2 2026):
+- [ ] Multi-modal search (images, diagrams)
+- [ ] Semantic code chunking (function/class aware)
+- [ ] Caching layer (reduce redundant LLM calls)
+- [ ] Query suggestions and autocomplete
+- [ ] Document summarization
+- [ ] User feedback loop integration
 
-## License
+**Performance** (Q2 2026):
+- [ ] Async embedding generation
+- [ ] Parallel batch processing
+- [ ] Response streaming
+- [ ] Query result caching
+
+**Enterprise Features** (Q3 2026):
+- [ ] User authentication (Azure AD)
+- [ ] Role-based access control
+- [ ] Audit logging
+- [ ] Multi-tenant support
+- [ ] Custom domain code patterns
+
+### 📋 Backlog
+
+- Graph-based RAG for relationship queries
+- Fine-tuned embedding models
+- Custom chunking strategies per file type
+- Automated document refresh scheduling
+- Export/import vector store
+- A/B testing framework for prompts
+
+---
+
+## 📚 Documentation
+
+- **Quick Start**: This README
+- **Developer Guide**: `developer_guide.md`
+- **AI Agent Instructions**: `.github/copilot-instructions.md`
+- **Technical Requirements**: `src/Requirement.md`
+- **Configuration Reference**: See `config.yaml` comments
+
+---
+
+## 🤝 Contributing
+
+Contributions welcome! Please:
+
+1. Follow coding standards in `.github/copilot-instructions.md`
+2. No emojis in production code
+3. Enforce strict grounding in LLM prompts
+4. Write tests for new features
+5. Update documentation
+
+---
+
+## 📄 License
 
 MIT License - See LICENSE file for details.
 
-## Support
+---
 
-**For Users:**
-- Quick start: See sections above
-- Configuration: `config.yaml` and `.env` setup
+## 💬 Support
 
-**For Developers:**
-- **Internal navigation**: [`DEVELOPER_GUIDE.md`](DEVELOPER_GUIDE.md) - Code structure & review guide
-- Technical specs: `src/Requirement.md`
-- Requirements: `POC_REQUIREMENTS.md`
+**Issues**: Open a GitHub issue for bugs or feature requests
 
-For questions or issues, please open a GitHub issue.
+**Documentation**:
+- Quick Start: This README
+- Developer Guide: `developer_guide.md`
+- API Docs: http://localhost:8000/docs (after starting UI)
+
+**Key Files**:
+- Configuration: `config.yaml`
+- Environment: `.env` (create from `env.example`)
+- Prompts: `prompts/general.txt`
+
+---
+
+**Made with ❤️ for developers who want truthful AI answers**
