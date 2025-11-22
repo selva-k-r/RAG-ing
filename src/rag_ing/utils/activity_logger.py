@@ -178,6 +178,8 @@ class ActivityLogger:
                 with open(log_file, 'r', encoding='utf-8') as f:
                     total_events += sum(1 for _ in f)
             except Exception:
+                # Silently skip corrupted, inaccessible, or malformed log files
+                # to ensure stats collection continues even if some files are problematic
                 pass
         
         return {

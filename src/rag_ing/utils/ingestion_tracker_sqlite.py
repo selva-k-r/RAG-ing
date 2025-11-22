@@ -13,7 +13,6 @@ Best Practices Implemented:
 """
 
 import sqlite3
-import hashlib
 import logging
 from datetime import datetime
 from pathlib import Path
