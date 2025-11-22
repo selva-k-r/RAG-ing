@@ -684,8 +684,9 @@ class CleanTransformer {
                 let displayText = 'View Source';
                 try {
                     const urlObj = new URL(metadata.url);
-                    // Check if hostname ends with dev.azure.com to avoid substring attacks
-                    if (urlObj.hostname.endsWith('dev.azure.com')) {
+                    // Check if hostname is dev.azure.com or a subdomain of it
+                    const hostname = urlObj.hostname;
+                    if (hostname === 'dev.azure.com' || hostname.endsWith('.dev.azure.com')) {
                         displayText = 'View in Azure DevOps';
                     }
                 } catch (e) {
