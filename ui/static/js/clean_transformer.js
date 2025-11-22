@@ -23,16 +23,24 @@ class CleanTransformer {
     }
 
     /**
-     * Validate URL to prevent javascript: protocol attacks
+     * Validate URL to prevent protocol attacks and ensure well-formed URLs
      * @param {string} url - The URL to validate
-     * @returns {boolean} - True if URL is safe
+     * @returns {boolean} - True if URL is safe and well-formed
      */
     isValidUrl(url) {
         if (!url) return false;
-        const urlStr = String(url).toLowerCase().trim();
-        // Block javascript:, data:, vbscript: and other dangerous protocols
-        const dangerousProtocols = ['javascript:', 'data:', 'vbscript:', 'file:', 'about:'];
-        return !dangerousProtocols.some(protocol => urlStr.startsWith(protocol));
+        
+        try {
+            // Use URL constructor for proper validation
+            const urlObj = new URL(url);
+            
+            // Only allow http and https protocols
+            const allowedProtocols = ['http:', 'https:'];
+            return allowedProtocols.includes(urlObj.protocol);
+        } catch (e) {
+            // Invalid URL format
+            return false;
+        }
     }
 
     async transformToChat(query) {
@@ -671,13 +679,15 @@ class CleanTransformer {
             // Build Azure DevOps link if available - validate URL first
             let linkHtml = '';
             if (metadata.url && isCodeFile && this.isValidUrl(metadata.url)) {
-                // Sanitize the URL for display
-                const safeUrl = this.escapeHtml(metadata.url);
-                const displayUrl = metadata.url.includes('dev.azure.com') ? '🔗 View in Azure DevOps' : '🔗 View Source';
+                // URL is already validated, use it directly in href (no HTML escaping needed for URLs)
+                // But sanitize the display text to prevent XSS
+                const safeUrl = metadata.url;  // Validated URL, safe to use in href
+                const displayText = metadata.url.includes('dev.azure.com') ? 'View in Azure DevOps' : 'View Source';
+                const safeDisplayText = this.escapeHtml(displayText);
                 linkHtml = `
                     <div style="margin-top: 6px;">
                         <a href="${safeUrl}" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: none; font-size: 11px; font-weight: 500;">
-                            ${displayUrl} →
+                            🔗 ${safeDisplayText} →
                         </a>
                     </div>
                 `;
