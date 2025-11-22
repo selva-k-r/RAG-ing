@@ -1,6 +1,6 @@
 """Module 1: Corpus & Embedding Lifecycle
 
-Objective: Ingest oncology-related documents, generate embeddings, and store them for retrieval.
+Objective: Ingest documents from multiple sources, generate embeddings, and store them for retrieval.
 
 Implementation of requirements from Requirement.md:
 - YAML-Driven Ingestion Logic: Parse data_source.type (confluence/local_file)
@@ -105,7 +105,7 @@ class CorpusEmbeddingModule:
         Returns:
             Dict containing comprehensive processing statistics
         """
-        logger.info("🚀 Starting enhanced multi-source corpus processing pipeline")
+        logger.info("Starting enhanced multi-source corpus processing pipeline")
         start_time = time.time()
         
         # Initialize universal ingestion tracker (SQLite)
@@ -121,25 +121,26 @@ class CorpusEmbeddingModule:
             logger.info("📂 Step 1: Multi-source document ingestion")
             documents = self._ingest_documents_multi_source()
             self._stats["documents_processed"] = len(documents)
-            logger.info(f"✅ Ingested {len(documents)} documents from multiple sources")
+            logger.info(f"Ingested {len(documents)} documents from multiple sources")
             
             # Step 2: Chunking Strategy  
             logger.info("🧩 Step 2: Document chunking")
             chunks = self._chunk_documents(documents)
             self._stats["chunk_count"] = len(chunks)
-            logger.info(f"✅ Created {len(chunks)} chunks using {self.chunking_config.strategy} strategy")
+            logger.info(f"Created {len(chunks)} chunks using {self.chunking_config.strategy} strategy")
             
             # Step 3: Embedding Generation
             logger.info("🧠 Step 3: Loading embedding model")
             self._load_embedding_model()
             
             # Step 4: Vector Storage
-            logger.info("💾 Step 4: Setting up vector store and storing embeddings")
+            logger.info("Step 4: Setting up vector store and storing embeddings")
             self._setup_vector_store()
             self._store_embeddings(chunks)
             
             # Step 5: Validate embeddings
-            logger.info("✔️ Step 5: Validating vector dimensions and schema")
+            logger.info("Step 5: Validating embedding model (test API call only)")
+            logger.info("Note: This tests if embedding API is accessible, NOT processing documents")
             validation_success = self.validate_embeddings()
             
             # Calculate final statistics
@@ -152,20 +153,45 @@ class CorpusEmbeddingModule:
                 "vector_store_type": self.vector_store_config.type
             })
             
-            # Enhanced logging with multi-source breakdown
-            logger.info(
-                f"🎉 Multi-source corpus processing completed successfully! "
-                f"Sources: {self._stats.get('sources_processed', 0)}, "
-                f"Documents: {self._stats['documents_processed']}, "
-                f"Chunks: {self._stats['chunk_count']}, "
-                f"Vector size: {self._stats.get('vector_size', 'N/A')}, "
-                f"Time: {processing_time:.2f}s"
-            )
+            # Enhanced logging with multi-source breakdown - CLEAR STATUS
+            docs_count = self._stats['documents_processed']
+            chunks_count = self._stats['chunk_count']
+            
+            if docs_count == 0:
+                logger.warning(f"\n{'='*80}")
+                logger.warning(f"CORPUS PROCESSING COMPLETED BUT NO DOCUMENTS INGESTED")
+                logger.warning(f"{'='*80}")
+                logger.warning(f"Sources enabled: {self._stats.get('sources_processed', 0)}")
+                logger.warning(f"Documents fetched: 0")
+                logger.warning(f"Chunks created: 0")
+                logger.warning(f"Processing time: {processing_time:.2f}s")
+                logger.warning(f"\nNOTHING TO SEARCH - No documents available for queries")
+                logger.warning(f"Check source configurations and error logs above")
+                logger.warning(f"{'='*80}\n")
+            elif chunks_count == 0:
+                logger.warning(f"\n{'='*80}")
+                logger.warning(f"DOCUMENTS FETCHED BUT NO CHUNKS CREATED")
+                logger.warning(f"{'='*80}")
+                logger.warning(f"Documents fetched: {docs_count}")
+                logger.warning(f"Chunks created: 0")
+                logger.warning(f"\nNOTHING TO SEARCH - Check chunking configuration")
+                logger.warning(f"{'='*80}\n")
+            else:
+                logger.info(f"\n{'='*80}")
+                logger.info(f"CORPUS PROCESSING COMPLETED SUCCESSFULLY")
+                logger.info(f"{'='*80}")
+                logger.info(f"Sources processed: {self._stats.get('sources_processed', 0)}")
+                logger.info(f"Documents ingested: {docs_count}")
+                logger.info(f"Chunks created: {chunks_count}")
+                logger.info(f"Vector dimension: {self._stats.get('vector_size', 'N/A')}")
+                logger.info(f"Processing time: {processing_time:.2f}s")
+                logger.info(f"\nREADY TO SEARCH - {chunks_count} chunks available for queries")
+                logger.info(f"{'='*80}\n")
             
             return self._stats
             
         except Exception as e:
-            logger.error(f"❌ Multi-source corpus processing failed: {str(e)}")
+            logger.error(f"Multi-source corpus processing failed: {str(e)}")
             raise IngestionError(f"Failed to process corpus: {str(e)}")
     
     def _ingest_documents_multi_source(self) -> List[Document]:
@@ -200,11 +226,11 @@ class CorpusEmbeddingModule:
                     continue
                 
                 all_documents.extend(docs)
-                logger.info(f"✅ {source_description}: {len(docs)} documents processed")
+                logger.info(f"{source_description}: {len(docs)} documents processed")
                 
             except Exception as e:
-                logger.error(f"❌ Error processing {source_description}: {e}")
-                logger.info("🔄 Continuing with other sources...")
+                logger.error(f"Error processing {source_description}: {e}")
+                logger.info("Continuing with other sources...")
                 continue
         
         if not all_documents:
@@ -256,7 +282,7 @@ class CorpusEmbeddingModule:
                                 "file_type": file_path.suffix,
                                 "date": file_path.stat().st_mtime,
                                 "ontology_codes": ontology_codes,
-                                "domain": "oncology"  # As per requirements
+                                "domain": "general"
                             }
                         )
                         documents.append(doc)
@@ -288,10 +314,11 @@ class CorpusEmbeddingModule:
         
         # Enhance metadata with ontology codes as required
         for doc in documents:
-            ontology_codes = self._extract_ontology_codes(doc.page_content)
-            doc.metadata["ontology_codes"] = ontology_codes
-            doc.metadata["domain"] = "oncology"
-            self._stats["ontology_codes_extracted"] += len(ontology_codes)
+            # Extract domain codes if present (medical codes, error codes, etc.)
+            domain_codes = self._extract_domain_codes(doc.page_content)
+            doc.metadata["domain_codes"] = domain_codes
+            doc.metadata["domain"] = "general"
+            self._stats["domain_codes_extracted"] += len(domain_codes)
         
         logger.info(f"Successfully ingested {len(documents)} Confluence documents")
         return documents
@@ -373,7 +400,7 @@ class CorpusEmbeddingModule:
         else:
             return ""
     
-    def _extract_ontology_codes(self, content: str) -> List[str]:
+    def _extract_domain_codes(self, content: str) -> List[str]:
         """Extract medical ontology codes from content.
         
         Implements extraction for ICD-O, SNOMED-CT, and UMLS as specified
@@ -403,12 +430,77 @@ class CorpusEmbeddingModule:
         # Remove duplicates and return
         return list(set([code for code in ontology_codes if code.strip()]))
     
+    def _process_document_batch(self, batch: List[Document]) -> None:
+        """
+        Process a batch of documents immediately: chunk, embed, and store.
+        
+        This enables streaming/incremental ingestion where batches are processed
+        as they're fetched, providing faster feedback and fault tolerance.
+        
+        Args:
+            batch: List of documents to process
+        """
+        if not batch:
+            return
+        
+        logger.info(f"\n{'='*80}")
+        logger.info(f"🔄 BATCH PROCESSING: {len(batch)} documents")
+        logger.info(f"{'='*80}")
+        start_time = time.time()
+        
+        # Log files in this batch
+        logger.info(f"\n📁 STAGE 1/4: DOCUMENTS FETCHED")
+        for i, doc in enumerate(batch[:5], 1):  # Show first 5
+            title = doc.metadata.get('title', 'unknown')
+            language = doc.metadata.get('language', 'unknown')
+            lines = doc.metadata.get('total_lines', 0)
+            commits = doc.metadata.get('commit_count', 0)
+            logger.info(f"   {i}. {title} ({language}, {lines} lines, {commits} commits)")
+        if len(batch) > 5:
+            logger.info(f"   ... and {len(batch) - 5} more files")
+        
+        try:
+            # Step 1: Chunk documents
+            chunks = self._chunk_documents(batch)
+            logger.info(f"   Chunked into {len(chunks)} chunks")
+            
+            # Step 2: Store in vector DB (which handles embedding internally)
+            self._store_embeddings(chunks)
+            logger.info(f"   Stored {len(chunks)} chunks in vector store")
+            
+            # Step 3: Record in tracking database
+            # Build document_chunks_map for tracking
+            document_chunks_map = {}
+            for doc in batch:
+                metadata = doc.metadata
+                key = (
+                    'azure_devops',
+                    metadata.get('file_path'),
+                    metadata.get('repository'),
+                    metadata.get('branch')
+                )
+                # Find chunks for this document
+                doc_chunks = [c for c in chunks if c.metadata.get('file_path') == metadata.get('file_path')]
+                document_chunks_map[key] = {
+                    'chunks': doc_chunks,
+                    'metadata': metadata
+                }
+            
+            self._record_processed_documents(document_chunks_map)
+            
+            elapsed = time.time() - start_time
+            logger.info(f"   Batch processed in {elapsed:.1f}s ({len(batch)} docs -> {len(chunks)} chunks)")
+            
+        except Exception as e:
+            logger.error(f"   Batch processing failed: {e}")
+            raise
+    
     def _chunk_documents(self, documents: List[Document]) -> List[Document]:
         """Apply chunking strategy based on configuration.
         
         Supports recursive and semantic strategies as required:
         - recursive: RecursiveCharacterTextSplitter with configured size/overlap
-        - semantic: Preserve semantic boundaries for oncology content
+        - semantic: Preserve semantic boundaries for structured content
         """
         strategy = self.chunking_config.strategy
         logger.info(f"Applying {strategy} chunking strategy")
@@ -627,7 +719,7 @@ class CorpusEmbeddingModule:
             )
             
             # Test the model with a sample text
-            test_embedding = self.embedding_model.embed_query("oncology biomarker test")
+            test_embedding = self.embedding_model.embed_query("document embedding test")
             self._stats["vector_size"] = len(test_embedding)
             
             logger.info(f"✅ Azure embedding model loaded successfully - Vector dimension: {len(test_embedding)}")
@@ -668,7 +760,7 @@ class CorpusEmbeddingModule:
             )
             
             # Test the model with a sample text
-            test_embedding = self.embedding_model.embed_query("oncology biomarker test")
+            test_embedding = self.embedding_model.embed_query("document embedding test")
             self._stats["vector_size"] = len(test_embedding)
             
             logger.info(f"✅ Open source embedding model loaded successfully - Vector dimension: {len(test_embedding)}")
@@ -899,7 +991,7 @@ class CorpusEmbeddingModule:
                 # Delete matching vectors
                 self.vector_store._collection.delete(ids=results['ids'])
                 deleted_count = len(results['ids'])
-                logger.info(f"🗑️  Deleted {deleted_count} old vectors for [{source_type}]: {document_id}")
+                logger.info(f"Deleted {deleted_count} old vectors for [{source_type}]: {document_id}")
                 return deleted_count
             
             return 0
@@ -967,7 +1059,7 @@ class CorpusEmbeddingModule:
                 total_deleted += deleted
         
         if total_deleted > 0:
-            logger.info(f"🗑️  Cleaned up {total_deleted} old vectors for updated documents")
+            logger.info(f"Cleaned up {total_deleted} old vectors for updated documents")
         
         # Handle hierarchical storage first
         if self.hierarchical_config.enabled and self.summary_vector_store:
@@ -1056,7 +1148,7 @@ class CorpusEmbeddingModule:
         
         # Save tracker to CSV
         tracker.save()
-        logger.info(f"📝 Updated tracking file for {len(document_chunks_map)} documents")
+        logger.info(f"Updated tracking file for {len(document_chunks_map)} documents")
     
     def validate_embeddings(self) -> bool:
         """Validate vector dimensions and schema as required by Requirement.md.
@@ -1091,7 +1183,8 @@ class CorpusEmbeddingModule:
                     logger.warning("Embedding values outside expected range [-1, 1]")
             
             self._stats["vector_size"] = len(test_embedding)
-            logger.info(f"Embedding validation successful: {len(test_embedding)}D vectors")
+            logger.info(f"   Embedding API validated: {len(test_embedding)}D vectors (test call successful)")
+            logger.info(f"   Note: This was a validation test, NOT embedding of your documents")
             return True
             
         except Exception as e:
@@ -1147,7 +1240,7 @@ class CorpusEmbeddingModule:
                     # Check for duplicates
                     if self.duplicate_detector:
                         if self.duplicate_detector.is_exact_duplicate(content):
-                            logger.debug(f"⏭️ Skipping duplicate: {file_path.name}")
+                            logger.debug(f"Skipping duplicate: {file_path.name}")
                             self._stats["duplicates_skipped"] += 1
                             continue
                     
@@ -1179,10 +1272,10 @@ class CorpusEmbeddingModule:
                             {"source": str(file_path), "source_url": str(file_path.absolute())}
                         )
                     
-                    logger.debug(f"✅ Processed: {file_path.name}")
+                    logger.debug(f"Processed: {file_path.name}")
                     
                 except Exception as e:
-                    logger.warning(f"⚠️ Failed to process {file_path}: {e}")
+                    logger.warning(f"Failed to process {file_path}: {e}")
         
         # Log results
         if self.duplicate_detector and self._stats["duplicates_skipped"] > 0:
@@ -1230,13 +1323,13 @@ class CorpusEmbeddingModule:
                     })
                 
                 all_docs.extend(docs)
-                logger.info(f"✅ Space {space_key}: {len(docs)} pages processed")
+                logger.info(f"Space {space_key}: {len(docs)} pages processed")
             
             logger.info(f"🌐 Confluence total: {len(all_docs)} documents processed")
             return all_docs
             
         except Exception as e:
-            logger.error(f"❌ Confluence ingestion failed: {e}")
+            logger.error(f"Confluence ingestion failed: {e}")
             return []
     
     def _ingest_jira_enhanced(self, source_config: Dict[str, Any]) -> List[Document]:
@@ -1286,8 +1379,8 @@ class CorpusEmbeddingModule:
             return []
         
         # Placeholder - not implemented
-        logger.info("🎫 JIRA ingestion requested but not yet implemented - skipping")
-        logger.debug("💡 See docstring for implementation steps")
+        logger.info("JIRA ingestion requested but not yet implemented - skipping")
+        logger.debug("See docstring for implementation steps")
         return []
     
     def _ingest_azuredevops_enhanced(self, source_config: Dict[str, Any]) -> List[Document]:
@@ -1323,23 +1416,95 @@ class CorpusEmbeddingModule:
             repo_name = azuredevops_config.get('repo_name')
             branch = azuredevops_config.get('branch', 'main')
             include_paths = azuredevops_config.get('include_paths', ['/'])
+            enable_streaming = azuredevops_config.get('enable_streaming', False)
+            batch_size = azuredevops_config.get('batch_size', 50)
             
             all_docs = []
             files_processed = 0
             files_skipped = 0
             files_updated = 0
+            files_with_commit_history = 0
+            total_commits_fetched = 0
             
             # Fetch files from repository
             if repo_name:
-                logger.info(f"💻 Fetching from Azure DevOps repository: {repo_name}")
-                for path in include_paths:
-                    raw_docs = connector.fetch_repository_files(
-                        repo_name=repo_name,
-                        branch=branch,
-                        path=path,
-                        recursive=True,
-                        include_commit_info=True  # Get commit metadata
-                    )
+                if enable_streaming:
+                    logger.info(f"💻 Streaming from Azure DevOps repository: {repo_name} (batch size: {batch_size})")
+                    # STREAMING MODE: Process batches as they come in
+                    for path in include_paths:
+                        batch_num = 0
+                        for batch in connector.fetch_repository_files_streaming(
+                            repo_name=repo_name,
+                            branch=branch,
+                            path=path,
+                            recursive=True,
+                            include_commit_info=True,
+                            batch_size=batch_size
+                        ):
+                            batch_num += 1
+                            logger.info(f"🔄 Processing batch #{batch_num} ({len(batch)} files)")
+                            
+                            # Process this batch immediately
+                            batch_docs_to_process = []
+                            for doc in batch:
+                                metadata = doc.metadata
+                                file_path = metadata.get('file_path')
+                                repository = metadata.get('repository')
+                                branch_name = metadata.get('branch')
+                                content = doc.page_content
+                                last_modified = metadata.get('last_modified_date')
+                                
+                                # Compute content hash
+                                import hashlib
+                                content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
+                                
+                                # Check if needs processing
+                                should_process, reason = tracker.needs_processing(
+                                    source_type='azure_devops',
+                                    document_id=file_path,
+                                    content_hash=content_hash,
+                                    last_modified_date=last_modified
+                                )
+                                
+                                if should_process:
+                                    # Check if update or new
+                                    existing_doc = tracker.get_document_status('azure_devops', file_path)
+                                    is_update = existing_doc is not None
+                                    
+                                    if is_update:
+                                        logger.info(f"🔄 Updating: {file_path} (reason: {reason})")
+                                        files_updated += 1
+                                        doc.metadata['needs_vector_cleanup'] = True
+                                    else:
+                                        logger.debug(f"✨ New file: {file_path}")
+                                        files_processed += 1
+                                    
+                                    # Track commit history
+                                    if metadata.get('commit_history'):
+                                        files_with_commit_history += 1
+                                        total_commits_fetched += len(metadata['commit_history'])
+                                    
+                                    batch_docs_to_process.append(doc)
+                                else:
+                                    files_skipped += 1
+                            
+                            # PROCESS THIS BATCH NOW (chunk + embed + store)
+                            if batch_docs_to_process:
+                                logger.info(f"Chunk+Embed+Store batch #{batch_num}: {len(batch_docs_to_process)} files")
+                                self._process_document_batch(batch_docs_to_process)
+                            
+                            all_docs.extend(batch_docs_to_process)
+                else:
+                    logger.info(f"💻 Fetching from Azure DevOps repository: {repo_name} (non-streaming mode)")
+                    # ORIGINAL MODE: Fetch all first, then process
+                    for path in include_paths:
+                        raw_docs = connector.fetch_repository_files(
+                            repo_name=repo_name,
+                            branch=branch,
+                            path=path,
+                            recursive=True,
+                            include_commit_info=True
+                        )
                     
                     # Filter based on tracking status
                     for doc in raw_docs:
@@ -1351,31 +1516,35 @@ class CorpusEmbeddingModule:
                         last_modified = metadata.get('last_modified_date')
                         
                         # Check if file needs processing
-                        should_process = tracker.should_process_document(
+                        # Compute content hash for change detection
+                        import hashlib
+                        content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
+                        
+                        should_process, reason = tracker.needs_processing(
                             source_type='azure_devops',
                             document_id=file_path,
-                            source_location=repository,
-                            source_branch=branch_name,
-                            content=content,
+                            content_hash=content_hash,
                             last_modified_date=last_modified
                         )
                         
                         if should_process:
-                            # Check if this is an update (document exists in tracker)
-                            key = tracker._make_key('azure_devops', repository, branch_name, file_path)
-                            is_update = key in tracker.tracking_data
+                            # Check if this is an update (existing document) or new
+                            existing_doc = tracker.get_document_status('azure_devops', file_path)
+                            is_update = existing_doc is not None
                             
                             if is_update:
-                                logger.info(f"🔄 Updating: {file_path}")
+                                logger.info(f"🔄 Updating: {file_path} (reason: {reason})")
                                 files_updated += 1
-                                # Mark for vector cleanup
+                                # Mark for vector cleanup (existing vectors need to be removed)
                                 doc.metadata['needs_vector_cleanup'] = True
-                                doc.metadata['cleanup_patterns'] = tracker.get_documents_to_cleanup(
-                                    'azure_devops', repository, branch_name, file_path
-                                )
                             else:
                                 logger.debug(f"✨ New file: {file_path}")
                                 files_processed += 1
+                            
+                            # Track commit history stats
+                            if metadata.get('commit_history'):
+                                files_with_commit_history += 1
+                                total_commits_fetched += len(metadata['commit_history'])
                             
                             all_docs.append(doc)
                         else:
@@ -1403,44 +1572,51 @@ class CorpusEmbeddingModule:
                         # Same filtering logic as above
                         for doc in raw_docs:
                             metadata = doc.metadata
-                            should_process = tracker.should_process_document(
+                            
+                            # Compute content hash for change detection
+                            import hashlib
+                            content_hash = hashlib.sha256(doc.page_content.encode('utf-8')).hexdigest()
+                            
+                            should_process, reason = tracker.needs_processing(
                                 source_type='azure_devops',
                                 document_id=metadata.get('file_path'),
-                                source_location=metadata.get('repository'),
-                                source_branch=metadata.get('branch'),
-                                content=doc.page_content,
+                                content_hash=content_hash,
                                 last_modified_date=metadata.get('last_modified_date')
                             )
                             
                             if should_process:
-                                key = tracker._make_key(
-                                    'azure_devops',
-                                    metadata.get('repository'),
-                                    metadata.get('branch'),
-                                    metadata.get('file_path')
-                                )
-                                if key in tracker.tracking_data:
+                                # Check if this is an update or new file
+                                existing_doc = tracker.get_document_status('azure_devops', metadata.get('file_path'))
+                                is_update = existing_doc is not None
+                                
+                                if is_update:
+                                    logger.info(f"🔄 Updating: {metadata.get('file_path')} (reason: {reason})")
                                     files_updated += 1
                                     doc.metadata['needs_vector_cleanup'] = True
-                                    doc.metadata['cleanup_patterns'] = tracker.get_documents_to_cleanup(
-                                        'azure_devops',
-                                        metadata.get('repository'),
-                                        metadata.get('branch'),
-                                        metadata.get('file_path')
-                                    )
                                 else:
+                                    logger.debug(f"✨ New file: {metadata.get('file_path')}")
                                     files_processed += 1
+                                
+                                # Track commit history stats
+                                if metadata.get('commit_history'):
+                                    files_with_commit_history += 1
+                                    total_commits_fetched += len(metadata['commit_history'])
                                 
                                 all_docs.append(doc)
                             else:
                                 files_skipped += 1
             
-            logger.info(f"✅ Azure DevOps: {len(all_docs)} files to process ({files_processed} new, {files_updated} updated, {files_skipped} skipped)")
+            # Log summary with commit history stats
+            logger.info(f"Azure DevOps: {len(all_docs)} files to process ({files_processed} new, {files_updated} updated, {files_skipped} skipped)")
+            
+            if files_with_commit_history > 0:
+                avg_commits = total_commits_fetched / files_with_commit_history if files_with_commit_history > 0 else 0
+                logger.info(f"📜 Commit History: {files_with_commit_history} files with history ({total_commits_fetched} total commits, avg {avg_commits:.1f} commits/file)")
             
             return all_docs
             
         except Exception as e:
-            logger.error(f"❌ Azure DevOps ingestion failed: {e}")
+            logger.error(f"Azure DevOps ingestion failed: {e}")
             import traceback
             logger.debug(traceback.format_exc())
             return []

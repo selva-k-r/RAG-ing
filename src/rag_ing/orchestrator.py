@@ -395,10 +395,10 @@ def main():
     if args.ingest:
         print("🔄 Starting corpus ingestion...")
         result = rag.ingest_corpus()
-        print(f"✅ Ingestion completed: {result}")
+        print(f"[OK] Ingestion completed: {result}")
         
     elif args.status:
-        print("📊 System Status:")
+        print("System Status:")
         status = rag.get_system_status()
         print(status)
         
@@ -407,7 +407,7 @@ def main():
         rag.run_web_app()
         
     else:
-        print("🔍 RAG System initialized. Use --help for options.")
+        print("RAG System initialized. Use --help for options.")
 
 
 if __name__ == "__main__":

@@ -1,7 +1,6 @@
 """Module 4: UI Layer (FastAPI Implementation)
 
 Objective: Provide web interface for query input and response display using FastAPI.
-Note: This module has been migrated from Streamlit to FastAPI for 100% UI control.
 """
 
 import logging

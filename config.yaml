@@ -28,9 +28,9 @@ data_source:
         server_url: "${JIRA_URL}"
         username: "${JIRA_USER}"
         auth_token: "${JIRA_TOKEN}"
-        project_keys: ["ONCOLOGY", "RESEARCH", "CLINICAL"]
+        project_keys: ["PROJECT1", "PROJECT2", "PROJECT3"]
         issue_types: ["Story", "Task", "Bug", "Epic", "Requirement"]
-        jql_filter: "project in (ONCOLOGY, RESEARCH) AND status != Closed"
+        jql_filter: "project in (PROJECT1, PROJECT2) AND status != Closed"
         max_issues: 200
       description: "Project tickets and requirements from Jira"
       
@@ -40,12 +40,45 @@ data_source:
         organization: "${AZURE_DEVOPS_ORG}"
         project: "${AZURE_DEVOPS_PROJECT}"
         pat_token: "${AZURE_DEVOPS_PAT}"
-        repo_name: "${AZURE_DEVOPS_REPO}"  # Optional: specific repo
-        branch: "main"  # Default branch
-        file_extensions: [".md", ".py", ".txt", ".json", ".yaml", ".yml", ".sql", ".csv"]
-        include_paths: ["/"]  # Paths to include (/ = all)
-        exclude_paths: ["/node_modules", "/bin", "/obj", "/.git"]  # Paths to exclude
-      description: "Project files and documentation from Azure DevOps"
+        repo_name: "${AZURE_DEVOPS_REPO}"  # dbt-pophealth
+        branch: "develop"  # Default branch
+        
+        # PATH FILTERING - Load only specific folders
+        include_paths:
+          - "/path1"
+        
+        exclude_paths:
+          - "/path1/tests/fixtures"  # Skip test fixture data
+          - "/path1/libraries"  # Skip third-party libraries
+          - "/path1/.github"    # Skip GitHub config
+        
+        # FILE TYPE FILTERING
+        include_file_types:
+          - ".sql"     # DBT models
+          - ".py"      # Python scripts
+          - ".yaml"    # Configurations
+          - ".yml"     # Configurations
+          - ".md"      # Documentation
+          - ".csv"     # Seed files
+          - ".bim"     # Power BI models
+        
+        exclude_file_types:
+          - ".pbix"       # Power BI binaries
+          - ".dll"        # Binary files
+          - ".sln"        # Visual Studio files
+          - ".smproj"     # SQL Server projects
+          - ".gitignore"  # Git files
+          - ".gitkeep"    # Git files
+        
+        # COMMIT HISTORY TRACKING (NEW!)
+        fetch_commit_history: true    # Enable commit history
+        commits_per_file: 10          # Fetch last 10 commits per file
+        
+        # BATCH PROCESSING (NEW!)
+        enable_streaming: true        # Process files in batches (recommended)
+        batch_size: 50                # Files per batch (50 = ~3-5 min per batch)
+        
+      description: "Project files and documentation from Azure DevOps with commit history"
 
 chunking:
   strategy: "recursive"  # recursive | semantic
@@ -140,8 +173,8 @@ llm:
   
   # Local fallback configuration (koboldcpp)
   api_url: "http://localhost:5000/v1"  # For local models
-  prompt_template: "./prompts/oncology.txt"
-  system_instruction: "You are an AI assistant that provides clear, concise answers. IMPORTANT: Give direct answers first, then supporting details. For questions about when something started, provide the specific date or timeframe immediately. Format responses with clear structure and avoid lengthy technical paragraphs."
+  prompt_template: "./prompts/general.txt"
+  system_instruction: "You are an AI assistant that provides clear, concise answers based STRICTLY on the provided context. CRITICAL: Answer ONLY from the given context - never use external knowledge. If the answer is not in the context, clearly state this and suggest rephrasing based on available information. Give direct answers first, then supporting details. Format responses with clear structure."
   
   # Response formatting preferences
   response_style: "concise"           # concise | detailed | technical
@@ -151,7 +184,7 @@ llm:
 
 # Module 4: UI Layer Configuration
 ui:
-  framework: "fastapi"  # Current framework (streamlit archived)
+  framework: "fastapi"  # FastAPI web interface
   port: 8000
   host: "0.0.0.0"
   debug: false
@@ -224,7 +257,7 @@ evaluation:
 vector_store:
   type: "chroma"
   path: "./vector_store"
-  collection_name: "oncology_docs"
+  collection_name: "rag_documents"
 
 # Duplicate Detection Configuration
 # Prevents same document from being indexed multiple times
@@ -265,9 +298,9 @@ activity_logging:
 hierarchical_storage:
   enabled: true
   use_summaries: true  # Use LLM to create document summaries
-  summary_collection: "oncology_docs_summaries"  # Separate collection for summaries
-  chunk_collection: "oncology_docs_chunks"  # Collection for detailed chunks
-  summary_prompt: "Summarize this document in 2-3 sentences, preserving key medical terms and concepts:"
+  summary_collection: "rag_documents_summaries"  # Separate collection for summaries
+  chunk_collection: "rag_documents_chunks"  # Collection for detailed chunks
+  summary_prompt: "Summarize this document in 2-3 sentences, preserving key terms and concepts:"
   routing_threshold: 0.7  # If summary match > 0.7, fetch detailed chunks
 
 # Temporary Files Configuration

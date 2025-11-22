@@ -48,7 +48,7 @@ class IngestionTrackerSQLite:
         """
         self.db_path = Path(db_path)
         self._init_database()
-        logger.info(f"📊 SQLite ingestion tracker initialized: {self.db_path}")
+        logger.info(f"SQLite ingestion tracker initialized: {self.db_path}")
     
     @contextmanager
     def _get_connection(self):
@@ -127,7 +127,7 @@ class IngestionTrackerSQLite:
             conn.execute("PRAGMA foreign_keys=ON")
             
             conn.commit()
-            logger.info("✅ Database schema initialized with indexes")
+            logger.info("Database schema initialized with indexes")
     
     def get_document_status(self, source_type: str, document_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -453,7 +453,7 @@ class IngestionTrackerSQLite:
         
         if documents:
             self.bulk_upsert(documents)
-            logger.info(f"✅ Migrated {len(documents)} records from CSV to SQLite")
+            logger.info(f"Migrated {len(documents)} records from CSV to SQLite")
         
         return len(documents)
     
@@ -484,7 +484,7 @@ class IngestionTrackerSQLite:
                 writer.writeheader()
                 writer.writerows([dict(row) for row in rows])
             
-            logger.info(f"📊 Exported {len(rows)} records to {csv_path}")
+            logger.info(f"Exported {len(rows)} records to {csv_path}")
             return len(rows)
     
     def vacuum(self):
@@ -495,7 +495,7 @@ class IngestionTrackerSQLite:
         """
         with self._get_connection() as conn:
             conn.execute("VACUUM")
-            logger.info("🗜️ Database vacuumed")
+            logger.info("Database vacuumed")
     
     def get_query_plan(self, query: str) -> str:
         """
