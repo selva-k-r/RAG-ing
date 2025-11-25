@@ -308,7 +308,7 @@ class IngestionTrackerSQLite:
         with self._get_connection() as conn:
             conn.executemany(query, values_list)
             conn.commit()
-            logger.info(f"📦 Bulk upserted {len(documents)} documents")
+            logger.info(f" Bulk upserted {len(documents)} documents")
     
     def get_documents_by_source(self, source_type: str, 
                                status: Optional[str] = None) -> List[Dict[str, Any]]:

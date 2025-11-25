@@ -393,7 +393,7 @@ def main():
     rag = create_rag_system(args.config)
     
     if args.ingest:
-        print("🔄 Starting corpus ingestion...")
+        print(" Starting corpus ingestion...")
         result = rag.ingest_corpus()
         print(f"[OK] Ingestion completed: {result}")
         
@@ -403,7 +403,7 @@ def main():
         print(status)
         
     elif args.ui:
-        print("🌐 Launching UI...")
+        print(" Launching UI...")
         rag.run_web_app()
         
     else:

@@ -257,7 +257,7 @@ async def get_search_result(session_id: str):
                 "error_type": error_details.get('error_type', 'Unknown'),
                 "error_details": error_details.get('error_message', ''),
                 "traceback": error_details.get('traceback', '') if logger.level <= 10 else None,  # Only in debug mode
-                "user_message": f"""## ❌ Search Processing Error
+                "user_message": f"""##  Search Processing Error
 
 The search failed during processing. This typically happens when the LLM provider is not properly configured.
 

@@ -63,14 +63,14 @@ def main():
         description="RAG-ing: Modular RAG PoC with 5 core modules for oncology domain",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-🔬 Modular Architecture:
+ Modular Architecture:
   Module 1: Corpus & Embedding Lifecycle - Document ingestion with PubMedBERT
   Module 2: Query Processing & Retrieval - Semantic search with domain filtering  
   Module 3: LLM Orchestration - KoboldCpp integration with medical prompts
   Module 4: UI Layer - User interface with feedback
   Module 5: Evaluation & Logging - Performance tracking and safety monitoring
 
-📋 Examples:
+ Examples:
   python main.py --ui                    # Launch FastAPI web interface
   python main.py --ingest               # Process corpus and build vector store
   python main.py --query "cancer treatment options"  # Single query via CLI
@@ -186,7 +186,7 @@ def main():
             print("-" * 40)
             
             if result['sources']:
-                print(f"\n📚 Sources ({len(result['sources'])}):")
+                print(f"\n Sources ({len(result['sources'])}):")
                 for i, source in enumerate(result['sources'][:3], 1):  # Show first 3 sources
                     # Handle both Document objects and dictionaries
                     if hasattr(source, 'metadata'):
@@ -200,51 +200,51 @@ def main():
                     print(f"  ... and {len(result['sources']) - 3} more sources")
         
         elif args.status:
-            print("\n📊 System Status:")
+            print("\n System Status:")
             status = orchestrator.get_system_status()
             
             # System overview
             system_info = status['system']
-            print(f"🟢 Status: {system_info['status']}")
-            print(f"⏰ Uptime: {system_info['uptime_formatted']}")
-            print(f"🏗️  Modules: {system_info['modules_initialized']}/5")
+            print(f" Status: {system_info['status']}")
+            print(f" Uptime: {system_info['uptime_formatted']}")
+            print(f"  Modules: {system_info['modules_initialized']}/5")
             
             # Performance metrics
             if 'performance' in status:
                 perf = status['performance']
-                print(f"\n📈 Performance Metrics:")
+                print(f"\n Performance Metrics:")
                 print(f"  Total queries: {perf.get('system_metrics', {}).get('total_queries', 0)}")
                 print(f"  Success rate: {100 * (1 - perf.get('system_metrics', {}).get('error_rate', 0)):.1f}%")
                 print(f"  Avg response time: {perf.get('avg_end_to_end_time', 0):.2f}s")
                 
         elif args.export_metrics:
-            print("\n📤 Exporting session metrics...")
+            print("\n Exporting session metrics...")
             metrics = orchestrator.export_session_data()
             
             output_file = f"metrics_{int(time.time())}.json"
             with open(output_file, 'w') as f:
                 f.write(metrics)
             
-            print(f"✅ Metrics exported to: {output_file}")
+            print(f" Metrics exported to: {output_file}")
             
         elif args.health_check:
-            print("\n🏥 Performing health check...")
+            print("\n Performing health check...")
             health = orchestrator.health_check()
             
             print(f"Overall Status: {health['overall'].upper()}")
             print(f"Timestamp: {health['timestamp']}")
             print("\nModule Status:")
             for module, status in health['modules'].items():
-                status_icon = "🟢" if status['status'] == 'healthy' else "🔴"
+                status_icon = "" if status['status'] == 'healthy' else ""
                 print(f"  {status_icon} {module}: {status['status']}")
                 if 'error' in status:
                     print(f"    [ERROR] {status['error']}")
         
         elif args.ui:
-            print("\n🚀 Launching UI Layer (Module 4)...")
-            print("🌐 FastAPI web interface will open in your browser")
+            print("\n Launching UI Layer (Module 4)...")
+            print(" FastAPI web interface will open in your browser")
             print("   Navigate to: http://localhost:8000")
-            print("🎯 New modular UI structure:")
+            print(" New modular UI structure:")
             print("   - ui/app.py: Main FastAPI application")
             print("   - ui/api/: API routes and handlers")
             print("   - ui/templates/: HTML templates")
@@ -253,7 +253,7 @@ def main():
             
         else:
             print("\n[INFO] No action specified. Use --help for available options.")
-            print("\n💡 Quick start:")
+            print("\n Quick start:")
             print("  python main.py --ingest    # First, ingest your corpus")
             print("  python main.py --ui        # Then, launch the UI")
     

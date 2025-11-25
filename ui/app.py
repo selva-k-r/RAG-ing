@@ -33,16 +33,16 @@ async def lifespan(app: FastAPI):
     global rag_system
     
     print("=" * 70)
-    print("🚀 Starting iConnect RAG System")
+    print(" Starting iConnect RAG System")
     print("=" * 70)
     
     try:
-        print("\n📋 Loading configuration from config.yaml...")
+        print("\n Loading configuration from config.yaml...")
         rag_system = RAGOrchestrator('./config.yaml')
-        print("✅ Configuration loaded")
+        print(" Configuration loaded")
         
         # Validate LLM connectivity
-        print("\n🔌 Validating LLM provider connectivity...")
+        print("\n Validating LLM provider connectivity...")
         llm_module = rag_system.llm_orchestration
         provider = llm_module.llm_config.provider
         model = llm_module.llm_config.model
@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI):
         
         if not llm_module.client:
             raise ConnectionError(
-                f"❌ LLM provider '{provider}' failed to initialize!\n\n"
+                f" LLM provider '{provider}' failed to initialize!\n\n"
                 f"Current configuration:\n"
                 f"  - Provider: {provider}\n"
                 f"  - Model: {model}\n\n"
@@ -62,34 +62,34 @@ async def lifespan(app: FastAPI):
                 f"See FIX_404_ERROR.md for complete instructions."
             )
         
-        print(f"✅ LLM provider '{provider}' connected")
+        print(f" LLM provider '{provider}' connected")
         
         # Test LLM connection
-        print("\n🧪 Testing LLM connection...")
+        print("\n Testing LLM connection...")
         try:
             test_result = llm_module.test_connection()
             if test_result:
-                print("✅ LLM connection test: PASSED")
+                print(" LLM connection test: PASSED")
             else:
-                print("⚠️  LLM connection test: FAILED (but initialization succeeded)")
+                print("  LLM connection test: FAILED (but initialization succeeded)")
                 print("   The system will start but queries may fail.")
         except Exception as test_error:
-            print(f"⚠️  LLM connection test failed: {test_error}")
+            print(f"  LLM connection test failed: {test_error}")
             print("   The system will start but queries may fail.")
         
         print("\n" + "=" * 70)
-        print("✅ RAG system initialized successfully")
+        print(" RAG system initialized successfully")
         print("=" * 70)
-        print(f"\n📱 Frontend: http://localhost:8000")
-        print(f"🔧 API Docs: http://localhost:8000/docs")
-        print(f"💡 Health Check: http://localhost:8000/api/health")
+        print(f"\n Frontend: http://localhost:8000")
+        print(f" API Docs: http://localhost:8000/docs")
+        print(f" Health Check: http://localhost:8000/api/health")
         print("\n" + "=" * 70 + "\n")
         
         yield
         
     except (ValueError, ConnectionError) as e:
         print("\n" + "=" * 70)
-        print("❌ STARTUP FAILED - Configuration Error")
+        print(" STARTUP FAILED - Configuration Error")
         print("=" * 70)
         print(f"\n{str(e)}\n")
         print("=" * 70)
@@ -101,7 +101,7 @@ async def lifespan(app: FastAPI):
         
     except Exception as e:
         print("\n" + "=" * 70)
-        print("❌ STARTUP FAILED - Unexpected Error")
+        print(" STARTUP FAILED - Unexpected Error")
         print("=" * 70)
         print(f"\nError: {e}\n")
         import traceback
@@ -142,9 +142,9 @@ def get_rag_system():
 
 if __name__ == "__main__":
     import uvicorn
-    print("📱 Frontend: http://localhost:8000")
-    print("🔧 API Docs: http://localhost:8000/docs")
-    print("⚡ Performance: Maximum - Clean modular architecture")
+    print(" Frontend: http://localhost:8000")
+    print(" API Docs: http://localhost:8000/docs")
+    print(" Performance: Maximum - Clean modular architecture")
     
     uvicorn.run(
         "app:app",

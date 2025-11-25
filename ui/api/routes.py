@@ -149,8 +149,8 @@ async def search(request: SearchRequest):
                 "total_docs": len(docs),
                 "response_type": "enhanced",
                 "timestamp": datetime.now().isoformat(),
-                "response_time": round(response_time, 2),  # ✅ Added!
-                "unique_sources": unique_sources  # ✅ Added!
+                "response_time": round(response_time, 2),  #  Added!
+                "unique_sources": unique_sources  #  Added!
             },
             query_hash=query_hash
         )
@@ -164,7 +164,7 @@ async def search(request: SearchRequest):
         error_message = str(e)
         
         # Create user-friendly error response with markdown formatting
-        user_response = f"""## ⚠️ {error_type}
+        user_response = f"""##  {error_type}
 
 {error_message}
 
@@ -172,9 +172,9 @@ async def search(request: SearchRequest):
 The RAG system successfully retrieved relevant documents, but failed to generate an AI response because the LLM (Language Model) provider is not properly configured or accessible.
 
 ### Quick Diagnosis
-- ✅ Document retrieval: Working
-- ✅ Vector database: Working  
-- ❌ LLM provider: **Not configured or unreachable**
+-  Document retrieval: Working
+-  Vector database: Working  
+-  LLM provider: **Not configured or unreachable**
 
 ### Need Help?
 - Run system diagnostics: `python main.py --status`
@@ -231,7 +231,7 @@ The RAG system successfully retrieved relevant documents, but failed to generate
         logger.error(full_traceback)
         
         # User-friendly error message
-        user_response = f"""## ❌ Unexpected Error
+        user_response = f"""##  Unexpected Error
 
 An unexpected error occurred while processing your query.
 
@@ -381,7 +381,7 @@ async def health_check():
             timestamp=datetime.now().isoformat(),
             modules={
                 "rag_system": "not_initialized",
-                "message": "⚠️ RAG system failed to initialize. Check startup logs for details.",
+                "message": " RAG system failed to initialize. Check startup logs for details.",
                 "action": "Run 'python setup_azure_openai.py' or check FIX_404_ERROR.md"
             }
         )
@@ -395,15 +395,15 @@ async def health_check():
             "provider": llm_module.llm_config.provider,
             "model": llm_module.llm_config.model,
             "initialized": llm_module.client is not None,
-            "status": "✅ Connected" if llm_module.client else "❌ Not connected"
+            "status": " Connected" if llm_module.client else " Not connected"
         }
         
         # Test LLM connection
         try:
             connection_test = llm_module.test_connection()
-            llm_status["connection_test"] = "✅ Passed" if connection_test else "⚠️ Failed"
+            llm_status["connection_test"] = " Passed" if connection_test else " Failed"
         except Exception as test_error:
-            llm_status["connection_test"] = f"❌ Failed: {str(test_error)}"
+            llm_status["connection_test"] = f" Failed: {str(test_error)}"
             llm_status["action_required"] = "Check LLM provider configuration"
         
         health_status["modules"]["llm_details"] = llm_status

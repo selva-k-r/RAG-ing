@@ -169,9 +169,9 @@ I wasn't able to find relevant documents for your query: "{query}"
 • Contact support if you believe this information should be available
 
 **System Status:**
-• ✅ Search system is operational
-• ✅ Document index is accessible
-• ❌ No matching documents found for this query
+•  Search system is operational
+•  Document index is accessible
+•  No matching documents found for this query
 
 ---
 *Search completed - no relevant documents found*"""

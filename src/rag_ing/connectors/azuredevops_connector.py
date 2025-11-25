@@ -365,7 +365,7 @@ class AzureDevOpsConnector:
         if not repo_name:
             raise ValueError("repo_name is required")
         
-        logger.info(f"🔄 Streaming files from {repo_name}, branch: {branch}, path: {path} (batch size: {batch_size})")
+        logger.info(f" Streaming files from {repo_name}, branch: {branch}, path: {path} (batch size: {batch_size})")
         
         try:
             # Get repository ID first
@@ -457,7 +457,7 @@ class AzureDevOpsConnector:
                             
                             # Yield batch when full
                             if len(batch) >= batch_size:
-                                logger.info(f"📦 Yielding batch of {len(batch)} files (total processed: {files_processed})")
+                                logger.info(f" Yielding batch of {len(batch)} files (total processed: {files_processed})")
                                 yield batch
                                 batch = []
                     
@@ -467,7 +467,7 @@ class AzureDevOpsConnector:
             
             # Yield remaining documents
             if batch:
-                logger.info(f"📦 Yielding final batch of {len(batch)} files (total: {files_processed})")
+                logger.info(f" Yielding final batch of {len(batch)} files (total: {files_processed})")
                 yield batch
             
             # Log summary
