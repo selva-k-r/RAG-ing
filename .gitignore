@@ -5,7 +5,7 @@
 # LangGraph
 .langgraph_api/
 
-# Python
+# Python bytecode / build artifacts
 __pycache__/
 *.py[cod]
 *$py.class
@@ -30,33 +30,30 @@ MANIFEST
 
 # Virtual environments
 .env
-.venv
+.env.local
+.venv/
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
 
-# IDE
+# Editors / IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# Jupyter Notebook
+# Notebooks
 .ipynb_checkpoints
 
-# pyenv
+# Python tooling
 .python-version
-
-# pipenv
 Pipfile.lock
-
-# pytest
 .pytest_cache/
 
-# Coverage reports
+# Coverage / testing artifacts
 htmlcov/
 .tox/
 .coverage
@@ -67,7 +64,7 @@ coverage.xml
 *.cover
 .hypothesis/
 
-# mypy
+# Type checkers
 .mypy_cache/
 .dmypy.json
 dmypy.json
@@ -75,20 +72,37 @@ dmypy.json
 # Streamlit
 .streamlit/
 
-# Vector databases
+# Databases / vector stores
 *.faiss
-chroma_db/
 *.db
 *.sqlite
+*.sqlite3
+chroma_db/
+vector_store/
+ingestion_tracking.db
 
-# Logs
+# Logs & metrics
 *.log
 logs/
+debug_tools/logs/
+debug_tools/reports/
+debug_tools/test_data/
+debug_tools/*.db
 
-# Temporary files
+# Temporary helpers / scratch space
 tmp/
 temp/
 .tmp/
+temp_helper_codes/
+
+# Secrets / keys
+secrets/
+*.key
+*.pem
+
+# Project-specific generated docs
+RAG_RESPONSE_TUNING_FINAL_REPORT.md
+MODEL_CONFIGURATION_CLEANUP_SUMMARY.md
 
 # OS generated files
 .DS_Store
@@ -98,14 +112,3 @@ temp/
 .Trashes
 ehthumbs.db
 Thumbs.db
-
-# API keys and secrets
-.env
-secrets/
-*.key
-*.pem
-temp_helper_codes/
-RAG_RESPONSE_TUNING_FINAL_REPORT.md
-MODEL_CONFIGURATION_CLEANUP_SUMMARY.md
-vector_store/
-*.sqlite3

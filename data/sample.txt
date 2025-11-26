@@ -1,3 +1,0 @@
-This is a sample text file.
-It contains some text for testing the ingestion process.
-This file will be read directly.
