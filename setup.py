@@ -1,1 +1,76 @@
-"""Setup configuration for RAG-ing package.""" from setuptools import setup, find_packages from pathlib import Path # Read requirements from requirements.txt requirements_path = Path(__file__).parent / "requirements.txt" if requirements_path.exists(): with open(requirements_path, 'r', encoding='utf-8') as f: requirements = [ line.strip() for line in f if line.strip() and not line.startswith('#') ] else: requirements = [] # Read long description from README readme_path = Path(__file__).parent / "README.md" long_description = "" if readme_path.exists(): with open(readme_path, 'r', encoding='utf-8') as f: long_description = f.read() setup( name="rag-ing", version="0.1.0", description="RAG-ing: Modular RAG system for oncology-focused document retrieval", long_description=long_description, long_description_content_type="text/markdown", author="Selva & Tim", python_requires=">=3.10", # Package discovery package_dir={"": "src"}, packages=find_packages(where="src"), # Include non-Python files include_package_data=True, package_data={ "rag_ing": [ "config/*.yaml", "prompts/*.txt", ], }, # Dependencies install_requires=requirements, # Optional dependencies extras_require={ "dev": [ "pytest>=7.0.0", "pytest-cov>=4.0.0", "black>=23.0.0", "flake8>=6.0.0", "mypy>=1.0.0", ], }, # Entry points for CLI entry_points={ "console_scripts": [ "rag-ing=rag_ing.main:main", ], }, # Classifiers classifiers=[ "Development Status:: 3 - Alpha", "Intended Audience:: Developers", "Topic:: Scientific/Engineering:: Artificial Intelligence", "Programming Language:: Python:: 3.10", "Programming Language:: Python:: 3.11", "Programming Language:: Python:: 3.12", ], )
+"""Setup configuration for RAG-ing package."""
+from setuptools import setup, find_packages
+from pathlib import Path
+
+# Read requirements from requirements.txt
+requirements_path = Path(__file__).parent / "requirements.txt"
+if requirements_path.exists():
+    with open(requirements_path, 'r', encoding='utf-8') as f:
+        requirements = [
+            line.strip()
+            for line in f
+            if line.strip() and not line.startswith('#')
+        ]
+else:
+    requirements = []
+
+# Read long description from README
+readme_path = Path(__file__).parent / "README.md"
+long_description = ""
+if readme_path.exists():
+    with open(readme_path, 'r', encoding='utf-8') as f:
+        long_description = f.read()
+
+setup(
+    name="rag-ing",
+    version="0.1.0",
+    description="RAG-ing: Modular RAG system for oncology-focused document retrieval",
+    long_description=long_description,
+    long_description_content_type="text/markdown",
+    author="Selva & Tim",
+    python_requires=">=3.10",
+    
+    # Package discovery
+    package_dir={"": "src"},
+    packages=find_packages(where="src"),
+    
+    # Include non-Python files
+    include_package_data=True,
+    package_data={
+        "rag_ing": [
+            "config/*.yaml",
+            "prompts/*.txt",
+        ],
+    },
+    
+    # Dependencies
+    install_requires=requirements,
+    
+    # Optional dependencies
+    extras_require={
+        "dev": [
+            "pytest>=7.0.0",
+            "pytest-cov>=4.0.0",
+            "black>=23.0.0",
+            "flake8>=6.0.0",
+            "mypy>=1.0.0",
+        ],
+    },
+    
+    # Entry points for CLI
+    entry_points={
+        "console_scripts": [
+            "rag-ing=rag_ing.main:main",
+        ],
+    },
+    
+    # Classifiers
+    classifiers=[
+        "Development Status :: 3 - Alpha",
+        "Intended Audience :: Developers",
+        "Topic :: Scientific/Engineering :: Artificial Intelligence",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
+    ],
+)
