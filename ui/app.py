@@ -52,29 +52,29 @@ async def lifespan(app: FastAPI):
         
         if not llm_module.client:
             raise ConnectionError(
-                f" LLM provider '{provider}' failed to initialize!\n\n"
+                f" [FAIL] LLM provider '{provider}' failed to initialize!\n\n"
                 f"Current configuration:\n"
                 f"  - Provider: {provider}\n"
                 f"  - Model: {model}\n\n"
                 f"Action required:\n"
-                f"  • For Azure OpenAI: Run 'python setup_azure_openai.py'\n"
-                f"  • For KoboldCpp: Start server at {llm_module.llm_config.api_url}\n\n"
+                f"  - For Azure OpenAI: Run 'python setup_azure_openai.py'\n"
+                f"  - For KoboldCpp: Start server at {llm_module.llm_config.api_url}\n\n"
                 f"See FIX_404_ERROR.md for complete instructions."
             )
         
-        print(f" LLM provider '{provider}' connected")
+        print(f" [OK] LLM provider '{provider}' connected")
         
         # Test LLM connection
         print("\n Testing LLM connection...")
         try:
             test_result = llm_module.test_connection()
             if test_result:
-                print(" LLM connection test: PASSED")
+                print(" [OK] LLM connection test: PASSED")
             else:
-                print("  LLM connection test: FAILED (but initialization succeeded)")
+                print("  [WARN] LLM connection test: FAILED (but initialization succeeded)")
                 print("   The system will start but queries may fail.")
         except Exception as test_error:
-            print(f"  LLM connection test failed: {test_error}")
+            print(f"  [WARN] LLM connection test failed: {test_error}")
             print("   The system will start but queries may fail.")
         
         print("\n" + "=" * 70)
