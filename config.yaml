@@ -41,7 +41,7 @@ data_source:
         project: "${AZURE_DEVOPS_PROJECT}"
         pat_token: "${AZURE_DEVOPS_PAT}"
         repo_name: "${AZURE_DEVOPS_REPO}"  # dbt-pophealth
-        branch: "develop"  # Default branch
+        branch: "spike/rag_search"  # Default branch
         
         # PATH FILTERING - Load only specific folders
         include_paths:
