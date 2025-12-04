@@ -15,6 +15,7 @@ A production-ready Retrieval-Augmented Generation (RAG) system for intelligent d
   - Batch processing (configurable batch size)
   - Incremental updates (track changes, skip unchanged files)
   - Last N commits per file
+  - **DBT Integration** (beta): Lineage graphs, SQL extraction from artifacts
 - **Confluence**: Wiki pages and documentation (planned)
 - **Local Files**: PDF, Markdown, TXT, HTML
 - **Jira**: Tickets and requirements (planned)
@@ -211,6 +212,28 @@ Supported formats: PDF, Markdown, TXT, HTML
 Wiki pages and documentation import.
 
 **Status**: Connector code exists, needs testing and configuration.
+
+### DBT Integration (Beta)
+
+Query DBT project metadata, lineage, and SQL code.
+
+**Capabilities**:
+- **Lineage Graphs**: In-memory graph traversal for model dependencies
+- **SQL Extraction**: Parse manifest.json to extract 1,478+ SQL documents (models, tests, macros)
+- **Seed Data**: CSV reference data with automatic linking to models
+- **Business Queries**: "Does QM2 include J1434 for NK1 high emetic risk?"
+
+**Configuration**:
+```yaml
+azure_devops:
+  include_paths:
+    - "/dbt_anthem/target/"         # Artifacts (manifest, catalog, graph)
+    - "/dbt_anthem/dbt_project.yml" # Project config
+    - "/dbt_anthem/data/"           # Seed CSV files
+```
+
+**Status**: Core processing complete, streaming configuration pending (30 min setup)  
+**Documentation**: See `docs/DBT_INTEGRATION_STATUS.md`
 
 ### Jira (Planned)
 
