@@ -21,9 +21,13 @@ A production-ready Retrieval-Augmented Generation (RAG) system for intelligent d
 
 ### Production-Ready
 - **FastAPI Web Interface**: Modern REST API with SSE progress tracking
+- **Hierarchical Storage**: Two-tier retrieval (summaries → detailed chunks)
+  - LLM-generated rich summaries with business context, keywords, topics
+  - Type-specific summarization (SQL, Python, YAML, PDF)
+  - Smart routing based on relevance scores
 - **Hybrid Search**: Semantic vector search + keyword matching
 - **Azure OpenAI Integration**: GPT-4/GPT-4o with fallback providers
-- **Persistent Storage**: ChromaDB vector database
+- **Persistent Storage**: ChromaDB vector database with dual collections
 - **Structured Logging**: JSON logs for analysis and monitoring
 
 ### Code Quality
@@ -498,11 +502,48 @@ docker-compose -f docker-compose.minimal.yml up --build
 - General-purpose RAG (domain-agnostic)
 - Strict document grounding (zero hallucination)
 - Azure OpenAI integration (GPT-4/GPT-4o)
-- ChromaDB vector storage
+- ChromaDB vector storage with hierarchical collections
 - FastAPI web interface
 - Structured logging
 
-**Azure DevOps Integration**:
+**Hierarchical Storage** (✅ Complete):
+- Two-tier retrieval: summaries for high-level search, chunks for details
+- LLM-generated rich summaries with:
+  - Business context and purpose
+  - Searchable keywords and topics (10-15 per doc)
+  - Document type classification
+  - Technical details (tables, functions, dependencies)
+- Type-specific summarization:
+  - SQL: Business logic, data transformations, key metrics
+  - Python: Functionality, classes, external dependencies
+  - YAML: Configuration settings, relationships
+  - PDF: Key entities, document category, sections
+- Smart routing: Top 15 summary candidates → metadata boosting → top 5 detailed results
+### 🎯 Next Release: Project-Aware RAG with DBT Artifacts (v0.2.0)
+
+**DBT Artifacts Integration** (In Development - Q1 2026):
+- [ ] **DBT Manifest Parser**: Parse manifest.json, catalog.json, dbt_project.yml
+- [ ] **Project Detection**: Identify DBT projects from folder structure
+- [ ] **Rich Metadata Extraction**:
+  - Model descriptions and documentation
+  - Column-level lineage and descriptions
+  - Tags, meta properties, owners
+  - Dependency graphs (upstream/downstream)
+  - Test definitions and results
+- [ ] **Project-Aware Filtering**: 
+  - Query understanding layer (detect project mentions)
+  - Metadata-based filtering (project tags)
+  - Multi-project comparison queries
+- [ ] **Enhanced Search**:
+  - "What is QM2 logic in Anthem project?" (project-scoped)
+  - "Compare QM1 across EOM, Anthem, and UPMC" (multi-project)
+  - "Show all models in staging layer" (structural queries)
+- [ ] **Knowledge Graph Integration**:
+  - DBT lineage → graph relationships
+  - Model-to-model dependencies
+  - Table-to-column mappings
+
+**Enhanced Azure DevOps** (Q1 2026):
 - Multi-repository support
 - Commit history tracking (last N commits per file)
 - Path and file type filtering

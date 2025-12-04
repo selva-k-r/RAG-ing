@@ -1,57 +1,88 @@
 # RAG-ing PoC Requirements & Implementation Plan
 
-**Version**: 0.2 (PoC Enhancement)  
-**Last Updated**: November 19, 2024  
-**Status**: In Progress  
-**Purpose**: Document Manager AI - Production-ready PoC with hierarchical storage and fine-tuning support
+**Version**: 0.3 (Project-Aware RAG with DBT Artifacts)  
+**Last Updated**: December 4, 2025  
+**Status**: In Development (Branch: feature/using-dbt-artifacts)  
+**Purpose**: Project-aware RAG system leveraging DBT artifacts for enhanced metadata and filtering
 
 ---
 
 ## 1. Executive Summary
 
-### 1.1 Current State (v0.1)
-- ✅ **Working**: Confluence document search with AI-powered answers
-- ✅ **Core features**: Hybrid search, Azure OpenAI integration, ChromaDB vector storage
-- ✅ **UI**: FastAPI web interface with progress tracking
-- 🔧 **Status**: Functional but needs fine-tuning and production-readiness improvements
+### 1.1 Current State (v0.1-0.2)
+- ✅ **Production-Ready**: General-purpose RAG with strict document grounding
+- ✅ **Hierarchical Storage**: Two-tier retrieval with rich LLM-generated summaries
+- ✅ **Multi-Source**: Azure DevOps, Confluence (planned), local files
+- ✅ **UI**: FastAPI web interface with SSE progress tracking
+- ✅ **Monitoring**: Structured JSON logging, performance metrics
 
-### 1.2 PoC Goals (v0.2)
-- **Primary**: Production-ready search system with quality monitoring
-- **Secondary**: Enable continuous improvement through user feedback
-- **Timeline**: 2-3 weeks for core improvements
+### 1.2 Next Phase Goals (v0.3 - DBT Artifacts)
+- **Primary**: Project-aware filtering using DBT artifacts metadata
+- **Secondary**: Multi-project comparison queries ("Compare QM1 across Anthem, EOM, UPMC")
+- **Approach**: Parse DBT manifest.json, catalog.json for rich metadata (descriptions, lineage, tags)
+- **Timeline**: 3-4 weeks for core implementation
 
-### 1.3 Out of Scope (Post-PoC)
-- ❌ User authentication (SSO, SAML)
+### 1.3 Why DBT Artifacts?
+**Problem**: Quality measures (QM1, QM2, etc.) defined differently across projects (Anthem, EOM, UPMC). Current semantic search can't distinguish context.
+
+**Solution**: Use DBT's built-in metadata:
+- **manifest.json**: Model descriptions, tags, meta properties, dependencies
+- **catalog.json**: Column descriptions, data types, statistics
+- **dbt_project.yml**: Project configuration, model paths
+- **Automatic Maintenance**: DBT run regenerates artifacts with code changes
+
+### 1.4 Out of Scope (Post-v0.3)
 - ❌ Multi-tenancy and user management
-- ❌ OCR and image-to-text processing
+- ❌ OCR and image processing
 - ❌ Advanced analytics dashboard
+- ❌ Real-time DBT run monitoring
 
 ---
 
-## 2. Current Implementation (v0.1)
+## 2. Current Implementation (v0.2 - Hierarchical Storage)
 
 ### 2.1 Technology Stack
 
 | Component | Technology | Version | Status |
 |-----------|------------|---------|--------|
-| **Language** | Python | 3.8+ | ✅ |
+| **Language** | Python | 3.9+ | ✅ |
 | **Web Framework** | FastAPI | 0.121.1 | ✅ |
-| **Vector Database** | ChromaDB | 1.3.4 | ✅ |
+| **Vector Database** | ChromaDB | 1.3.4 | ✅ (Dual collections) |
 | **Embeddings** | Azure OpenAI | text-embedding-ada-002 | ✅ |
-| **LLM** | Azure OpenAI | gpt-5-nano (GPT-4) | ✅ |
+| **LLM** | Azure OpenAI | gpt-4/gpt-4o | ✅ |
 | **Search** | Hybrid (Semantic + BM25) | - | ✅ |
 | **Reranking** | cross-encoder | ms-marco-MiniLM-L-6-v2 | ✅ |
+| **Hierarchical** | Summaries + Chunks | - | ✅ (v0.2) |
 
 ### 2.2 What Works
 
-#### Storage Layer
+#### Storage Layer (Enhanced with Hierarchical)
 ```python
 # Current implementation
 - Local files: PDF, MD, TXT, HTML (pdfplumber, pymupdf)
-- Confluence: REST API connector with OAuth
+- Azure DevOps: Git repository integration (SQL, Python, YAML files)
+- Confluence: REST API connector (planned)
 - Chunking: 1200 tokens, 100 overlap
 - Embeddings: Azure OpenAI text-embedding-ada-002 (1536 dimensions)
-- Vector storage: ChromaDB persistent storage in ./vector_store/
+- Vector storage: ChromaDB with TWO collections:
+  - rag_documents: Detailed chunks
+  - rag_documents_summaries: LLM-generated summaries with rich metadata
+```
+
+#### Hierarchical Storage (NEW in v0.2)
+```python
+# Implementation details
+- DocumentSummarizer: Type-specific summarization (SQL, Python, YAML, PDF)
+- Rich Metadata:
+  - Business context and purpose (2-3 sentences)
+  - Searchable keywords (10-15 per document)
+  - Topics (3-5 main themes)
+  - Technical details (tables, functions, dependencies)
+- Smart Routing:
+  - Search summaries first (top 15 candidates)
+  - Apply metadata boosting (keywords, document type)
+  - Fetch detailed chunks for high-relevance docs (threshold: 0.7)
+  - Return top 5 final results
 ```
 
 #### Retrieval Layer
@@ -1222,7 +1253,302 @@ quality_metrics = {
 
 ---
 
-## 8. Future Enhancements (Post-PoC)
+## 8. DBT Artifacts Integration (v0.3 - In Development)
+
+### 8.1 Overview
+
+**Goal**: Leverage DBT's built-in metadata artifacts for project-aware filtering and enhanced search.
+
+**Why DBT Artifacts?**
+- **Authoritative**: Maintained by DBT, auto-updated on every run
+- **Rich Metadata**: Descriptions, tags, lineage, column docs, owners
+- **Pre-Computed**: Dependency graphs, relationships already calculated
+- **Structured**: JSON format, easy to parse programmatically
+
+### 8.2 DBT Artifact Files
+
+#### 8.2.1 manifest.json
+**Location**: `{dbt_project}/target/manifest.json`
+
+**Key Information**:
+- **Models**: Name, description, tags, meta properties
+- **Dependencies**: Upstream/downstream relationships
+- **Columns**: Names (column docs in catalog.json)
+- **Config**: Materializations, schemas, aliases
+- **Metadata**: Created/modified timestamps, owners
+
+**Example Structure**:
+```json
+{
+  "nodes": {
+    "model.dbt_anthem.stg_qm2_quality_measure": {
+      "name": "stg_qm2_quality_measure",
+      "description": "Quality Measure 2 staging model for Anthem program",
+      "tags": ["anthem", "qm2", "quality_measures", "staging"],
+      "meta": {
+        "owner": "analytics_team",
+        "business_area": "quality_reporting"
+      },
+      "depends_on": ["source.dbt_anthem.raw_claims"],
+      "columns": {...}
+    }
+  }
+}
+```
+
+#### 8.2.2 catalog.json
+**Location**: `{dbt_project}/target/catalog.json`
+
+**Key Information**:
+- **Column Descriptions**: Business-friendly column documentation
+- **Data Types**: SQL types for each column
+- **Statistics**: Row counts, null percentages (if collected)
+
+**Example Structure**:
+```json
+{
+  "nodes": {
+    "model.dbt_anthem.stg_qm2_quality_measure": {
+      "columns": {
+        "qm2_category": {
+          "type": "VARCHAR",
+          "comment": "QM2 risk classification: low (QM2a), moderate (QM2c), high (QM2d)"
+        },
+        "member_id": {
+          "type": "VARCHAR",
+          "comment": "Unique member identifier"
+        }
+      }
+    }
+  }
+}
+```
+
+#### 8.2.3 dbt_project.yml
+**Location**: `{dbt_project}/dbt_project.yml`
+
+**Key Information**:
+- **Project Name**: Explicit project identification
+- **Model Paths**: Folder structure configuration
+- **Tags**: Project-level default tags
+- **Variables**: Project-specific variables
+
+**Example**:
+```yaml
+name: 'dbt_anthem'
+version: '1.0.0'
+models:
+  dbt_anthem:
+    staging:
+      +tags: ["anthem", "staging"]
+    marts:
+      +tags: ["anthem", "production"]
+```
+
+### 8.3 Implementation Plan
+
+#### 8.3.1 DBTArtifactParser Component
+
+**Purpose**: Parse DBT artifacts during ingestion to enrich metadata.
+
+**File**: `src/rag_ing/connectors/dbt_artifact_parser.py`
+
+```python
+class DBTArtifactParser:
+    """Parse DBT manifest.json, catalog.json for metadata enrichment."""
+    
+    def __init__(self, project_root: str):
+        self.project_root = Path(project_root)
+        self.manifest_path = self.project_root / "target/manifest.json"
+        self.catalog_path = self.project_root / "target/catalog.json"
+        self.project_config_path = self.project_root / "dbt_project.yml"
+        
+    def parse_artifacts(self) -> Dict[str, Any]:
+        """Parse all DBT artifacts into structured metadata.
+        
+        Returns:
+            {
+                'project_name': str,
+                'models': {
+                    'model_unique_id': {
+                        'name': str,
+                        'description': str,
+                        'tags': List[str],
+                        'meta': Dict,
+                        'dependencies': List[str],
+                        'columns': Dict[str, column_metadata]
+                    }
+                },
+                'relationships': List[edge_tuples]
+            }
+        """
+        
+    def extract_model_metadata(self, model_node: Dict) -> Dict:
+        """Extract rich metadata from a single model node."""
+        
+    def build_dependency_graph(self) -> Dict:
+        """Build upstream/downstream dependency graph."""
+        
+    def get_column_documentation(self, model_id: str) -> Dict:
+        """Merge column info from manifest + catalog."""
+```
+
+#### 8.3.2 Metadata Enrichment During Ingestion
+
+**Modify**: `corpus_embedding.py`
+
+```python
+def _ingest_azure_devops_batch(self, batch):
+    # Detect DBT project structure
+    dbt_projects = self._detect_dbt_projects(batch)
+    
+    for project_path in dbt_projects:
+        # Parse DBT artifacts
+        parser = DBTArtifactParser(project_path)
+        artifacts = parser.parse_artifacts()
+        
+        # Store artifacts for query-time filtering
+        self._store_project_metadata(artifacts)
+    
+    # Enrich document metadata with DBT info
+    for doc in batch:
+        if doc_is_dbt_model(doc):
+            dbt_meta = self._match_doc_to_dbt_model(doc, artifacts)
+            doc.metadata.update({
+                'project_name': dbt_meta['project_name'],
+                'dbt_tags': dbt_meta['tags'],
+                'dbt_description': dbt_meta['description'],
+                'dbt_owner': dbt_meta.get('meta', {}).get('owner'),
+                'dbt_dependencies': dbt_meta['dependencies']
+            })
+```
+
+#### 8.3.3 Project-Aware Query Understanding
+
+**New Component**: `src/rag_ing/modules/query_understanding.py`
+
+```python
+class QueryUnderstanding:
+    """Analyze user query to detect project mentions and intent."""
+    
+    def parse_query(self, query: str) -> Dict:
+        """Extract project mentions, quality measure IDs, intent.
+        
+        Examples:
+        - "What is QM2 logic in Anthem?" → {project: 'anthem', qm: 'qm2'}
+        - "Compare QM1 across Anthem, EOM, UPMC" → {multi_project: True, projects: [...], qm: 'qm1'}
+        - "Show all staging models" → {layer: 'staging'}
+        """
+        
+    def should_filter_by_project(self, analysis: Dict) -> bool:
+        """Determine if query requires project filtering."""
+        
+    def generate_filter_criteria(self, analysis: Dict) -> Dict:
+        """Convert query analysis to metadata filters."""
+```
+
+#### 8.3.4 Enhanced Retrieval with Project Filtering
+
+**Modify**: `query_retrieval.py`
+
+```python
+def process_query(self, query: str, filters: Optional[Dict] = None):
+    # Step 1: Query understanding
+    query_analysis = self.query_understanding.parse_query(query)
+    
+    # Step 2: Apply project filtering
+    if query_analysis['needs_project_filter']:
+        filters = self.query_understanding.generate_filter_criteria(query_analysis)
+        # Example filters:
+        # {'project_name': 'anthem', 'dbt_tags': ['qm2']}
+    
+    # Step 3: Multi-project comparison handling
+    if query_analysis['multi_project']:
+        results = []
+        for project in query_analysis['projects']:
+            project_filters = {'project_name': project}
+            project_results = self._retrieve_documents(query_embedding, project_filters)
+            results.append({'project': project, 'results': project_results})
+        return self._format_comparison_response(results)
+    
+    # Step 4: Standard retrieval with filters
+    return self._retrieve_documents(query_embedding, filters)
+```
+
+### 8.4 Use Cases & Test Queries
+
+#### 8.4.1 Project-Scoped Queries
+```
+User: "What is QM2 logic in Anthem?"
+
+Processing:
+1. Query understanding detects: project='anthem', qm='qm2'
+2. Filters applied: {'project_name': 'anthem', 'dbt_tags': ['qm2']}
+3. Retrieval returns: Only Anthem QM2 models
+4. LLM answer: "In Anthem project, QM2 has three classifications: QM2a (low risk), QM2c (moderate risk), QM2d (high risk)..."
+```
+
+#### 8.4.2 Multi-Project Comparison
+```
+User: "Compare QM1 logic across Anthem, EOM, and UPMC"
+
+Processing:
+1. Query understanding detects: multi_project=True, projects=['anthem', 'eom', 'upmc'], qm='qm1'
+2. Retrieval runs 3 separate searches with project filters
+3. LLM answer: 
+   "QM1 logic varies across programs:
+   
+   **Anthem**: Uses 90-day lookback, excludes hospice...
+   
+   **EOM**: Uses 180-day lookback, includes hospice...
+   
+   **UPMC**: Uses 60-day lookback, hybrid approach..."
+```
+
+#### 8.4.3 Structural Queries
+```
+User: "Show all models in staging layer for Anthem"
+
+Processing:
+1. Query understanding detects: project='anthem', layer='staging'
+2. Filters: {'project_name': 'anthem', 'dbt_tags': ['staging']}
+3. Answer: List of all staging models with descriptions from DBT manifest
+```
+
+### 8.5 Implementation Timeline
+
+**Week 1: DBT Parser & Metadata**
+- Day 1-2: DBTArtifactParser implementation
+- Day 3-4: Ingestion integration, metadata enrichment
+- Day 5: Testing with real DBT projects
+
+**Week 2: Query Understanding**
+- Day 1-2: QueryUnderstanding component
+- Day 3-4: Project detection patterns
+- Day 5: Multi-project comparison logic
+
+**Week 3: Enhanced Retrieval**
+- Day 1-2: Project-aware filtering
+- Day 3: Multi-project query handling
+- Day 4-5: End-to-end testing with real queries
+
+**Week 4: Polish & Documentation**
+- Day 1-2: Edge cases, error handling
+- Day 3: Performance optimization
+- Day 4-5: Documentation, code review
+
+### 8.6 Success Metrics
+
+- [ ] **Parsing Accuracy**: 100% of DBT artifacts parsed without errors
+- [ ] **Project Detection**: 95%+ accuracy detecting project mentions in queries
+- [ ] **Filtering Precision**: Correct project filtering in 90%+ of queries
+- [ ] **Multi-Project**: Successfully compare up to 5 projects simultaneously
+- [ ] **Query Latency**: < 500ms added overhead for DBT metadata lookups
+- [ ] **User Satisfaction**: Correct answers for project-specific queries (user validation)
+
+---
+
+## 9. Future Enhancements (Post-v0.3)
 
 ### Phase 2: Authentication & Multi-user
 - User authentication (OAuth, SSO)
