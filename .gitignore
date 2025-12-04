@@ -95,6 +95,10 @@ temp/
 .tmp/
 temp_helper_codes/
 
+# Checkpoint data (resume from interruptions)
+checkpoints/
+.checkpoints/
+
 # Secrets / keys
 secrets/
 *.key
