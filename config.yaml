@@ -44,31 +44,39 @@ data_source:
         branch: "spike/rag_search"  # Default branch
         
         # PATH FILTERING - Load only specific folders
+        # NOTE: Azure DevOps API requires DIRECTORY paths (not individual files)
+        # Paths use startswith() matching - all files under path are fetched
         include_paths:
           # ========================================
           # DBT ARTIFACTS (REQUIRED)
           # Contains ALL SQL code (models, tests, macros) + metadata
+          # Fetches: manifest.json, catalog.json, graph_summary.json
           # ========================================
-          - "/dbt_anthem/target/manifest.json"       # SQL code + model definitions
-          - "/dbt_anthem/target/catalog.json"        # Column types + statistics
-          - "/dbt_anthem/target/graph_summary.json"  # Lineage graph
-          - "/dbt_anthem/dbt_project.yml"            # Project config
+          - "/dbt_anthem/target/"                    # Artifacts directory
+          
+          # ========================================
+          # DBT PROJECT CONFIG (REQUIRED)
+          # Contains project name, version, profiles
+          # Fetches: dbt_project.yml
+          # ========================================
+          - "/dbt_anthem/dbt_project.yml"            # Project config file
           
           # ========================================
           # DBT SEED FILES (REQUIRED for business data queries)
           # CSV reference data used by models
           # ========================================
-          - "/dbt_anthem/data/"                      # Seed CSV files
+          - "/dbt_anthem/data/"                      # Seed CSV files directory
           
           # ========================================
           # NON-DBT CONTENT (optional)
           # ========================================
-          # - "Analytics 2.0/TabularModels/..."     # Power BI models (if needed)
+          # - "/Analytics 2.0/TabularModels/"       # Power BI models (if needed)
         
         exclude_paths:
           - "/dbt_anthem/tests/fixtures"             # Skip test fixture data
           - "/dbt_anthem/target/compiled"            # Skip compiled SQL (already in manifest)
           - "/dbt_anthem/target/run"                 # Skip run artifacts
+          - "/dbt_anthem/target/partial_parse.msgpack"  # Skip parser cache
 
         
         # FILE TYPE FILTERING
