@@ -45,26 +45,41 @@ data_source:
         
         # PATH FILTERING - Load only specific folders
         include_paths:
-          - "/dbt_anthem/models"        # DBT models
-          - "/dbt_anthem/data"        # DBT macros
-          - "/dbt_anthem/tests"       # Python scripts
-          - "dbt_anthem/dbt_project.yml"        # Config files
-          - "Analytics 2.0/TabularModels/AnthemReporting/AnthemReporting/Model.bim"          # Documentation
+          # ========================================
+          # DBT ARTIFACTS (REQUIRED)
+          # Contains ALL SQL code (models, tests, macros) + metadata
+          # ========================================
+          - "/dbt_anthem/target/manifest.json"       # SQL code + model definitions
+          - "/dbt_anthem/target/catalog.json"        # Column types + statistics
+          - "/dbt_anthem/target/graph_summary.json"  # Lineage graph
+          - "/dbt_anthem/dbt_project.yml"            # Project config
+          
+          # ========================================
+          # DBT SEED FILES (REQUIRED for business data queries)
+          # CSV reference data used by models
+          # ========================================
+          - "/dbt_anthem/data/"                      # Seed CSV files
+          
+          # ========================================
+          # NON-DBT CONTENT (optional)
+          # ========================================
+          # - "Analytics 2.0/TabularModels/..."     # Power BI models (if needed)
         
         exclude_paths:
-          - "/dbt_anthem/tests/fixtures"  # Skip test fixture data
-          - "/dbt_anthem/libraries"  # Skip third-party libraries
+          - "/dbt_anthem/tests/fixtures"             # Skip test fixture data
+          - "/dbt_anthem/target/compiled"            # Skip compiled SQL (already in manifest)
+          - "/dbt_anthem/target/run"                 # Skip run artifacts
 
         
         # FILE TYPE FILTERING
         include_file_types:
-          - ".sql"     # DBT models
-          - ".py"      # Python scripts
-          - ".yaml"    # Configurations
-          - ".yml"     # Configurations
-          - ".md"      # Documentation
-          - ".csv"     # Seed files
-          - ".bim"     # Power BI models
+          - ".json"    # DBT artifacts (manifest, catalog, graph_summary)
+          - ".yml"     # DBT project config
+          - ".yaml"    # Alternative YAML extension
+          - ".csv"     # Seed reference data files
+          # - ".sql"   # Not needed - SQL code is in manifest.json
+          # - ".md"    # Not needed unless separate docs wanted
+          # - ".py"    # Not needed unless Python models exist
         
         exclude_file_types:
           - ".pbix"       # Power BI binaries

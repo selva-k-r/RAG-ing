@@ -377,6 +377,324 @@ class DBTArtifactParser:
             in self.manifest.get('sources', {}).items()
         ]
     
+    def extract_sql_documents(self, include_compiled: bool = True) -> List[Dict[str, Any]]:
+        """Extract all SQL code from manifest for embedding.
+        
+        Creates synthetic documents from manifest.json containing:
+        - Models: raw_code or compiled_code with metadata
+        - Tests: raw_code with validation logic
+        - Macros: macro_sql with parameter info
+        
+        Args:
+            include_compiled: If True, prefer compiled_code over raw_code for models
+            
+        Returns:
+            List of documents ready for embedding, each with:
+            - content: SQL code (compiled if available, otherwise raw)
+            - metadata: Type, name, description, tags, lineage, etc.
+            - summary: Human-readable summary with lineage context
+            
+        Example:
+            documents = parser.extract_sql_documents(include_compiled=True)
+            for doc in documents:
+                if doc['metadata']['dbt_type'] == 'model':
+                    print(f"Model: {doc['metadata']['dbt_name']}")
+                    print(f"SQL: {doc['content'][:100]}...")
+        """
+        documents = []
+        
+        # 1. Extract Models (raw_code and compiled_code)
+        for node_id, node in self.manifest.get('nodes', {}).items():
+            if node.get('resource_type') != 'model':
+                continue
+            
+            # Choose SQL: compiled_code if available and requested, otherwise raw_code
+            sql_code = None
+            code_type = 'raw'
+            
+            if include_compiled and node.get('compiled_code'):
+                sql_code = node['compiled_code']
+                code_type = 'compiled'
+            elif node.get('raw_code'):
+                sql_code = node['raw_code']
+                code_type = 'raw'
+            
+            if not sql_code:
+                logger.debug(f"No SQL code for model: {node.get('name')}")
+                continue
+            
+            # Get metadata
+            metadata = self.get_model_metadata(node_id)
+            
+            # Build summary with lineage context
+            summary_parts = [
+                f"DBT Model: {node.get('name')}",
+                f"Type: {metadata.get('materialization', 'table')}",
+                f"Schema: {node.get('schema', 'N/A')}"
+            ]
+            
+            if node.get('description'):
+                summary_parts.append(f"Description: {node['description']}")
+            
+            if metadata.get('upstream_models'):
+                summary_parts.append(f"Depends on models: {', '.join(metadata['upstream_models'][:5])}")
+            
+            if metadata.get('upstream_sources'):
+                summary_parts.append(f"Depends on sources: {', '.join(metadata['upstream_sources'][:5])}")
+            
+            if metadata.get('downstream_models'):
+                summary_parts.append(f"Used by: {', '.join(metadata['downstream_models'][:3])}")
+            
+            documents.append({
+                'content': sql_code,
+                'metadata': {
+                    'dbt_type': 'model',
+                    'dbt_unique_id': node_id,
+                    'dbt_name': node.get('name'),
+                    'dbt_description': node.get('description', ''),
+                    'dbt_tags': node.get('tags', []),
+                    'dbt_schema': node.get('schema'),
+                    'dbt_database': node.get('database'),
+                    'dbt_materialization': metadata.get('materialization'),
+                    'dbt_code_type': code_type,
+                    'dbt_file_path': node.get('original_file_path', ''),
+                    'dbt_upstream_models': metadata.get('upstream_models', []),
+                    'dbt_upstream_sources': metadata.get('upstream_sources', []),
+                    'dbt_downstream_models': metadata.get('downstream_models', []),
+                    'lineage_depth': metadata.get('lineage_depth', 0)
+                },
+                'summary': '\n'.join(summary_parts)
+            })
+        
+        # 2. Extract Tests (raw_code)
+        for node_id, node in self.manifest.get('nodes', {}).items():
+            if node.get('resource_type') != 'test':
+                continue
+            
+            sql_code = node.get('raw_code')
+            if not sql_code:
+                continue
+            
+            # Get tested model from depends_on
+            tested_model = None
+            if node.get('depends_on', {}).get('nodes'):
+                for dep_id in node['depends_on']['nodes']:
+                    if dep_id.startswith('model.'):
+                        tested_model = dep_id.split('.')[-1]
+                        break
+            
+            summary_parts = [
+                f"DBT Test: {node.get('name')}",
+                f"Validates: {tested_model or 'N/A'}"
+            ]
+            
+            if node.get('description'):
+                summary_parts.append(f"Purpose: {node['description']}")
+            
+            documents.append({
+                'content': sql_code,
+                'metadata': {
+                    'dbt_type': 'test',
+                    'dbt_unique_id': node_id,
+                    'dbt_name': node.get('name'),
+                    'dbt_description': node.get('description', ''),
+                    'dbt_tags': node.get('tags', []),
+                    'dbt_tested_model': tested_model,
+                    'dbt_file_path': node.get('original_file_path', '')
+                },
+                'summary': '\n'.join(summary_parts)
+            })
+        
+        # 3. Extract Macros (macro_sql)
+        for macro_id, macro in self.manifest.get('macros', {}).items():
+            sql_code = macro.get('macro_sql')
+            if not sql_code:
+                continue
+            
+            # Extract argument names
+            arg_names = [arg.get('name') for arg in macro.get('arguments', []) if arg.get('name')]
+            
+            summary_parts = [
+                f"DBT Macro: {macro.get('name')}",
+            ]
+            
+            if arg_names:
+                summary_parts.append(f"Arguments: {', '.join(arg_names)}")
+            
+            if macro.get('description'):
+                summary_parts.append(f"Description: {macro['description']}")
+            
+            documents.append({
+                'content': sql_code,
+                'metadata': {
+                    'dbt_type': 'macro',
+                    'dbt_unique_id': macro_id,
+                    'dbt_name': macro.get('name'),
+                    'dbt_description': macro.get('description', ''),
+                    'dbt_arguments': arg_names,
+                    'dbt_file_path': macro.get('original_file_path', '')
+                },
+                'summary': '\n'.join(summary_parts)
+            })
+        
+        logger.info(f"[OK] Extracted {len(documents)} SQL documents from manifest")
+        return documents
+    
+    def extract_seed_documents(self, csv_files: Dict[str, str]) -> List[Dict[str, Any]]:
+        """Extract seed CSV files as documents for embedding.
+        
+        Args:
+            csv_files: Dict mapping seed file paths to their content
+                      Example: {'data/reference/seed_antiemetics.csv': 'code,name\nJ1234,...'}
+            
+        Returns:
+            List of documents ready for embedding, each with:
+            - content: CSV file content (full file or chunked)
+            - metadata: Seed name, referencing models, columns, row count
+            - summary: Human-readable summary with usage context
+            
+        Example:
+            csv_files = {
+                'data/reference/seed_antiemetics.csv': 'code,drug_name\nJ1234,Drug1\n...'
+            }
+            seed_docs = parser.extract_seed_documents(csv_files)
+        """
+        import csv
+        from io import StringIO
+        
+        documents = []
+        seed_refs = self.get_seed_references()
+        
+        # Process each CSV file
+        for file_path, content in csv_files.items():
+            # Extract seed name from path
+            # Example: 'data/reference/seed_antiemetics.csv' -> 'seed_antiemetics'
+            file_name = Path(file_path).stem
+            
+            # Find matching seed in manifest
+            seed_node = None
+            seed_node_id = None
+            for node_id, node in self.manifest.get('nodes', {}).items():
+                if node.get('resource_type') == 'seed' and node.get('name') == file_name:
+                    seed_node = node
+                    seed_node_id = node_id
+                    break
+            
+            if not seed_node:
+                logger.debug(f"Seed not found in manifest: {file_name}")
+                continue
+            
+            # Parse CSV to get column info and row count
+            try:
+                csv_reader = csv.DictReader(StringIO(content))
+                rows = list(csv_reader)
+                columns = csv_reader.fieldnames or []
+                row_count = len(rows)
+            except Exception as e:
+                logger.warning(f"Failed to parse CSV {file_name}: {e}")
+                columns = []
+                row_count = 0
+                rows = []
+            
+            # Get models that reference this seed
+            referencing_models = seed_refs.get(file_name, [])
+            
+            # Build summary
+            summary_parts = [
+                f"DBT Seed: {file_name}",
+                f"File: {seed_node.get('original_file_path', file_path)}"
+            ]
+            
+            if seed_node.get('description'):
+                summary_parts.append(f"Description: {seed_node['description']}")
+            
+            if columns:
+                summary_parts.append(f"Columns ({len(columns)}): {', '.join(columns)}")
+            
+            if row_count:
+                summary_parts.append(f"Rows: {row_count}")
+            
+            if referencing_models:
+                summary_parts.append(f"Used by models: {', '.join(referencing_models[:5])}")
+                if len(referencing_models) > 5:
+                    summary_parts.append(f"... and {len(referencing_models) - 5} more")
+            
+            # For large CSVs, include sample rows in summary
+            if rows and len(rows) <= 100:
+                # Small CSV - include full content
+                doc_content = content
+            elif rows:
+                # Large CSV - include header + sample rows + statistics
+                sample_size = min(10, len(rows))
+                sample_rows = rows[:sample_size]
+                
+                # Format sample as CSV string
+                output = StringIO()
+                writer = csv.DictWriter(output, fieldnames=columns)
+                writer.writeheader()
+                writer.writerows(sample_rows)
+                
+                doc_content = output.getvalue()
+                doc_content += f"\n\n[Note: Showing {sample_size} of {row_count} rows]"
+            else:
+                doc_content = content
+            
+            documents.append({
+                'content': doc_content,
+                'metadata': {
+                    'dbt_type': 'seed',
+                    'dbt_unique_id': seed_node_id,
+                    'dbt_seed_name': file_name,
+                    'dbt_description': seed_node.get('description', ''),
+                    'dbt_tags': seed_node.get('tags', []),
+                    'dbt_schema': seed_node.get('schema'),
+                    'dbt_database': seed_node.get('database'),
+                    'dbt_file_path': seed_node.get('original_file_path', file_path),
+                    'dbt_referencing_models': referencing_models,
+                    'csv_columns': columns,
+                    'csv_row_count': row_count,
+                    'csv_is_sample': row_count > 100
+                },
+                'summary': '\n'.join(summary_parts)
+            })
+        
+        logger.info(f"[OK] Extracted {len(documents)} seed documents from CSV files")
+        return documents
+    
+    def get_seed_references(self) -> Dict[str, List[str]]:
+        """Get mapping of seed names to models that reference them.
+        
+        Returns:
+            Dict mapping seed names to list of model names that use them
+            
+        Example:
+            seed_refs = parser.get_seed_references()
+            # {'seed_antiemetics': ['stg_qm2', 'stg_qm3']}
+        """
+        seed_refs = {}
+        
+        # Get all seeds
+        for node_id, node in self.manifest.get('nodes', {}).items():
+            if node.get('resource_type') == 'seed':
+                seed_name = node.get('name')
+                seed_refs[seed_name] = []
+        
+        # Find models that reference each seed
+        for node_id, node in self.manifest.get('nodes', {}).items():
+            if node.get('resource_type') != 'model':
+                continue
+            
+            model_name = node.get('name')
+            depends_on = node.get('depends_on', {}).get('nodes', [])
+            
+            for dep_id in depends_on:
+                if dep_id.startswith('seed.'):
+                    seed_name = dep_id.split('.')[-1]
+                    if seed_name in seed_refs:
+                        seed_refs[seed_name].append(model_name)
+        
+        return seed_refs
+    
     def get_artifact_summary(self) -> Dict[str, Any]:
         """Get summary of loaded artifacts.
         
@@ -402,6 +720,7 @@ class DBTArtifactParser:
             'node_counts': type_counts,
             'total_nodes': len(manifest_nodes),
             'total_sources': len(self.manifest.get('sources', {})),
+            'total_macros': len(self.manifest.get('macros', {}))
         }
         
         if self.graph:

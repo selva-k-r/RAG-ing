@@ -1691,10 +1691,125 @@ class CorpusEmbeddingModule:
                 avg_commits = total_commits_fetched / files_with_commit_history if files_with_commit_history > 0 else 0
                 logger.info(f" Commit History: {files_with_commit_history} files with history ({total_commits_fetched} total commits, avg {avg_commits:.1f} commits/file)")
             
+            # ================================================================
+            # DBT ARTIFACT DETECTION AND PROCESSING
+            # ================================================================
+            dbt_docs = self._process_dbt_artifacts(all_docs)
+            if dbt_docs:
+                logger.info(f"[OK] DBT: Extracted {len(dbt_docs)} additional documents (SQL + seeds)")
+                all_docs.extend(dbt_docs)
+            
             return all_docs
             
         except Exception as e:
             logger.error(f"Azure DevOps ingestion failed: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+            return []
+    
+    def _process_dbt_artifacts(self, documents: List[Document]) -> List[Document]:
+        """Detect and process DBT artifacts from fetched documents.
+        
+        Args:
+            documents: List of raw documents fetched from Azure DevOps
+            
+        Returns:
+            List of synthetic DBT documents (models, tests, macros, seeds)
+        """
+        try:
+            from ..utils.dbt_artifacts import DBTArtifactParser
+            import tempfile
+            import os
+            from pathlib import Path
+            
+            # Step 1: Detect DBT artifacts
+            dbt_files = {}
+            csv_files = {}
+            
+            for doc in documents:
+                file_path = doc.metadata.get('file_path', '')
+                content = doc.page_content
+                
+                # Collect DBT artifact files
+                if file_path.endswith('manifest.json'):
+                    dbt_files['manifest.json'] = content
+                elif file_path.endswith('catalog.json'):
+                    dbt_files['catalog.json'] = content
+                elif file_path.endswith('graph_summary.json'):
+                    dbt_files['graph_summary.json'] = content
+                elif file_path.endswith('dbt_project.yml'):
+                    dbt_files['dbt_project.yml'] = content
+                
+                # Collect seed CSV files
+                elif file_path.endswith('.csv') and '/data/' in file_path:
+                    # Extract seed name from path
+                    csv_files[file_path] = content
+            
+            # Step 2: Check if DBT project detected
+            if 'manifest.json' not in dbt_files or 'dbt_project.yml' not in dbt_files:
+                logger.debug("No DBT artifacts detected (need manifest.json + dbt_project.yml)")
+                return []
+            
+            logger.info("[OK] DBT project detected! Processing artifacts...")
+            logger.info(f"   Artifacts: {', '.join(dbt_files.keys())}")
+            logger.info(f"   Seed CSVs: {len(csv_files)}")
+            
+            # Step 3: Save artifacts to temp directory
+            temp_dir = tempfile.mkdtemp(prefix='dbt_artifacts_')
+            try:
+                for filename, content in dbt_files.items():
+                    file_path = os.path.join(temp_dir, filename)
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(content)
+                
+                # Step 4: Initialize DBT parser
+                parser = DBTArtifactParser(temp_dir)
+                
+                # Step 5: Extract SQL documents (models, tests, macros)
+                sql_documents = parser.extract_sql_documents(include_compiled=True)
+                logger.info(f"   SQL documents: {len(sql_documents)}")
+                
+                # Step 6: Extract seed documents (CSV files)
+                seed_documents = parser.extract_seed_documents(csv_files) if csv_files else []
+                logger.info(f"   Seed documents: {len(seed_documents)}")
+                
+                # Step 7: Convert to Langchain Document format
+                dbt_docs = []
+                
+                for sql_doc in sql_documents:
+                    doc = Document(
+                        page_content=sql_doc['content'],
+                        metadata={
+                            'source': 'dbt_manifest',
+                            'source_type': 'azure_devops',
+                            **sql_doc['metadata']
+                        }
+                    )
+                    dbt_docs.append(doc)
+                
+                for seed_doc in seed_documents:
+                    doc = Document(
+                        page_content=seed_doc['content'],
+                        metadata={
+                            'source': 'dbt_seed',
+                            'source_type': 'azure_devops',
+                            **seed_doc['metadata']
+                        }
+                    )
+                    dbt_docs.append(doc)
+                
+                return dbt_docs
+                
+            finally:
+                # Cleanup temp directory
+                import shutil
+                try:
+                    shutil.rmtree(temp_dir)
+                except Exception as e:
+                    logger.warning(f"Failed to cleanup temp directory {temp_dir}: {e}")
+        
+        except Exception as e:
+            logger.error(f"DBT processing failed: {e}")
             import traceback
             logger.debug(traceback.format_exc())
             return []
