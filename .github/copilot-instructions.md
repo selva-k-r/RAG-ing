@@ -6,6 +6,8 @@
 **Status**: Production-Ready ✓  
 **Last Major Update**: 2025-11-22 (Generalization & Quality Improvements)
 
+**Important rule : Always architect the solution and discuss with me before implementation, You can propose multiple approaches and we will decide together before coding.**
+
 ### What This System Does
 
 A general-purpose Retrieval-Augmented Generation (RAG) system that:

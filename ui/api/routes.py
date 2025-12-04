@@ -28,12 +28,10 @@ search_results_cache = {}
 class SearchRequest(BaseModel):
     query: str
     sources: List[str] = ["confluence", "jira", "internal", "salesforce"]
-    audience: str = "technical"
 
 class ChatRequest(BaseModel):
     query: str
     session_id: str
-    audience: str = "technical"
 
 class SearchResponse(BaseModel):
     success: bool
@@ -133,7 +131,6 @@ async def search(request: SearchRequest):
                 "source_diversity": f"Used {unique_sources} different source(s)"
             },
             "timestamp": current_timestamp,
-            "audience": request.audience,
             "selected_sources": request.sources,
             "conversation": [{
                 "query": request.query.strip(),
@@ -207,7 +204,6 @@ The RAG system successfully retrieved relevant documents, but failed to generate
                 "llm_status": "failed"
             },
             "timestamp": datetime.now().isoformat(),
-            "audience": request.audience,
             "selected_sources": request.sources
         }
         

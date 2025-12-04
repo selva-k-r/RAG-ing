@@ -49,7 +49,6 @@ async def get_detailed_result(result_id: str, request: Request):
         "sources": result_data.get("sources", []),
         "metadata": result_data.get("metadata", {}),
         "query_hash": result_id,
-        "audience": result_data.get("audience", "technical"),
         "timestamp": result_data.get("timestamp", ""),
         "selected_sources": result_data.get("selected_sources", []),
         "conversation": result_data.get("conversation", [])

@@ -512,6 +512,69 @@ class IngestionTrackerSQLite:
             cursor = conn.execute(f"EXPLAIN QUERY PLAN {query}")
             plan = "\n".join([f"{row['detail']}" for row in cursor.fetchall()])
             return plan
+    
+    def record_processed_document(self, source_type: str, document_id: str,
+                                  source_location: str, source_branch: str,
+                                  content: str, chunk_count: int,
+                                  last_modified_date: Optional[str] = None,
+                                  last_modified_by: Optional[str] = None,
+                                  document_title: Optional[str] = None,
+                                  status: str = 'success') -> None:
+        """
+        Record a processed document in the tracking database.
+        
+        This is the main method called by corpus_embedding.py after processing documents.
+        
+        Args:
+            source_type: Type of source (local_file, azure_devops, confluence, jira)
+            document_id: Unique identifier for the document
+            source_location: Location of the source (e.g., repository name, space key)
+            source_branch: Branch or version (for version-controlled sources)
+            content: Full document content for hash computation
+            chunk_count: Number of chunks created from this document
+            last_modified_date: Last modification date from source
+            last_modified_by: Author of last modification
+            document_title: Human-readable title
+            status: Processing status (success, failed, skipped)
+        """
+        import hashlib
+        
+        # Compute content hash for change detection
+        content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
+        
+        # Build metadata dictionary
+        metadata = {
+            'source_location': source_location,
+            'source_branch': source_branch,
+            'content_hash': content_hash,
+            'last_modified_date': last_modified_date,
+            'last_modified_by': last_modified_by,
+            'processed_date': datetime.now().isoformat(),
+            'processed_by': 'rag_system',
+            'chunk_count': chunk_count,
+            'status': status,
+            'document_title': document_title,
+            'file_size_bytes': len(content.encode('utf-8'))
+        }
+        
+        # Use add_or_update_document which handles UPSERT
+        self.add_or_update_document(source_type, document_id, metadata)
+        
+        logger.debug(f"Recorded document: {source_type}/{document_id} ({chunk_count} chunks)")
+    
+    def save(self) -> None:
+        """
+        Save/flush any pending changes to disk.
+        
+        Note: SQLite with WAL mode auto-commits after each transaction,
+        so this is mostly a no-op for compatibility with the old CSV tracker interface.
+        We could add a checkpoint here to force WAL to flush to the main DB file.
+        """
+        # Force a WAL checkpoint to ensure data is written to main DB file
+        with self._get_connection() as conn:
+            conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
+        
+        logger.debug("Database changes flushed to disk")
 
 
 # Example usage and best practices demonstration

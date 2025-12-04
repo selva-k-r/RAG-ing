@@ -67,7 +67,7 @@ class CorpusEmbeddingModule:
         self.hierarchical_config = config.hierarchical_storage
         if self.hierarchical_config.enabled:
             self.summary_vector_store = None  # Separate store for summaries
-            self.document_summarizer = None  # Will be initialized after LLM is available
+            self.document_summarizer = None  # Will be initialized when LLM client is provided
             logger.info("Hierarchical storage enabled")
         else:
             self.summary_vector_store = None
@@ -87,6 +87,21 @@ class CorpusEmbeddingModule:
         }
         
         logger.info(f"CorpusEmbeddingModule initialized - Data source: {self.data_source_config.type}")
+    
+    def set_llm_client(self, llm_client: Any) -> None:
+        """Set LLM client for document summarization.
+        
+        Args:
+            llm_client: LLM client from LLMOrchestrationModule
+        """
+        if self.hierarchical_config.enabled:
+            summarizer_config = {
+                'model': self.config.llm.model,
+                'max_summary_length': 500,
+                'max_keywords': 15
+            }
+            self.document_summarizer = DocumentSummarizer(llm_client, summarizer_config)
+            logger.info(f"[OK] DocumentSummarizer initialized with {self.config.llm.model}")
     
     def process_corpus(self) -> Dict[str, Any]:
         """Enhanced main entry point supporting multi-source corpus processing.
@@ -156,18 +171,42 @@ class CorpusEmbeddingModule:
             # Enhanced logging with multi-source breakdown - CLEAR STATUS
             docs_count = self._stats['documents_processed']
             chunks_count = self._stats['chunk_count']
+            duplicates_skipped = self._stats.get('duplicates_skipped', 0)
+            
+            # Get total documents already in database
+            existing_docs_count = 0
+            existing_chunks_count = 0
+            if hasattr(self, '_ingestion_tracker'):
+                stats = self._ingestion_tracker.get_statistics()
+                existing_docs_count = stats.get('total_documents', 0)
+                existing_chunks_count = stats.get('total_chunks', 0)
             
             if docs_count == 0:
-                logger.warning(f"\n{'='*80}")
-                logger.warning(f"CORPUS PROCESSING COMPLETED BUT NO DOCUMENTS INGESTED")
-                logger.warning(f"{'='*80}")
-                logger.warning(f"Sources enabled: {self._stats.get('sources_processed', 0)}")
-                logger.warning(f"Documents fetched: 0")
-                logger.warning(f"Chunks created: 0")
-                logger.warning(f"Processing time: {processing_time:.2f}s")
-                logger.warning(f"\nNOTHING TO SEARCH - No documents available for queries")
-                logger.warning(f"Check source configurations and error logs above")
-                logger.warning(f"{'='*80}\n")
+                if duplicates_skipped > 0 or existing_docs_count > 0:
+                    # All documents were duplicates - system already has content
+                    logger.info(f"\n{'='*80}")
+                    logger.info(f"CORPUS PROCESSING COMPLETED - NO NEW DOCUMENTS TO PROCESS")
+                    logger.info(f"{'='*80}")
+                    logger.info(f"Documents already processed: {existing_docs_count}")
+                    logger.info(f"Chunks already available: {existing_chunks_count}")
+                    logger.info(f"Duplicates skipped this run: {duplicates_skipped}")
+                    logger.info(f"Processing time: {processing_time:.2f}s")
+                    logger.info(f"\n✓ SYSTEM READY - All documents already indexed and searchable")
+                    logger.info(f"✓ No new content to store - incremental ingestion working correctly")
+                    logger.info(f"\nTo re-ingest all files, delete: ingestion_tracking.db and vector_store/")
+                    logger.info(f"{'='*80}\n")
+                else:
+                    # No documents found at all - this is a problem
+                    logger.warning(f"\n{'='*80}")
+                    logger.warning(f"CORPUS PROCESSING COMPLETED BUT NO DOCUMENTS FOUND")
+                    logger.warning(f"{'='*80}")
+                    logger.warning(f"Sources enabled: {self._stats.get('sources_processed', 0)}")
+                    logger.warning(f"Documents fetched: 0")
+                    logger.warning(f"Chunks created: 0")
+                    logger.warning(f"Processing time: {processing_time:.2f}s")
+                    logger.warning(f"\nNOTHING TO SEARCH - No documents available for queries")
+                    logger.warning(f"Check source configurations and error logs above")
+                    logger.warning(f"{'='*80}\n")
             elif chunks_count == 0:
                 logger.warning(f"\n{'='*80}")
                 logger.warning(f"DOCUMENTS FETCHED BUT NO CHUNKS CREATED")
@@ -270,10 +309,6 @@ class CorpusEmbeddingModule:
                 try:
                     content = self._extract_file_content(file_path)
                     if content.strip():  # Only process non-empty content
-                        # Extract ontology codes as required
-                        ontology_codes = self._extract_ontology_codes(content)
-                        self._stats["ontology_codes_extracted"] += len(ontology_codes)
-                        
                         doc = Document(
                             page_content=content,
                             metadata={
@@ -281,7 +316,6 @@ class CorpusEmbeddingModule:
                                 "filename": file_path.name,
                                 "file_type": file_path.suffix,
                                 "date": file_path.stat().st_mtime,
-                                "ontology_codes": ontology_codes,
                                 "domain": "general"
                             }
                         )
@@ -836,11 +870,12 @@ class CorpusEmbeddingModule:
             self.summary_vector_store = None
     
     def _store_hierarchical(self, chunks: List[Document]) -> None:
-        """Store documents in hierarchical format (summaries + chunks).
+        """Store documents in hierarchical format with rich summaries.
         
-        Groups chunks by source document, creates summaries, stores both.
+        Groups chunks by source document, creates LLM-generated summaries with metadata,
+        stores both summaries and chunks.
         """
-        logger.info("Storing in hierarchical format...")
+        logger.info("Storing in hierarchical format with rich summaries...")
         
         # Group chunks by source document
         doc_groups = {}
@@ -852,48 +887,84 @@ class CorpusEmbeddingModule:
         
         logger.info(f"Grouped {len(chunks)} chunks into {len(doc_groups)} documents")
         
-        # Create summaries for each document
+        # Create summaries for each document group
         summaries = []
-        for doc_id, doc_chunks in doc_groups.items():
-            # Combine chunks into full document
-            full_text = "\n\n".join([c.page_content for c in doc_chunks])
-            full_doc = Document(
-                page_content=full_text[:2000],  # Limit to 2000 chars for summarization
-                metadata=doc_chunks[0].metadata  # Use metadata from first chunk
-            )
+        
+        if self.document_summarizer:
+            # Use LLM-based summarization for rich metadata
+            logger.info("Generating rich summaries with LLM...")
             
-            # Create summary (fallback method - no LLM needed)
-            summary = full_text[:300]
-            if len(full_text) > 300:
-                summary += "..."
+            for doc_id, doc_chunks in doc_groups.items():
+                try:
+                    # Combine chunks into full document
+                    full_text = "\n\n".join([c.page_content for c in doc_chunks])
+                    full_doc = Document(
+                        page_content=full_text,
+                        metadata=doc_chunks[0].metadata  # Use metadata from first chunk
+                    )
+                    
+                    # Generate rich summary with metadata using DocumentSummarizer
+                    summary_list = self.document_summarizer.create_summary_documents([full_doc])
+                    
+                    if summary_list:
+                        summary_doc = summary_list[0]
+                        # Add chunk linking
+                        summary_doc.metadata['chunk_count'] = len(doc_chunks)
+                        summary_doc.metadata['chunk_ids'] = ', '.join([
+                            c.metadata.get('chunk_id', f'chunk_{i}') 
+                            for i, c in enumerate(doc_chunks)
+                        ])
+                        summaries.append(summary_doc)
+                    
+                except Exception as e:
+                    logger.warning(f"Failed to generate summary for {doc_id}: {e}. Using fallback.")
+                    # Fallback to simple summary
+                    summaries.append(self._create_simple_summary(full_text, doc_chunks[0].metadata, len(doc_chunks)))
             
-            summary_doc = Document(
-                page_content=summary,
-                metadata={
-                    **full_doc.metadata,
-                    "is_summary": True,
-                    "chunk_count": len(doc_chunks)
-                }
-            )
-            summaries.append(summary_doc)
+            logger.info(f"[OK] Generated {len(summaries)} rich summaries")
+        else:
+            # Fallback: Use simple summarization (truncation)
+            logger.warning("DocumentSummarizer not available. Using simple truncation fallback.")
+            
+            for doc_id, doc_chunks in doc_groups.items():
+                full_text = "\n\n".join([c.page_content for c in doc_chunks])
+                summaries.append(self._create_simple_summary(full_text, doc_chunks[0].metadata, len(doc_chunks)))
+            
+            logger.info(f"Created {len(summaries)} simple summaries (fallback method)")
         
         # Store summaries in summary collection
         try:
             cleaned_summaries = self._clean_metadata_for_chroma(summaries)
             self.summary_vector_store.add_documents(cleaned_summaries)
             self._stats["summary_count"] += len(summaries)
-            logger.info(f"Stored {len(summaries)} summaries")
+            logger.info(f"[OK] Stored {len(summaries)} summaries in '{self.hierarchical_config.summary_collection}'")
         except Exception as e:
-            logger.error(f"Failed to store summaries: {e}")
+            logger.error(f"[X] Failed to store summaries: {e}")
         
         # Store detailed chunks in main collection
         try:
             cleaned_chunks = self._clean_metadata_for_chroma(chunks)
             self.vector_store.add_documents(cleaned_chunks)
             self._stats["chunk_count"] += len(chunks)
-            logger.info(f"Stored {len(chunks)} detailed chunks")
+            logger.info(f"[OK] Stored {len(chunks)} detailed chunks in '{self.vector_store_config.collection_name}'")
         except Exception as e:
-            logger.error(f"Failed to store chunks: {e}")
+            logger.error(f"[X] Failed to store chunks: {e}")
+    
+    def _create_simple_summary(self, full_text: str, metadata: Dict, chunk_count: int) -> Document:
+        """Create simple fallback summary when LLM is not available."""
+        summary = full_text[:300]
+        if len(full_text) > 300:
+            summary += "..."
+        
+        return Document(
+            page_content=summary,
+            metadata={
+                **metadata,
+                "is_summary": True,
+                "chunk_count": chunk_count,
+                "summary_method": "simple_truncation"
+            }
+        )
     
     def _clean_metadata_for_chroma(self, docs: List[Document]) -> List[Document]:
         """Clean metadata for ChromaDB compatibility."""
@@ -1244,9 +1315,6 @@ class CorpusEmbeddingModule:
                             self._stats["duplicates_skipped"] += 1
                             continue
                     
-                    # Extract ontology codes
-                    ontology_codes = self._extract_ontology_codes(content)
-                    
                     # Create document
                     doc = Document(
                         page_content=content,
@@ -1257,8 +1325,7 @@ class CorpusEmbeddingModule:
                             "filename": file_path.name,
                             "file_type": file_path.suffix,
                             "date": file_path.stat().st_mtime,
-                            "ontology_codes": ontology_codes,
-                            "domain": "oncology",
+                            "domain": "general",
                             "description": source_config.get('description', 'Local file'),
                             "title": file_path.name  # For tracking
                         }
@@ -1430,6 +1497,17 @@ class CorpusEmbeddingModule:
             if repo_name:
                 if enable_streaming:
                     logger.info(f" Streaming from Azure DevOps repository: {repo_name} (batch size: {batch_size})")
+                    
+                    # CRITICAL FIX: Initialize embedding model and vector store BEFORE streaming
+                    # Without this, _process_document_batch() fails with NoneType error
+                    if not self.embedding_model:
+                        logger.info("Initializing embedding model for streaming mode...")
+                        self._load_embedding_model()
+                    
+                    if not self.vector_store:
+                        logger.info("Initializing vector store for streaming mode...")
+                        self._setup_vector_store()
+                    
                     # STREAMING MODE: Process batches as they come in
                     for path in include_paths:
                         batch_num = 0

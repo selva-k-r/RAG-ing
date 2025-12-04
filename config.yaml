@@ -45,12 +45,16 @@ data_source:
         
         # PATH FILTERING - Load only specific folders
         include_paths:
-          - "/path1"
+          - "/dbt_anthem/models"        # DBT models
+          - "/dbt_anthem/data"        # DBT macros
+          - "/dbt_anthem/tests"       # Python scripts
+          - "dbt_anthem/dbt_project.yml"        # Config files
+          - "Analytics 2.0/TabularModels/AnthemReporting/AnthemReporting/Model.bim"          # Documentation
         
         exclude_paths:
-          - "/path1/tests/fixtures"  # Skip test fixture data
-          - "/path1/libraries"  # Skip third-party libraries
-          - "/path1/.github"    # Skip GitHub config
+          - "/dbt_anthem/tests/fixtures"  # Skip test fixture data
+          - "/dbt_anthem/libraries"  # Skip third-party libraries
+
         
         # FILE TYPE FILTERING
         include_file_types:
@@ -69,6 +73,9 @@ data_source:
           - ".smproj"     # SQL Server projects
           - ".gitignore"  # Git files
           - ".gitkeep"    # Git files
+          - ".exe"        # Executables
+          - ".bin"        # Binary files
+          - ".env"        # Environment files
         
         # COMMIT HISTORY TRACKING (NEW!)
         fetch_commit_history: true    # Enable commit history
@@ -163,7 +170,7 @@ llm:
   # Token management
   use_smart_truncation: true
   context_optimization: true
-  token_buffer: 2000  # Reduced from 6000
+  token_buffer: 500  # Increased available context (was 2000, too aggressive)
   
   # Azure OpenAI configuration (cloud - primary)
   azure_endpoint: "${AZURE_OPENAI_ENDPOINT}"
@@ -296,7 +303,7 @@ activity_logging:
 # Hierarchical Storage Configuration
 # Dual-layer storage: summaries for broad search, chunks for details
 hierarchical_storage:
-  enabled: true
+  enabled: false  # Temporarily disabled for debugging
   use_summaries: true  # Use LLM to create document summaries
   summary_collection: "rag_documents_summaries"  # Separate collection for summaries
   chunk_collection: "rag_documents_chunks"  # Collection for detailed chunks

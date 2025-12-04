@@ -52,6 +52,11 @@ class RAGOrchestrator:
         self.ui_layer = UILayerModule(self.settings)
         self.evaluation_logging = EvaluationLoggingModule(self.settings)
         
+        # Inject LLM client into corpus embedding for document summarization
+        if self.settings.hierarchical_storage.enabled and self.llm_orchestration.client:
+            self.corpus_embedding.set_llm_client(self.llm_orchestration.client)
+            logger.info("[OK] LLM client injected into corpus embedding for summarization")
+        
         # Initialize activity logger
         if self.settings.activity_logging.enabled:
             self.activity_logger = ActivityLogger(

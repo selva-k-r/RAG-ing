@@ -29,7 +29,6 @@ progress_store: Dict[str, Dict[str, Any]] = {}
 class ProgressSearchRequest(BaseModel):
     query: str
     sources: list = ["confluence", "jira", "internal", "salesforce"]
-    audience: str = "technical"
 
 async def generate_progress_stream(session_id: str) -> AsyncGenerator[str, None]:
     """Generate Server-Sent Events for progress updates."""
@@ -176,8 +175,7 @@ async def process_search_with_simulated_progress(session_id: str, request: Progr
             # Create search request
             search_req = SearchRequest(
                 query=request.query,
-                sources=request.sources,
-                audience=request.audience
+                sources=request.sources
             )
             
             # Simulate realistic progress updates during search

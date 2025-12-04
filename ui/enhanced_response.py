@@ -22,7 +22,7 @@ class EnhancedResponseGenerator:
             }
         }
     
-    def generate_response(self, query: str, docs: List[Document], audience: str = "technical") -> str:
+    def generate_response(self, query: str, docs: List[Document]) -> str:
         """Generate enhanced response based on query and retrieved documents - completely generic."""
         
         if not docs:
@@ -62,7 +62,7 @@ class EnhancedResponseGenerator:
         response_parts.extend([
             "",
             "---",
-            f"*Response generated from {len(docs)} document(s) | Audience: {audience.title()}*"
+            f"*Response generated from {len(docs)} document(s)*"
         ])
         
         return "\n".join(response_parts)

@@ -271,8 +271,12 @@ class QueryRetrievalModule:
         
         try:
             # Use hierarchical retrieval if enabled
+            logger.debug(f"Hierarchical check: enabled={self.hierarchical_config.enabled}, summary_store={self.summary_vector_store is not None}")
             if self.hierarchical_config.enabled and self.summary_vector_store:
+                logger.info("Triggering hierarchical retrieval")
                 return self._hierarchical_retrieve(query, filters, start_time)
+            else:
+                logger.info("Using standard retrieval (hierarchical not enabled or summary store missing)")
             
             # Step 1: Query Input validation and normalization
             normalized_query = self._normalize_query(query)
@@ -288,11 +292,14 @@ class QueryRetrievalModule:
                 logger.info("Retrieved result from cache")
                 return cached_result
             
-            # Step 2: Embedding Conversion
-            query_embedding = self._convert_to_embedding(normalized_query)
+            # Step 2: Query Expansion for better semantic coverage
+            expanded_queries = self._expand_query(query, normalized_query)
             
-            # Step 3: Enhanced Retrieval Logic with hybrid search and medical boosting
-            retrieved_docs = self._retrieve_documents(query_embedding, filters, query)
+            # Step 3: Embedding Conversion (use expanded query for richer semantic signal)
+            query_embedding = self._convert_to_embedding(expanded_queries[0])
+            
+            # Step 4: Enhanced Retrieval Logic with hybrid search and medical boosting
+            retrieved_docs = self._retrieve_documents(query_embedding, filters, query, expanded_queries)
             
             # Step 4: Context Packaging with enhanced metadata
             context_result = self._package_context(query, retrieved_docs)
@@ -328,6 +335,93 @@ class QueryRetrievalModule:
         
         return normalized
     
+    def _expand_query(self, original_query: str, normalized_query: str) -> List[str]:
+        """Expand query with synonyms, variations, and domain concepts.
+        
+        Helps handle cases where users don't know exact technical terms:
+        - "three classification" → "three categories", "three types", "three classes"
+        - "qm2 logic" → "qm2 calculation", "quality measure 2", "qm-2 methodology"
+        - "anthem" → "anthem blue cross", "anthem bcbs"
+        
+        Returns list of query variations (original first).
+        """
+        expanded = [normalized_query]  # Always include normalized original
+        
+        # Domain-specific concept mappings
+        concept_mappings = {
+            # Quality measures
+            'qm1': ['qm-1', 'quality measure 1', 'qm 1', 'first quality measure'],
+            'qm2': ['qm-2', 'quality measure 2', 'qm 2', 'second quality measure'],
+            'qm3': ['qm-3', 'quality measure 3', 'qm 3', 'third quality measure'],
+            'qm4': ['qm-4', 'quality measure 4', 'qm 4', 'fourth quality measure'],
+            'qm5': ['qm-5', 'quality measure 5', 'qm 5', 'fifth quality measure'],
+            
+            # Classification synonyms
+            'classification': ['category', 'type', 'class', 'group', 'tier', 'level'],
+            'classifications': ['categories', 'types', 'classes', 'groups', 'tiers', 'levels'],
+            
+            # Logic/calculation synonyms
+            'logic': ['calculation', 'formula', 'methodology', 'rule', 'algorithm', 'computation'],
+            
+            # Organization names
+            'anthem': ['anthem blue cross', 'anthem bcbs', 'anthem insurance'],
+            
+            # Technical terms
+            'table': ['dataset', 'data table', 'database table', 'relation'],
+            'model': ['data model', 'dbt model', 'transformation', 'view'],
+            'query': ['sql query', 'database query', 'select statement'],
+        }
+        
+        # Common question patterns - expand to declarative forms
+        question_expansions = {
+            'do we have': ['there are', 'includes', 'contains', 'has'],
+            'what is': ['definition of', 'describes', 'explains'],
+            'how does': ['mechanism of', 'process for', 'method to'],
+            'where is': ['location of', 'found in', 'stored in'],
+        }
+        
+        query_lower = normalized_query.lower()
+        
+        # Apply concept mappings
+        for concept, synonyms in concept_mappings.items():
+            if concept in query_lower:
+                for synonym in synonyms[:2]:  # Use top 2 synonyms to avoid explosion
+                    expanded_query = query_lower.replace(concept, synonym)
+                    if expanded_query not in expanded:
+                        expanded.append(expanded_query)
+        
+        # Apply question pattern expansions
+        for pattern, alternatives in question_expansions.items():
+            if pattern in query_lower:
+                for alt in alternatives[:1]:  # Use 1 alternative per pattern
+                    expanded_query = query_lower.replace(pattern, alt)
+                    if expanded_query not in expanded:
+                        expanded.append(expanded_query)
+        
+        # Number word expansion (for "three", "five", etc.)
+        number_mappings = {
+            'three': ['3', 'triple', 'trio'],
+            'five': ['5', 'quintuple'],
+            'two': ['2', 'dual', 'pair'],
+            'four': ['4', 'quad'],
+        }
+        
+        for number_word, variations in number_mappings.items():
+            if number_word in query_lower:
+                for variation in variations[:1]:
+                    expanded_query = query_lower.replace(number_word, variation)
+                    if expanded_query not in expanded:
+                        expanded.append(expanded_query)
+        
+        # Limit total expansions to avoid performance issues
+        expanded = expanded[:5]
+        
+        if len(expanded) > 1:
+            logger.info(f"Query expanded to {len(expanded)} variations")
+            logger.debug(f"Expanded queries: {expanded[:3]}")  # Log first 3
+        
+        return expanded
+    
     def _generate_query_hash(self, query: str, filters: Optional[Dict[str, Any]] = None) -> str:
         """Generate hash for query caching."""
         cache_key = f"{query}_{str(filters or {})}"
@@ -354,8 +448,8 @@ class QueryRetrievalModule:
             logger.error(f"Failed to convert query to embedding: {e}")
             raise RetrievalError(f"Embedding conversion failed: {e}")
     
-    def _retrieve_documents(self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, query_text: str = None) -> List[Document]:
-        """Enhanced retrieval with hybrid search, reranking, and medical domain optimization."""
+    def _retrieve_documents(self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None, query_text: str = None, expanded_queries: Optional[List[str]] = None) -> List[Document]:
+        """Enhanced retrieval with query expansion, hybrid search, reranking, and medical domain optimization."""
         try:
             # Store query text for keyword retrieval
             self._last_query = query_text or "medical oncology treatment"
@@ -393,7 +487,7 @@ class QueryRetrievalModule:
             raise RetrievalError(f"Enhanced document retrieval failed: {e}")
     
     def _hybrid_retrieval(self, query_embedding: List[float], filters: Optional[Dict[str, Any]] = None) -> List[Document]:
-        """Hybrid retrieval combining semantic and keyword search."""
+        """Hybrid retrieval combining semantic and keyword search with SQL optimization."""
         logger.info("Performing hybrid retrieval (semantic + keyword)")
         
         # Get more candidates for hybrid merging
@@ -402,11 +496,19 @@ class QueryRetrievalModule:
         # Semantic search component
         semantic_docs = self._semantic_retrieval(query_embedding, filters, k=extended_k)
         
-        # Keyword search component (BM25-style)
+        # Keyword search component (BM25-style) with SQL enhancement
         keyword_docs = self._keyword_retrieval(query_embedding, filters, k=extended_k)
         
-        # Merge and weight results
-        merged_docs = self._merge_retrieval_results(semantic_docs, keyword_docs)
+        # Detect if query contains SQL-specific terms
+        query_text = getattr(self, '_last_query', '') or ''
+        is_sql_query = self._is_sql_related_query(query_text)
+        
+        # Merge and weight results (adjust weights for SQL queries)
+        merged_docs = self._merge_retrieval_results(semantic_docs, keyword_docs, is_sql_query)
+        
+        # Apply SQL-specific boosting if needed
+        if is_sql_query:
+            merged_docs = self._apply_sql_boosting(merged_docs, query_text)
         
         # Return top-k results
         return merged_docs[:self.retrieval_config.top_k]
@@ -453,9 +555,14 @@ class QueryRetrievalModule:
             return self._fallback_retrieval(filters, retrieval_k)
     
     def _simulate_keyword_search(self, query_text: str, filters: Optional[Dict[str, Any]], k: int) -> List[Document]:
-        """Simulate keyword search for demonstration (in production, use BM25)."""
-        # This is a simplified simulation - in production you'd use proper BM25 implementation
+        """Enhanced keyword search with SQL-specific term matching.
         
+        For SQL queries, extracts:
+        - Table/column names (CamelCase, snake_case)
+        - SQL keywords (SELECT, JOIN, WHERE, etc.)
+        - Function names
+        - Schema objects
+        """
         # Safety check for empty or None query text
         if not query_text or not query_text.strip():
             query_text = "medical oncology treatment"  # Safe fallback
@@ -471,15 +578,29 @@ class QueryRetrievalModule:
             else:
                 docs = self._fallback_retrieval(filters, k)
             
-            # Simulate keyword boost by checking term overlap
-            query_terms = set(query_text.lower().split()) if query_text else set()
+            # Extract query terms with SQL-aware tokenization
+            query_terms = self._extract_query_terms(query_text)
             scored_docs = []
             
             for doc in docs:
                 if doc and hasattr(doc, 'page_content') and doc.page_content:
-                    content_terms = set(doc.page_content.lower().split())
+                    content_lower = doc.page_content.lower()
+                    content_terms = set(content_lower.split())
+                    
+                    # Base keyword overlap score
                     overlap_score = len(query_terms.intersection(content_terms)) / len(query_terms) if query_terms else 0
-                    scored_docs.append((doc, overlap_score))
+                    
+                    # Boost for exact multi-word matches (table names, function calls)
+                    exact_match_boost = self._calculate_exact_match_boost(query_text, doc.page_content)
+                    
+                    # Boost for SQL file types
+                    file_type_boost = 0.0
+                    if doc.metadata.get('file_type', '').lower() in ['.sql', 'sql']:
+                        file_type_boost = 0.2
+                    
+                    # Combined score
+                    final_score = overlap_score + exact_match_boost + file_type_boost
+                    scored_docs.append((doc, final_score))
             
             # Sort by keyword score and return top results
             scored_docs.sort(key=lambda x: x[1], reverse=True)
@@ -489,12 +610,21 @@ class QueryRetrievalModule:
             logger.warning(f"Keyword search simulation failed: {e}")
             return self._fallback_retrieval(filters, k)
     
-    def _merge_retrieval_results(self, semantic_docs: List[Document], keyword_docs: List[Document]) -> List[Document]:
-        """Merge semantic and keyword retrieval results with weighted scoring."""
+    def _merge_retrieval_results(self, semantic_docs: List[Document], keyword_docs: List[Document], is_sql_query: bool = False) -> List[Document]:
+        """Merge semantic and keyword retrieval results with weighted scoring.
+        
+        For SQL queries, boost keyword weight for better exact matching.
+        """
         logger.debug("Merging semantic and keyword retrieval results")
         
-        semantic_weight = self.retrieval_config.semantic_weight
-        keyword_weight = self.retrieval_config.keyword_weight
+        # Adjust weights for SQL queries (favor keyword matching)
+        if is_sql_query:
+            semantic_weight = 0.4  # Reduced from default 0.7
+            keyword_weight = 0.6   # Increased from default 0.3
+            logger.info("SQL query detected - boosting keyword weight to 0.6")
+        else:
+            semantic_weight = self.retrieval_config.semantic_weight
+            keyword_weight = self.retrieval_config.keyword_weight
         
         # Create document scoring map
         doc_scores = {}
@@ -756,66 +886,365 @@ class QueryRetrievalModule:
         filters: Optional[Dict[str, Any]], 
         start_time: float
     ) -> Dict[str, Any]:
-        """Hierarchical retrieval: search summaries first, then fetch details.
+        """Enhanced hierarchical retrieval with rich metadata filtering.
         
-        Smart routing:
-        1. Search summary collection for high-level matches
-        2. If relevance > threshold, fetch detailed chunks from those documents
-        3. Otherwise, return summary results
+        Two-tier approach:
+        1. Search summary collection (business-friendly, keyword-rich)
+        2. For highly relevant summaries, fetch detailed chunks
+        3. Return results with source citations
+        
+        Uses rich metadata (keywords, topics, business_context) for better matching.
         """
-        logger.info("Using hierarchical retrieval")
+        logger.info("Using enhanced hierarchical retrieval with metadata")
         self._metrics["hierarchical_queries"] += 1
         
-        # Step 1: Search summaries
-        summary_results = self.summary_vector_store.similarity_search_with_score(
-            query,
-            k=self.retrieval_config.top_k
-        )
+        # Check if summary collection has any summaries
+        try:
+            summary_count = self.summary_vector_store._collection.count()
+            if summary_count == 0:
+                logger.warning("Summary collection is empty. Falling back to standard retrieval.")
+                return self._fallback_to_standard_retrieval(query, filters, start_time)
+        except Exception as e:
+            logger.warning(f"Failed to check summary count: {e}. Falling back to standard retrieval.")
+            return self._fallback_to_standard_retrieval(query, filters, start_time)
         
-        # Check if summaries are relevant enough to fetch details
-        threshold = self.hierarchical_config.routing_threshold
-        relevant_docs = []
-        detailed_chunks = []
+        # Step 1: Search summaries with expanded k for better coverage
+        summary_k = min(self.retrieval_config.top_k * 3, 15)
         
+        try:
+            summary_results = self.summary_vector_store.similarity_search_with_score(
+                query,
+                k=summary_k
+            )
+        except Exception as e:
+            logger.warning(f"Summary search failed: {e}. Falling back to chunk search.")
+            return self._fallback_to_standard_retrieval(query, filters, start_time)
+        
+        if not summary_results:
+            logger.warning("No summaries found. Using standard retrieval.")
+            return self._fallback_to_standard_retrieval(query, filters, start_time)
+        
+        logger.info(f"Found {len(summary_results)} summary candidates")
+        
+        # Step 2: Analyze summaries and apply metadata boosting
+        scored_summaries = []
         for doc, score in summary_results:
-            # Lower score = higher relevance in some implementations
-            relevance = 1 - score if score < 1 else score
+            # Calculate enhanced relevance score using metadata
+            metadata = doc.metadata
             
-            if relevance >= threshold:
-                # Fetch detailed chunks from this document
-                source = doc.metadata.get('source', '')
-                if source:
-                    # Search chunk collection for this source
-                    chunk_results = self.vector_store.similarity_search(
-                        query,
-                        k=3,  # Get top 3 chunks from this document
-                        filter={"source": source}
-                    )
-                    detailed_chunks.extend(chunk_results)
-            else:
-                # Use summary only
-                relevant_docs.append(doc)
+            # Base semantic score (convert distance to similarity)
+            semantic_score = 1 - min(score, 1.0)
+            
+            # Boost based on keywords matching
+            keywords = metadata.get('keywords', '').lower()
+            query_lower = query.lower()
+            keyword_boost = sum(1 for word in query_lower.split() if word in keywords) * 0.1
+            
+            # Boost based on document type relevance
+            doc_type = metadata.get('document_type', '')
+            type_boost = 0.0
+            if 'sql' in query_lower and 'sql' in doc_type:
+                type_boost = 0.15
+            elif 'python' in query_lower and 'python' in doc_type:
+                type_boost = 0.15
+            elif 'config' in query_lower and 'yaml' in doc_type:
+                type_boost = 0.15
+            
+            # Combined relevance score
+            final_score = semantic_score + keyword_boost + type_boost
+            
+            scored_summaries.append((doc, final_score, score))
         
-        # Combine results
-        final_docs = detailed_chunks if detailed_chunks else relevant_docs
+        # Sort by enhanced score
+        scored_summaries.sort(key=lambda x: x[1], reverse=True)
+        
+        # Step 3: Smart routing - fetch details for highly relevant documents
+        threshold = self.hierarchical_config.routing_threshold
+        detailed_chunks = []
+        summary_only_docs = []
+        sources_fetched = []
+        
+        for doc, final_score, orig_score in scored_summaries[:self.retrieval_config.top_k]:
+            metadata = doc.metadata
+            
+            if final_score >= threshold:
+                # Highly relevant - fetch detailed chunks
+                source = metadata.get('original_doc_id') or metadata.get('file_path') or metadata.get('source', '')
+                
+                if source and source not in sources_fetched:
+                    sources_fetched.append(source)
+                    
+                    try:
+                        # Fetch detailed chunks from this document
+                        chunk_results = self.vector_store.similarity_search(
+                            query,
+                            k=5,  # Get top 5 chunks from this document
+                            filter={"source": source} if source else None
+                        )
+                        
+                        # Enrich chunks with summary metadata for context
+                        for chunk in chunk_results:
+                            chunk.metadata['summary_keywords'] = metadata.get('keywords', '')
+                            chunk.metadata['summary_topics'] = metadata.get('topics', '')
+                            chunk.metadata['business_context'] = metadata.get('business_context', '')
+                            chunk.metadata['relevance_score'] = final_score
+                        
+                        detailed_chunks.extend(chunk_results)
+                        logger.info(f"[OK] Fetched {len(chunk_results)} chunks from {metadata.get('filename', source)}")
+                        
+                    except Exception as e:
+                        logger.warning(f"Failed to fetch chunks for {source}: {e}")
+                        # Fallback to summary
+                        summary_only_docs.append(doc)
+            else:
+                # Lower relevance - use summary only
+                doc.metadata['relevance_score'] = final_score
+                summary_only_docs.append(doc)
+        
+        # Step 4: Combine and deduplicate results
+        final_docs = detailed_chunks if detailed_chunks else summary_only_docs
         
         if not final_docs:
-            final_docs = [doc for doc, _ in summary_results[:self.retrieval_config.top_k]]
+            final_docs = [doc for doc, _, _ in scored_summaries[:self.retrieval_config.top_k]]
+        
+        # Deduplicate and limit to top_k
+        final_docs = self._deduplicate_documents(final_docs)[:self.retrieval_config.top_k]
+        
+        # Step 5: Add source citations
+        for doc in final_docs:
+            if 'source' not in doc.metadata and 'file_path' in doc.metadata:
+                doc.metadata['source'] = doc.metadata['file_path']
         
         retrieval_time = time.time() - start_time
+        
+        logger.info(f"[OK] Hierarchical retrieval completed: {len(detailed_chunks)} detail chunks, {len(summary_only_docs)} summaries, {retrieval_time:.2f}s")
         
         return {
             "documents": final_docs,
             "stats": {
                 "num_results": len(final_docs),
-                "retrieval_strategy": "hierarchical",
+                "retrieval_strategy": "hierarchical_enhanced",
                 "summaries_searched": len(summary_results),
+                "summaries_scored": len(scored_summaries),
                 "details_fetched": len(detailed_chunks),
+                "sources_fetched": len(sources_fetched),
+                "summary_only": len(summary_only_docs),
+                "retrieval_time": retrieval_time,
+                "threshold": threshold
+            },
+            "query": query,
+            "filters": filters
+        }
+    
+    def _fallback_to_standard_retrieval(
+        self, 
+        query: str, 
+        filters: Optional[Dict[str, Any]], 
+        start_time: float
+    ) -> Dict[str, Any]:
+        """Fallback to standard retrieval when hierarchical fails."""
+        logger.info("Using standard retrieval (fallback)")
+        
+        # Standard retrieval flow
+        normalized_query = self._normalize_query(query)
+        query_embedding = self._convert_to_embedding(normalized_query)
+        retrieved_docs = self._retrieve_documents(query_embedding, filters, query)
+        
+        retrieval_time = time.time() - start_time
+        
+        return {
+            "documents": retrieved_docs,
+            "stats": {
+                "num_results": len(retrieved_docs),
+                "retrieval_strategy": "standard_fallback",
                 "retrieval_time": retrieval_time
             },
             "query": query,
             "filters": filters
         }
+    
+    def _deduplicate_documents(self, docs: List[Document]) -> List[Document]:
+        """Remove duplicate documents based on content hash."""
+        seen_hashes = set()
+        unique_docs = []
+        
+        for doc in docs:
+            # Create content hash
+            content_hash = hashlib.md5(doc.page_content.encode()).hexdigest()
+            
+            if content_hash not in seen_hashes:
+                seen_hashes.add(content_hash)
+                unique_docs.append(doc)
+        
+        return unique_docs
+    
+    def _is_sql_related_query(self, query: str) -> bool:
+        """Detect if query is asking about SQL code, tables, or database objects.
+        
+        Detects:
+        - SQL keywords (select, join, where, table, etc.)
+        - Database objects (table, column, view, procedure)
+        - SQL functions (count, sum, aggregate, etc.)
+        - Code structure terms (query, logic, calculation)
+        """
+        if not query:
+            return False
+        
+        query_lower = query.lower()
+        
+        # SQL-specific indicators
+        sql_keywords = {
+            'sql', 'select', 'join', 'where', 'table', 'column', 'view',
+            'query', 'database', 'schema', 'procedure', 'function',
+            'aggregate', 'count', 'sum', 'group by', 'order by',
+            'union', 'cte', 'with', 'insert', 'update', 'delete',
+            'create', 'alter', 'drop', 'index', 'constraint',
+            'dbt', 'model', 'macro', 'jinja', 'ref()', 'source()'
+        }
+        
+        # Check for SQL indicators
+        return any(keyword in query_lower for keyword in sql_keywords)
+    
+    def _extract_query_terms(self, query: str) -> set:
+        """Extract query terms with SQL-aware tokenization.
+        
+        Preserves:
+        - CamelCase identifiers (e.g., PatientData → patient, data)
+        - snake_case identifiers (e.g., patient_data → patient, data)
+        - Quoted strings (e.g., "table_name" → table_name)
+        - Special SQL terms
+        """
+        import re
+        
+        terms = set()
+        query_lower = query.lower()
+        
+        # Extract regular words
+        words = query_lower.split()
+        terms.update(words)
+        
+        # Extract CamelCase components (e.g., PatientData → patient, data)
+        camel_pattern = re.findall(r'[A-Z][a-z]+|[a-z]+', query)
+        terms.update([term.lower() for term in camel_pattern])
+        
+        # Extract snake_case components (e.g., patient_data → patient, data)
+        for word in words:
+            if '_' in word:
+                parts = word.split('_')
+                terms.update(parts)
+        
+        # Extract quoted strings (preserve as-is)
+        quoted = re.findall(r'["\']([^"\'\n]+)["\']', query)
+        terms.update([q.lower() for q in quoted])
+        
+        # Remove common stop words but keep SQL keywords
+        sql_keywords = {'select', 'from', 'where', 'join', 'group', 'order', 'by'}
+        stop_words = {'the', 'is', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for'}
+        terms = {t for t in terms if t not in stop_words or t in sql_keywords}
+        
+        return terms
+    
+    def _calculate_exact_match_boost(self, query: str, content: str) -> float:
+        """Calculate boost for exact phrase matches.
+        
+        Important for:
+        - Table names: "patient_summary" should match exactly
+        - Function calls: "calculate_risk_score()" needs exact match
+        - Multi-word terms: "left outer join" vs individual words
+        """
+        import re
+        
+        boost = 0.0
+        query_lower = query.lower()
+        content_lower = content.lower()
+        
+        # Extract potential exact-match phrases (2-4 words)
+        query_words = query_lower.split()
+        
+        for n in range(2, 5):  # Check 2-word, 3-word, 4-word phrases
+            for i in range(len(query_words) - n + 1):
+                phrase = ' '.join(query_words[i:i+n])
+                
+                # Exact phrase match
+                if phrase in content_lower:
+                    boost += 0.3  # Strong boost for exact phrase
+                    logger.debug(f"Exact match found: '{phrase}'")
+        
+        # Check for SQL identifiers with underscores (exact match)
+        sql_identifiers = re.findall(r'\b[a-z_]+_[a-z_]+\b', query_lower)
+        for identifier in sql_identifiers:
+            if identifier in content_lower:
+                boost += 0.4  # Very strong boost for exact identifier
+                logger.debug(f"SQL identifier match: '{identifier}'")
+        
+        # Check for function calls (exact match)
+        function_calls = re.findall(r'\b[a-z_]+\(\)', query_lower)
+        for func in function_calls:
+            if func in content_lower:
+                boost += 0.5  # Maximum boost for exact function match
+                logger.debug(f"Function call match: '{func}'")
+        
+        return min(boost, 1.0)  # Cap at 1.0
+    
+    def _apply_sql_boosting(self, docs: List[Document], query: str) -> List[Document]:
+        """Apply SQL-specific relevance boosting.
+        
+        Boosts documents that:
+        - Are SQL files (.sql extension)
+        - Contain matching table/column names
+        - Have similar SQL structure (CTEs, JOINs, aggregations)
+        - Match query logic keywords
+        """
+        logger.debug("Applying SQL-specific boosting")
+        
+        scored_docs = []
+        query_lower = query.lower()
+        
+        for doc in docs:
+            boost_score = 1.0  # Base score
+            content_lower = doc.page_content.lower()
+            metadata = doc.metadata
+            
+            # Boost 1: SQL file type
+            file_type = metadata.get('file_type', '').lower()
+            filename = metadata.get('filename', '').lower()
+            if file_type in ['.sql', 'sql'] or filename.endswith('.sql'):
+                boost_score += 0.3
+            
+            # Boost 2: DBT-specific files
+            if 'dbt' in filename or 'models/' in metadata.get('source', ''):
+                boost_score += 0.2
+            
+            # Boost 3: Logic keywords (for "qm1 logic", "calculation logic", etc.)
+            logic_keywords = ['logic', 'calculation', 'formula', 'rule', 'algorithm', 'methodology']
+            if any(kw in query_lower for kw in logic_keywords):
+                if any(kw in content_lower for kw in logic_keywords):
+                    boost_score += 0.4
+            
+            # Boost 4: SQL structure similarity
+            sql_structures = ['with', 'select', 'from', 'join', 'where', 'group by', 'having']
+            query_structures = sum(1 for struct in sql_structures if struct in query_lower)
+            content_structures = sum(1 for struct in sql_structures if struct in content_lower)
+            
+            if query_structures > 0 and content_structures > 0:
+                structure_similarity = min(query_structures, content_structures) / max(query_structures, content_structures)
+                boost_score += structure_similarity * 0.3
+            
+            # Boost 5: Specific code/ID references (e.g., "qm1" in query and content)
+            import re
+            code_patterns = re.findall(r'\b[a-z]{2,4}\d{1,3}\b', query_lower)  # e.g., qm1, dm3, ccqp4
+            for code in code_patterns:
+                if code in content_lower:
+                    boost_score += 0.6  # Strong boost for matching codes
+                    logger.debug(f"Code reference match: '{code}'")
+            
+            scored_docs.append((doc, boost_score))
+        
+        # Sort by boost score
+        scored_docs.sort(key=lambda x: x[1], reverse=True)
+        
+        logger.debug(f"SQL boosting applied: top score = {scored_docs[0][1]:.2f}" if scored_docs else "SQL boosting: no docs")
+        return [doc for doc, score in scored_docs]
     
     def _update_metrics(self, retrieval_time: float, num_docs: int) -> None:
         """Update internal metrics tracking with enhanced features."""
