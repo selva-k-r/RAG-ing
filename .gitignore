@@ -81,6 +81,9 @@ chroma_db/
 vector_store/
 ingestion_tracking.db
 
+# Embedding model cache (large files)
+models/embeddings/
+
 # Logs & metrics
 *.log
 logs/

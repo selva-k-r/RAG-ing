@@ -76,55 +76,82 @@ class ChunkingConfig(BaseModel):
     )
 
 
-class EmbeddingModelConfig(BaseModel):
-    """Enhanced embedding model configuration with Azure and open source support."""
-    # Provider selection
-    provider: str = Field(default="huggingface", description="Provider: azure_openai or huggingface")
-    use_azure_primary: bool = Field(default=False, description="Use Azure as primary, fallback to open source")
-    
-    # Azure OpenAI embedding configuration
-    azure_model: str = Field(default="text-embedding-ada-002", description="Azure embedding model")
-    azure_endpoint: Optional[str] = Field(default=None, description="Azure OpenAI endpoint")
-    azure_api_key: Optional[str] = Field(default=None, description="Azure OpenAI API key")
-    azure_api_version: str = Field(default="2023-05-15", description="Azure API version")
-    azure_deployment_name: str = Field(default="text-embedding-ada-002", description="Azure deployment name")
-    
-    # Open source model configuration (fallback)
-    name: str = Field(default="all-MiniLM-L6-v2", description="Fallback model: all-MiniLM-L6-v2, all-mpnet-base-v2")
+class AzureOpenAIEmbeddingConfig(BaseModel):
+    """Azure OpenAI embedding configuration."""
+    model: str = Field(default="text-embedding-ada-002", description="Azure embedding model")
+    endpoint: Optional[str] = Field(default=None, description="Azure OpenAI endpoint")
+    api_key: Optional[str] = Field(default=None, description="Azure OpenAI API key")
+    api_version: str = Field(default="2023-05-15", description="Azure API version")
+    deployment_name: str = Field(default="text-embedding-ada-002", description="Azure deployment name")
+    max_retries: int = Field(default=5, description="Maximum retry attempts")
+    retry_delay: int = Field(default=2, description="Base retry delay in seconds")
+    requests_per_minute: int = Field(default=60, description="Rate limit (requests per minute)")
+
+
+class LocalEmbeddingConfig(BaseModel):
+    """Local open-source embedding configuration."""
+    model_name: str = Field(default="BAAI/bge-large-en-v1.5", description="HuggingFace model name")
     device: str = Field(default="cpu", description="Device: cpu or cuda")
-    model_path: Optional[str] = Field(default=None, description="Custom model path")
+    batch_size: int = Field(default=32, description="Batch size for encoding")
+    max_length: int = Field(default=512, description="Maximum token length")
+    normalize_embeddings: bool = Field(default=True, description="Normalize embeddings")
+    show_progress: bool = Field(default=True, description="Show progress bar")
+    num_threads: int = Field(default=4, description="Number of CPU threads")
+    cache_folder: str = Field(default="./models/embeddings", description="Model cache folder")
+
+
+class HybridEmbeddingConfig(BaseModel):
+    """Hybrid embedding configuration using different models for different operations."""
+    ingestion: str = Field(default="local", description="Provider for bulk ingestion: local or azure_openai")
+    queries: str = Field(default="azure_openai", description="Provider for user queries: local or azure_openai")
+    fallback: str = Field(default="local", description="Fallback provider on errors")
+
+
+class EmbeddingModelConfig(BaseModel):
+    """Enhanced embedding model configuration with flexible provider switching.
     
-    @field_validator('azure_model')
-    @classmethod
-    def validate_azure_embedding_models(cls, v):
-        """Validate that only standard Azure OpenAI embedding models are used."""
-        standard_embedding_models = [
-            'text-embedding-ada-002', 'text-embedding-3-large', 'text-embedding-3-small'
-        ]
-        if v not in standard_embedding_models:
-            raise ValueError(f"Azure embedding model '{v}' is not standard. Supported: {standard_embedding_models}")
-        return v
+    Supports:
+    - Azure OpenAI (text-embedding-ada-002) with rate limiting
+    - Local open-source models (BGE-large, E5, etc.) - no rate limits
+    - Hybrid mode (local for ingestion, Azure for queries)
+    """
+    # Provider selection: azure_openai | local | hybrid
+    provider: str = Field(default="local", description="Provider: azure_openai, local, or hybrid")
     
-    @field_validator('name')
+    # Provider-specific configurations
+    azure_openai: AzureOpenAIEmbeddingConfig = Field(default_factory=AzureOpenAIEmbeddingConfig)
+    local: LocalEmbeddingConfig = Field(default_factory=LocalEmbeddingConfig)
+    hybrid: HybridEmbeddingConfig = Field(default_factory=HybridEmbeddingConfig)
+    
+    # DEPRECATED: Legacy fields kept for backward compatibility
+    use_azure_primary: bool = Field(default=False, description="DEPRECATED: Use provider='azure_openai' instead")
+    azure_model: str = Field(default="text-embedding-ada-002", description="DEPRECATED: Use azure_openai.model")
+    azure_endpoint: Optional[str] = Field(default=None, description="DEPRECATED: Use azure_openai.endpoint")
+    azure_api_key: Optional[str] = Field(default=None, description="DEPRECATED: Use azure_openai.api_key")
+    azure_api_version: str = Field(default="2023-05-15", description="DEPRECATED: Use azure_openai.api_version")
+    azure_deployment_name: str = Field(default="text-embedding-ada-002", description="DEPRECATED: Use azure_openai.deployment_name")
+    name: str = Field(default="all-MiniLM-L6-v2", description="DEPRECATED: Use local.model_name")
+    device: str = Field(default="cpu", description="DEPRECATED: Use local.device")
+    model_path: Optional[str] = Field(default=None, description="DEPRECATED: Not used")
+    
+    @field_validator('provider')
     @classmethod
-    def validate_fallback_models(cls, v):
-        """Validate fallback embedding models."""
-        supported_models = [
-            'all-MiniLM-L6-v2', 'all-mpnet-base-v2', 'sentence-transformers/all-MiniLM-L6-v2'
-        ]
-        if v not in supported_models:
-            raise ValueError(f"Fallback model '{v}' not supported. Use: {supported_models}")
+    def validate_provider(cls, v):
+        """Validate provider selection."""
+        supported_providers = ['azure_openai', 'local', 'hybrid']
+        if v not in supported_providers:
+            raise ValueError(f"Provider '{v}' not supported. Use: {supported_providers}")
         return v
     
     def get_primary_provider(self) -> str:
         """Get the primary embedding provider to use."""
         if self.use_azure_primary and self.provider == "azure_openai":
             return "azure_openai"
-        return "huggingface"
+        return self.provider
     
     def get_fallback_model(self) -> str:
         """Get fallback model name for open source embeddings."""
-        return self.name
+        return self.local.model_name or self.name
 
 
 class RerankingConfig(BaseModel):

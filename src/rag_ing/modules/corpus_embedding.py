@@ -28,6 +28,7 @@ from ..utils.exceptions import IngestionError
 from ..utils.duplicate_detector import DuplicateDetector
 from ..utils.document_summarizer import DocumentSummarizer
 from ..utils.code_chunker import CodeChunker
+from ..utils.embedding_provider import create_embedding_provider, get_embedding_model
 
 logger = logging.getLogger(__name__)
 
@@ -665,144 +666,87 @@ class CorpusEmbeddingModule:
         return chunks
     
     def _load_embedding_model(self) -> None:
-        """Enhanced embedding model loading supporting Azure OpenAI and open source models.
+        """Setup embedding model using unified provider system.
         
-        Educational note: This demonstrates the Strategy pattern - different embedding
-        providers are handled through a common interface but with provider-specific logic.
+        Supports Azure OpenAI, local open-source models, and hybrid mode.
+        Configuration is driven by config.yaml embedding_model section.
         
-        Supports both Azure OpenAI embeddings (text-embedding-ada-002) and 
-        open source models (PubMedBERT, all-MiniLM-L6-v2, etc.)
+        Educational note: This uses the unified embedding provider which handles:
+        - Provider switching (Azure OpenAI / Local / Hybrid)
+        - Rate limiting for Azure OpenAI
+        - Automatic fallback on errors
+        - Performance tracking
         """
-        provider = self.embedding_config.get_primary_provider()
-        logger.info(f"Loading embedding model using provider: {provider}")
+        logger.info("Setting up embedding model")
         
-        if provider == "azure_openai" and self.embedding_config.use_azure_primary:
-            # Use Azure OpenAI embeddings (higher quality, paid)
-            self._load_azure_embedding_model()
-        else:
-            # Use open source embedding model (free, local)
-            self._load_open_source_embedding_model()
+        try:
+            # Create embedding provider from config
+            embedding_config_dict = {
+                'provider': self.embedding_config.provider,
+                'azure_openai': {
+                    'model': self.embedding_config.azure_model,
+                    'endpoint': (
+                        self.config.azure_openai_embedding_endpoint or  
+                        self.embedding_config.azure_endpoint or
+                        self.config.azure_openai_endpoint
+                    ),
+                    'api_key': (
+                        self.config.azure_openai_embedding_api_key or
+                        self.embedding_config.azure_api_key or
+                        self.config.azure_openai_api_key
+                    ),
+                    'api_version': (
+                        self.config.azure_openai_embedding_api_version or
+                        self.embedding_config.azure_api_version
+                    ),
+                    'deployment_name': self.embedding_config.azure_deployment_name,
+                    'max_retries': getattr(self.embedding_config, 'azure_openai', {}).get('max_retries', 5),
+                    'retry_delay': getattr(self.embedding_config, 'azure_openai', {}).get('retry_delay', 2),
+                    'requests_per_minute': getattr(self.embedding_config, 'azure_openai', {}).get('requests_per_minute', 60)
+                },
+                'local': getattr(self.embedding_config, 'local', {}) or {
+                    'model_name': 'BAAI/bge-large-en-v1.5',
+                    'device': self.embedding_config.device,
+                    'batch_size': 32,
+                    'normalize_embeddings': True
+                },
+                'hybrid': getattr(self.embedding_config, 'hybrid', {}) or {}
+            }
+            
+            # Create unified provider
+            self.embedding_model = get_embedding_model(embedding_config_dict)
+            self.embedding_provider = create_embedding_provider(embedding_config_dict)
+            
+            # Test the model with a sample text
+            test_embedding = self.embedding_model.embed_query("document embedding test")
+            self._stats["vector_size"] = len(test_embedding)
+            
+            logger.info(f"[OK] Embedding model initialized")
+            logger.info(f"     Provider: {self.embedding_provider.get_provider_name()}")
+            logger.info(f"     Vector dimension: {len(test_embedding)}")
+            
+        except Exception as e:
+            logger.error(f"[X] Failed to setup embedding model: {e}")
+            logger.error(f"     Provider: {self.embedding_config.provider}")
+            raise IngestionError(f"Embedding model setup failed: {e}")
     
     def _load_azure_embedding_model(self) -> None:
-        """Load Azure OpenAI embedding model."""
-        try:
-            logger.info(" Loading Azure OpenAI embedding model")
-            
-            # Import Azure OpenAI
-            from openai import AzureOpenAI
-            
-            # Get configuration - prioritize embedding-specific credentials from env vars
-            api_key = (
-                self.config.azure_openai_embedding_api_key or  # From .env AZURE_OPENAI_EMBEDDING_API_KEY
-                self.embedding_config.azure_api_key or          # From config.yaml
-                self.config.azure_openai_api_key               # Fallback to main Azure key
-            )
-            endpoint = (
-                self.config.azure_openai_embedding_endpoint or  # From .env AZURE_OPENAI_EMBEDDING_ENDPOINT
-                self.embedding_config.azure_endpoint or         # From config.yaml
-                self.config.azure_openai_endpoint              # Fallback to main Azure endpoint
-            )
-            api_version = (
-                self.config.azure_openai_embedding_api_version or  # From .env
-                self.embedding_config.azure_api_version            # From config.yaml
-            )
-            
-            azure_client = AzureOpenAI(
-                api_key=api_key,
-                azure_endpoint=endpoint,
-                api_version=api_version
-            )
-            
-            # Create wrapper class for Azure embeddings to match LangChain interface
-            class AzureEmbeddingWrapper:
-                def __init__(self, client, model_name, deployment_name):
-                    self.client = client
-                    self.model_name = model_name
-                    self.deployment_name = deployment_name
-                
-                def embed_query(self, text: str) -> List[float]:
-                    """Embed a single query text."""
-                    response = self.client.embeddings.create(
-                        input=[text],
-                        model=self.deployment_name
-                    )
-                    return response.data[0].embedding
-                
-                def embed_documents(self, texts: List[str]) -> List[List[float]]:
-                    """Embed multiple documents."""
-                    # Process in batches to avoid API limits
-                    batch_size = 16  # Azure OpenAI batch limit
-                    all_embeddings = []
-                    
-                    for i in range(0, len(texts), batch_size):
-                        batch = texts[i:i + batch_size]
-                        response = self.client.embeddings.create(
-                            input=batch,
-                            model=self.deployment_name
-                        )
-                        batch_embeddings = [data.embedding for data in response.data]
-                        all_embeddings.extend(batch_embeddings)
-                    
-                    return all_embeddings
-            
-            # Initialize Azure embedding wrapper
-            self.embedding_model = AzureEmbeddingWrapper(
-                client=azure_client,
-                model_name=self.embedding_config.azure_model,
-                deployment_name=self.embedding_config.azure_deployment_name
-            )
-            
-            # Test the model with a sample text
-            test_embedding = self.embedding_model.embed_query("document embedding test")
-            self._stats["vector_size"] = len(test_embedding)
-            
-            logger.info(f" Azure embedding model loaded successfully - Vector dimension: {len(test_embedding)}")
-            logger.info(f"   Model: {self.embedding_config.azure_model}")
-            logger.info(f"   Deployment: {self.embedding_config.azure_deployment_name}")
-            
-        except Exception as e:
-            logger.error(f" Failed to load Azure embedding model: {e}")
-            logger.info(" Falling back to open source embedding model")
-            self._load_open_source_embedding_model()
+        """DEPRECATED: This method is kept for backward compatibility.
+        Use the unified embedding provider in _load_embedding_model() instead.
+        """
+        logger.warning("[!] _load_azure_embedding_model() is deprecated")
+        logger.warning("    Using unified embedding provider system instead")
+        # Fallback to unified system
+        self._load_embedding_model()
     
     def _load_open_source_embedding_model(self) -> None:
-        """Load open source embedding model as fallback or primary choice."""
-        model_name = self.embedding_config.get_fallback_model()
-        device = self.embedding_config.device
-        
-        logger.info(f" Loading open source embedding model: {model_name} on {device}")
-        
-        # Map model names to HuggingFace model paths as required
-        model_mapping = {
-            "pubmedbert": "microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext",
-            "clinicalbert": "emilyalsentzer/Bio_ClinicalBERT", 
-            "biobert": "dmis-lab/biobert-v1.1",
-            "scibert": "allenai/scibert_scivocab_uncased",
-            "all-MiniLM-L6-v2": "sentence-transformers/all-MiniLM-L6-v2",
-            "all-mpnet-base-v2": "sentence-transformers/all-mpnet-base-v2"
-        }
-        
-        model_path = model_mapping.get(model_name, model_name)
-        
-        try:
-            from langchain_huggingface import HuggingFaceEmbeddings
-            
-            self.embedding_model = HuggingFaceEmbeddings(
-                model_name=model_path,
-                model_kwargs={'device': device},
-                encode_kwargs={'normalize_embeddings': True}
-            )
-            
-            # Test the model with a sample text
-            test_embedding = self.embedding_model.embed_query("document embedding test")
-            self._stats["vector_size"] = len(test_embedding)
-            
-            logger.info(f" Open source embedding model loaded successfully - Vector dimension: {len(test_embedding)}")
-            logger.info(f"   Model path: {model_path}")
-            
-        except Exception as e:
-            logger.error(f" Failed to load open source embedding model {model_name}: {e}")
-            raise IngestionError(f"Embedding model loading failed: {e}")
+        """DEPRECATED: This method is kept for backward compatibility.
+        Use the unified embedding provider in _load_embedding_model() instead.
+        """
+        logger.warning("[!] _load_open_source_embedding_model() is deprecated")
+        logger.warning("    Using unified embedding provider system instead")
+        # Fallback to unified system
+        self._load_embedding_model()
     
     def _setup_vector_store(self) -> None:
         """Setup vector store based on configuration.
