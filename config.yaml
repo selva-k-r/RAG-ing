@@ -122,7 +122,7 @@ chunking:
 embedding_model:
   # SWITCH: Choose embedding provider
   # Options: "azure_openai" | "local" | "hybrid"
-  provider: "local"  # ⚠️ SWITCH HERE: azure_openai (API) or local (open-source)
+  provider: "azure_openai"  # ⚠️ SWITCH HERE: azure_openai (API) or local (open-source)
   
   # ============================================================================
   # AZURE OPENAI CONFIGURATION (provider: "azure_openai")

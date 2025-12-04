@@ -681,36 +681,50 @@ class CorpusEmbeddingModule:
         
         try:
             # Create embedding provider from config
+            # Extract azure_openai config
+            azure_config = getattr(self.embedding_config, 'azure_openai', None)
+            if azure_config:
+                azure_dict = {
+                    'model': azure_config.model,
+                    'endpoint': azure_config.endpoint or self.config.azure_openai_embedding_endpoint or self.config.azure_openai_endpoint,
+                    'api_key': azure_config.api_key or self.config.azure_openai_embedding_api_key or self.config.azure_openai_api_key,
+                    'api_version': azure_config.api_version or self.config.azure_openai_embedding_api_version,
+                    'deployment_name': azure_config.deployment_name,
+                    'max_retries': azure_config.max_retries,
+                    'retry_delay': azure_config.retry_delay,
+                    'requests_per_minute': azure_config.requests_per_minute
+                }
+            else:
+                # Fallback to legacy fields
+                azure_dict = {
+                    'model': self.embedding_config.azure_model,
+                    'endpoint': self.config.azure_openai_embedding_endpoint or self.config.azure_openai_endpoint,
+                    'api_key': self.config.azure_openai_embedding_api_key or self.config.azure_openai_api_key,
+                    'api_version': self.config.azure_openai_embedding_api_version,
+                    'deployment_name': self.embedding_config.azure_deployment_name,
+                    'max_retries': 5,
+                    'retry_delay': 2,
+                    'requests_per_minute': 60
+                }
+            
+            # Extract local config
+            local_config = getattr(self.embedding_config, 'local', None)
+            local_dict = local_config.model_dump() if local_config else {
+                'model_name': 'BAAI/bge-large-en-v1.5',
+                'device': getattr(self.embedding_config, 'device', 'cpu'),
+                'batch_size': 32,
+                'normalize_embeddings': True
+            }
+            
+            # Extract hybrid config
+            hybrid_config = getattr(self.embedding_config, 'hybrid', None)
+            hybrid_dict = hybrid_config.model_dump() if hybrid_config else {}
+            
             embedding_config_dict = {
                 'provider': self.embedding_config.provider,
-                'azure_openai': {
-                    'model': self.embedding_config.azure_model,
-                    'endpoint': (
-                        self.config.azure_openai_embedding_endpoint or  
-                        self.embedding_config.azure_endpoint or
-                        self.config.azure_openai_endpoint
-                    ),
-                    'api_key': (
-                        self.config.azure_openai_embedding_api_key or
-                        self.embedding_config.azure_api_key or
-                        self.config.azure_openai_api_key
-                    ),
-                    'api_version': (
-                        self.config.azure_openai_embedding_api_version or
-                        self.embedding_config.azure_api_version
-                    ),
-                    'deployment_name': self.embedding_config.azure_deployment_name,
-                    'max_retries': getattr(self.embedding_config, 'azure_openai', {}).get('max_retries', 5),
-                    'retry_delay': getattr(self.embedding_config, 'azure_openai', {}).get('retry_delay', 2),
-                    'requests_per_minute': getattr(self.embedding_config, 'azure_openai', {}).get('requests_per_minute', 60)
-                },
-                'local': getattr(self.embedding_config, 'local', {}) or {
-                    'model_name': 'BAAI/bge-large-en-v1.5',
-                    'device': self.embedding_config.device,
-                    'batch_size': 32,
-                    'normalize_embeddings': True
-                },
-                'hybrid': getattr(self.embedding_config, 'hybrid', {}) or {}
+                'azure_openai': azure_dict,
+                'local': local_dict,
+                'hybrid': hybrid_dict
             }
             
             # Create unified provider
@@ -728,6 +742,8 @@ class CorpusEmbeddingModule:
         except Exception as e:
             logger.error(f"[X] Failed to setup embedding model: {e}")
             logger.error(f"     Provider: {self.embedding_config.provider}")
+            import traceback
+            logger.error(f"     Traceback: {traceback.format_exc()}")
             raise IngestionError(f"Embedding model setup failed: {e}")
     
     def _load_azure_embedding_model(self) -> None:
