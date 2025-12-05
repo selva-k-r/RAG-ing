@@ -1,0 +1,81 @@
+{
+  "node_id": "model.anthem_dev.stg_seed_ocm_cancer_types",
+  "name": "stg_seed_ocm_cancer_types",
+  "original_file_path": "models\\staging\\seed\\stg_seed_ocm_cancer_types.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "stg_seed_ocm_cancer_types",
+  "description": "",
+  "columns": {
+    "CANCER_TYPE": {
+      "name": "CANCER_TYPE",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "ICD10CODE": {
+      "name": "ICD10CODE",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "START_DT": {
+      "name": "START_DT",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "END_DT": {
+      "name": "END_DT",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    }
+  },
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "seed.anthem_dev.seed_ocm_cancer_types"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_seed_ocm_cancer_types.sql",
+  "file_size": 69,
+  "line_count": 3
+}

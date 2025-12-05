@@ -34,6 +34,9 @@ class QueryRetrievalModule:
         self.embedding_model = None
         self._initialize_components()
         
+        # LLM client for query expansion (injected by orchestrator)
+        self.llm_client = None
+        
         # Query cache for performance
         self._query_cache = {}
         self._cache_ttl = 300  # 5 minutes
@@ -52,6 +55,15 @@ class QueryRetrievalModule:
             "medical_boosted_queries": 0,
             "hierarchical_queries": 0
         }
+    
+    def set_llm_client(self, llm_client):
+        """Set LLM client for query expansion.
+        
+        Args:
+            llm_client: Azure OpenAI or other LLM client for generating query variations
+        """
+        self.llm_client = llm_client
+        logger.info("LLM client set for query expansion")
     
     def _initialize_components(self):
         """Initialize vector store and embedding model based on configuration."""
@@ -116,28 +128,23 @@ class QueryRetrievalModule:
             self.vector_store = None
     
     def _initialize_embedding_model(self):
-        """Initialize embedding model supporting both Azure and open source options."""
+        """Initialize embedding model - Azure OpenAI only."""
         embedding_config = self.config.embedding_model
         provider = embedding_config.get_primary_provider()
         
         logger.info(f"Initializing embedding model with provider: {provider}")
         
-        if provider == "azure_openai" and embedding_config.use_azure_primary:
-            # Try Azure OpenAI embeddings first
+        # ALWAYS use Azure OpenAI - no fallback
+        if provider == "azure_openai":
             try:
                 self._load_azure_embedding_model()
+                logger.info("Azure OpenAI embedding model loaded successfully")
                 return
             except Exception as e:
-                logger.warning(f"Azure embedding model failed, falling back to open source: {e}")
-        
-        # Use open source embedding model
-        try:
-            self._load_open_source_embedding_model()
-        except Exception as e:
-            logger.warning(f"Failed to load open source embeddings: {e}")
-            # Final fallback to mock embedding for demo purposes
-            logger.info("Using mock embedding model for demonstration")
-            self.embedding_model = self._create_mock_embedding_model()
+                logger.error(f"Azure embedding model failed: {e}")
+                raise RuntimeError(f"Failed to initialize Azure OpenAI embeddings. Please check credentials and configuration.") from e
+        else:
+            raise RuntimeError(f"Only azure_openai provider is supported. Current provider: {provider}")
     
     def _load_azure_embedding_model(self):
         """Load Azure OpenAI embedding model for query processing."""
@@ -205,46 +212,6 @@ class QueryRetrievalModule:
         )
         
         logger.info(f"Azure embedding model loaded for queries: {embedding_config.azure_model}")
-    
-    def _load_open_source_embedding_model(self):
-        """Load open source embedding model for query processing."""
-        from langchain_huggingface import HuggingFaceEmbeddings
-        
-        embedding_config = self.config.embedding_model
-        
-        # Map model names to actual HuggingFace model identifiers
-        model_mapping = {
-            "pubmedbert": "microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext",
-            "all-MiniLM-L6-v2": "sentence-transformers/all-MiniLM-L6-v2",
-            "all-mpnet-base-v2": "sentence-transformers/all-mpnet-base-v2"
-        }
-        
-        model_name = model_mapping.get(embedding_config.name, embedding_config.name)
-        logger.info(f"Loading open source embedding model: {model_name}")
-        
-        self.embedding_model = HuggingFaceEmbeddings(
-            model_name=model_name,
-            model_kwargs={'device': embedding_config.device}
-        )
-        logger.info(f"Open source embedding model loaded: {embedding_config.name}")
-    
-        """Create a simple mock embedding model for demonstration purposes."""
-        class MockEmbeddingModel:
-            def embed_query(self, text):
-                # Simple mock embedding - in production this would use real embeddings
-                import hashlib
-                import numpy as np
-                
-                # Create a deterministic "embedding" from text hash
-                hash_obj = hashlib.md5(text.encode())
-                seed = int(hash_obj.hexdigest(), 16) % 2**32
-                np.random.seed(seed)
-                return np.random.rand(768).tolist()  # Mock 768-dim embedding to match PubMedBERT
-                
-            def embed_documents(self, texts):
-                return [self.embed_query(text) for text in texts]
-        
-        return MockEmbeddingModel()
     
     def _create_mock_vector_store(self):
         """Create a simple mock vector store for demonstration purposes."""
@@ -336,15 +303,24 @@ class QueryRetrievalModule:
         return normalized
     
     def _expand_query(self, original_query: str, normalized_query: str) -> List[str]:
-        """Expand query with synonyms, variations, and domain concepts.
+        """Expand query with LLM-generated variations or fallback to rule-based expansion.
         
-        Helps handle cases where users don't know exact technical terms:
-        - "three classification" → "three categories", "three types", "three classes"
-        - "qm2 logic" → "qm2 calculation", "quality measure 2", "qm-2 methodology"
-        - "anthem" → "anthem blue cross", "anthem bcbs"
+        Uses LLM to generate 10 diverse rephrases of the user's question for better retrieval.
+        Falls back to rule-based expansion if LLM is not available.
         
         Returns list of query variations (original first).
         """
+        # Try LLM-based expansion first (preferred)
+        if self.llm_client:
+            try:
+                llm_variations = self._generate_llm_query_variations(original_query)
+                if llm_variations:
+                    logger.info(f"Query expanded to {len(llm_variations)} LLM-generated variations")
+                    return llm_variations
+            except Exception as e:
+                logger.warning(f"LLM query expansion failed, falling back to rule-based: {e}")
+        
+        # Fallback to rule-based expansion
         expanded = [normalized_query]  # Always include normalized original
         
         # Domain-specific concept mappings
@@ -421,6 +397,67 @@ class QueryRetrievalModule:
             logger.debug(f"Expanded queries: {expanded[:3]}")  # Log first 3
         
         return expanded
+    
+    def _generate_llm_query_variations(self, original_query: str) -> List[str]:
+        """Generate query variations using LLM.
+        
+        Args:
+            original_query: The user's original question
+            
+        Returns:
+            List of 10 query variations including the original
+        """
+        # Clean query for LLM (remove trailing punctuation that may confuse it)
+        clean_query = original_query.strip().rstrip('?!.')
+        
+        # Simpler, more direct prompt
+        prompt = f"""Rephrase this question in 9 different ways:
+
+"{clean_query}"
+
+Write 9 variations as a numbered list (1-9). Keep each variation concise and clear."""
+        
+        try:
+            # Call LLM with minimal parameters
+            response = self.llm_client.chat.completions.create(
+                model=self.config.llm.model,
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                max_completion_tokens=800  # More tokens for 9 variations
+            )
+            
+            variations_text = response.choices[0].message.content
+            
+            # Handle None or empty response
+            if not variations_text:
+                logger.warning("LLM returned empty response for query variations")
+                return [original_query]
+            
+            variations_text = variations_text.strip()
+            logger.debug(f"LLM response for query variations: {variations_text[:500]}")
+            
+            # Parse variations (remove numbering)
+            variations = []
+            for line in variations_text.split('\n'):
+                line = line.strip()
+                if line:
+                    # Remove numbering like "1.", "1)", etc.
+                    cleaned = line.lstrip('0123456789.)- ').strip()
+                    if cleaned and len(cleaned) > 5:  # Minimum length check
+                        variations.append(cleaned)
+            
+            logger.debug(f"Parsed {len(variations)} variations from LLM response")
+            
+            # Always include original first, then add LLM variations
+            result = [original_query] + variations[:9]
+            
+            logger.debug(f"Generated {len(result)} query variations (1 original + {len(variations[:9])} LLM)")
+            return result[:10]  # Ensure we return exactly 10
+            
+        except Exception as e:
+            logger.error(f"Failed to generate LLM query variations: {e}")
+            return [original_query]  # Return original on error
     
     def _generate_query_hash(self, query: str, filters: Optional[Dict[str, Any]] = None) -> str:
         """Generate hash for query caching."""
@@ -614,6 +651,7 @@ class QueryRetrievalModule:
         """Merge semantic and keyword retrieval results with weighted scoring.
         
         For SQL queries, boost keyword weight for better exact matching.
+        Also boosts documents where model_name matches terms in the query.
         """
         logger.debug("Merging semantic and keyword retrieval results")
         
@@ -626,6 +664,10 @@ class QueryRetrievalModule:
             semantic_weight = self.retrieval_config.semantic_weight
             keyword_weight = self.retrieval_config.keyword_weight
         
+        # Extract potential model names from query (e.g., "qm1" → "stg_qm1")
+        query_text = getattr(self, '_last_query', '').lower()
+        model_name_boost_factor = 2.0  # Strong boost for exact model name matches
+        
         # Create document scoring map
         doc_scores = {}
         
@@ -636,7 +678,8 @@ class QueryRetrievalModule:
             doc_scores[doc_id] = {
                 'doc': doc,
                 'semantic_score': semantic_score,
-                'keyword_score': 0.0
+                'keyword_score': 0.0,
+                'model_boost': 0.0
             }
         
         # Score keyword results
@@ -650,14 +693,33 @@ class QueryRetrievalModule:
                 doc_scores[doc_id] = {
                     'doc': doc,
                     'semantic_score': 0.0,
-                    'keyword_score': keyword_score
+                    'keyword_score': keyword_score,
+                    'model_boost': 0.0
                 }
         
-        # Calculate final weighted scores
+        # Apply model name boosting
+        for doc_id, doc_data in doc_scores.items():
+            doc = doc_data['doc']
+            model_name = doc.metadata.get('model_name', '').lower()
+            
+            # Check if query contains model identifier (qm1, qm2, etc.)
+            # Extract patterns like "qm1", "qm-1", "quality measure 1"
+            import re
+            qm_patterns = re.findall(r'qm[-\s]?(\d+)', query_text)
+            
+            for qm_num in qm_patterns:
+                # Check if model name contains this QM number (e.g., stg_qm1, qm1)
+                if f'qm{qm_num}' in model_name or f'qm_{qm_num}' in model_name:
+                    doc_data['model_boost'] = model_name_boost_factor
+                    logger.debug(f"Boosting {model_name} (QM{qm_num} match)")
+                    break
+        
+        # Calculate final weighted scores with model boost
         final_docs = []
         for doc_data in doc_scores.values():
-            final_score = (semantic_weight * doc_data['semantic_score'] + 
-                          keyword_weight * doc_data['keyword_score'])
+            base_score = (semantic_weight * doc_data['semantic_score'] + 
+                         keyword_weight * doc_data['keyword_score'])
+            final_score = base_score * (1 + doc_data['model_boost'])  # Multiply by boost factor
             final_docs.append((doc_data['doc'], final_score))
         
         # Sort by final score

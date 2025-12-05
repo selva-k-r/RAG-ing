@@ -1,0 +1,36 @@
+{
+  "node_id": "model.anthem_dev.stg_seed_ndc_drug",
+  "name": "stg_seed_ndc_drug",
+  "original_file_path": "models\\staging\\seed\\stg_seed_ndc_drug.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "stg_seed_ndc_drug",
+  "description": "",
+  "columns": {
+    "NDC_CODE": {
+      "name": "NDC_CODE",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    }
+  },
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "seed.anthem_dev.seed_ndc_drug"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_seed_ndc_drug.sql",
+  "file_size": 61,
+  "line_count": 3
+}

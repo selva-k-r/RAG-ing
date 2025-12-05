@@ -1,0 +1,51 @@
+{
+  "node_id": "model.anthem_dev.stg_seed_comorbidtiy_hcc",
+  "name": "stg_seed_comorbidtiy_hcc",
+  "original_file_path": "models\\staging\\seed\\stg_seed_comorbidtiy_hcc.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "stg_seed_comorbidtiy_hcc",
+  "description": "",
+  "columns": {
+    "Comorbidity": {
+      "name": "Comorbidity",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "HCC_Codes": {
+      "name": "HCC_Codes",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    }
+  },
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "seed.anthem_dev.seed_comorbidities_hhc"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_seed_comorbidtiy_hcc.sql",
+  "file_size": 70,
+  "line_count": 4
+}

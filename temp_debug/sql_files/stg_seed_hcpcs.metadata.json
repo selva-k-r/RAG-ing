@@ -1,0 +1,66 @@
+{
+  "node_id": "model.anthem_dev.stg_seed_hcpcs",
+  "name": "stg_seed_hcpcs",
+  "original_file_path": "models\\staging\\seed\\stg_seed_hcpcs.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "stg_seed_hcpcs",
+  "description": "",
+  "columns": {
+    "CODE": {
+      "name": "CODE",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "PROCEDURE_NAME": {
+      "name": "PROCEDURE_NAME",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "PROCEDURE_CATEGORY": {
+      "name": "PROCEDURE_CATEGORY",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    }
+  },
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "seed.anthem_dev.seed_hcpcs"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_seed_hcpcs.sql",
+  "file_size": 58,
+  "line_count": 3
+}

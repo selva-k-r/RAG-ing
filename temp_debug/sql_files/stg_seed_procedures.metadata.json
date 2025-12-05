@@ -1,0 +1,66 @@
+{
+  "node_id": "model.anthem_dev.stg_seed_procedures",
+  "name": "stg_seed_procedures",
+  "original_file_path": "models\\staging\\seed\\stg_seed_procedures.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "stg_seed_procedures",
+  "description": "",
+  "columns": {
+    "CODE": {
+      "name": "CODE",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "CODE_TYPE": {
+      "name": "CODE_TYPE",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "NAME": {
+      "name": "NAME",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    }
+  },
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "seed.anthem_dev.seed_procedures"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_seed_procedures.sql",
+  "file_size": 63,
+  "line_count": 3
+}

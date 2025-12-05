@@ -1,0 +1,51 @@
+{
+  "node_id": "model.anthem_dev.stg_seed_hormone_therapy",
+  "name": "stg_seed_hormone_therapy",
+  "original_file_path": "models\\staging\\seed\\stg_seed_hormone_therapy.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "stg_seed_hormone_therapy",
+  "description": "",
+  "columns": {
+    "HORMONE_THERAPY": {
+      "name": "HORMONE_THERAPY",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "CANCER_TYPE": {
+      "name": "CANCER_TYPE",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    }
+  },
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "seed.anthem_dev.seed_hormone_therapy"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_seed_hormone_therapy.sql",
+  "file_size": 68,
+  "line_count": 3
+}

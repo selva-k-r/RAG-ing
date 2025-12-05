@@ -1,0 +1,66 @@
+{
+  "node_id": "model.anthem_dev.stg_seed_ocm_initiators_ndc",
+  "name": "stg_seed_ocm_initiators_ndc",
+  "original_file_path": "models\\staging\\seed\\stg_seed_ocm_initiators_ndc.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "stg_seed_ocm_initiators_ndc",
+  "description": "",
+  "columns": {
+    "GENERIC_DRUG": {
+      "name": "GENERIC_DRUG",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "NDC_TEXT": {
+      "name": "NDC_TEXT",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "NDC_CODE": {
+      "name": "NDC_CODE",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    }
+  },
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "seed.anthem_dev.seed_ocm_initiators_ndc"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_seed_ocm_initiators_ndc.sql",
+  "file_size": 71,
+  "line_count": 3
+}

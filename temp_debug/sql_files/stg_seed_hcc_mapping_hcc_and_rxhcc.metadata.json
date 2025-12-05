@@ -1,0 +1,51 @@
+{
+  "node_id": "model.anthem_dev.stg_seed_hcc_mapping_hcc_and_rxhcc",
+  "name": "stg_seed_hcc_mapping_hcc_and_rxhcc",
+  "original_file_path": "models\\staging\\seed\\stg_seed_hcc_mapping_hcc_and_rxhcc.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "stg_seed_hcc_mapping_hcc_and_rxhcc",
+  "description": "",
+  "columns": {
+    "DIAGNOSIS_CODE": {
+      "name": "DIAGNOSIS_CODE",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "DESCRIPTION": {
+      "name": "DESCRIPTION",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    }
+  },
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "seed.anthem_dev.seed_hccmapping"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_seed_hcc_mapping_hcc_and_rxhcc.sql",
+  "file_size": 280,
+  "line_count": 11
+}

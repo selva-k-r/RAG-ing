@@ -438,32 +438,29 @@ class CorpusEmbeddingModule:
     def _extract_domain_codes(self, content: str) -> List[str]:
         """Extract medical ontology codes from content.
         
-        Implements extraction for ICD-O, SNOMED-CT, and UMLS as specified
-        in requirements. Uses regex patterns for common medical codes.
+        Implements extraction for generic domain codes like error codes,
+        ticket IDs, and version numbers. Uses regex patterns for common codes.
         """
-        ontology_codes = []
+        domain_codes = []
         
-        # ICD-O codes (International Classification of Diseases for Oncology)
-        # Format: C78.0, C50.9, etc.
-        icd_o_pattern = r'C\d{2}\.\d'
-        ontology_codes.extend(re.findall(icd_o_pattern, content, re.IGNORECASE))
+        # Error codes (e.g., ERROR-001, ERR_12345, ERR-500)
+        error_pattern = r'ERR(?:OR)?[-_]?\d{3,6}'
+        domain_codes.extend(re.findall(error_pattern, content, re.IGNORECASE))
         
-        # SNOMED-CT codes (Systematized Nomenclature of Medicine Clinical Terms)
-        # Format: SNOMED: 123456789 or SNOMED-CT: 123456789
-        snomed_pattern = r'SNOMED(?:-CT)?[:\s]+(\d{6,})'
-        ontology_codes.extend(re.findall(snomed_pattern, content, re.IGNORECASE))
+        # Ticket/Issue IDs (e.g., TICKET-12345, JIRA-1000, ISSUE_6789)
+        ticket_pattern = r'(?:TICKET|ISSUE|JIRA)[-_]?\d{3,6}'
+        domain_codes.extend(re.findall(ticket_pattern, content, re.IGNORECASE))
         
-        # MeSH terms (Medical Subject Headings) - basic detection
-        mesh_pattern = r'MeSH[:\s]+([A-Z]\d{2}\.[A-Z0-9\.]+)'
-        ontology_codes.extend(re.findall(mesh_pattern, content, re.IGNORECASE))
+        # Version numbers (e.g., v1.2.3, 2.0.1, version 3.14.0)
+        version_pattern = r'v?\d+\.\d+\.\d+'
+        domain_codes.extend(re.findall(version_pattern, content, re.IGNORECASE))
         
-        # Additional oncology-specific patterns
-        # Cancer staging: TNM classification
-        tnm_pattern = r'T[0-4]N[0-3]M[0-1]'
-        ontology_codes.extend(re.findall(tnm_pattern, content, re.IGNORECASE))
+        # Reference codes (e.g., REF-12345, DOC_5678)
+        ref_pattern = r'(?:REF|DOC)[-_]?\d{3,6}'
+        domain_codes.extend(re.findall(ref_pattern, content, re.IGNORECASE))
         
         # Remove duplicates and return
-        return list(set([code for code in ontology_codes if code.strip()]))
+        return list(set([code for code in domain_codes if code.strip()]))
     
     def _process_document_batch(self, batch: List[Document]) -> None:
         """
@@ -541,11 +538,19 @@ class CorpusEmbeddingModule:
         logger.info(f"Applying {strategy} chunking strategy")
         
         if strategy == "recursive":
-            return self._recursive_chunking(documents)
+            chunks = self._recursive_chunking(documents)
         elif strategy == "semantic":
-            return self._semantic_chunking(documents)
+            chunks = self._semantic_chunking(documents)
         else:
             raise ValueError(f"Unsupported chunking strategy: {strategy}")
+        
+        # Apply max_chunks limit if configured
+        max_chunks = getattr(self.chunking_config, 'max_chunks', None)
+        if max_chunks and len(chunks) > max_chunks:
+            logger.info(f"Limiting chunks from {len(chunks)} to {max_chunks} for testing")
+            chunks = chunks[:max_chunks]
+        
+        return chunks
     
     def _recursive_chunking(self, documents: List[Document]) -> List[Document]:
         """Apply recursive character-based chunking with configured parameters.
@@ -596,17 +601,17 @@ class CorpusEmbeddingModule:
         return chunks
     
     def _semantic_chunking(self, documents: List[Document]) -> List[Document]:
-        """Apply semantic boundary-aware chunking for oncology content.
+        """Apply semantic boundary-aware chunking for document content.
         
         Preserves semantic boundaries as specified in requirements.
-        Uses medical section boundaries for better context preservation.
+        Uses generic section boundaries for better context preservation.
         """
         chunks = []
         
-        # Define oncology-specific semantic boundaries
+        # Define generic semantic boundaries
         semantic_boundaries = [
-            "## Diagnosis", "## Treatment", "## Biomarkers", "## Prognosis",
-            "DIAGNOSIS:", "TREATMENT:", "FINDINGS:", "CONCLUSION:",
+            "## Overview", "## Configuration", "## Implementation", "## Results",
+            "SUMMARY:", "DETAILS:", "FINDINGS:", "CONCLUSION:",
             "Abstract", "Introduction", "Methods", "Results", "Discussion"
         ]
         
@@ -1118,8 +1123,18 @@ class CorpusEmbeddingModule:
                     cleaned_chunk = Document(page_content=chunk.page_content, metadata=cleaned_metadata)
                     cleaned_chunks.append(cleaned_chunk)
                 
-                # Add documents to ChromaDB
-                self.vector_store.add_documents(cleaned_chunks)
+                # Add documents to ChromaDB in batches to avoid API limits
+                # Azure OpenAI embedding API has batch size limits (typically 16-2048)
+                batch_size = 100  # Conservative batch size for stability
+                total_chunks = len(cleaned_chunks)
+                
+                for i in range(0, total_chunks, batch_size):
+                    batch = cleaned_chunks[i:i + batch_size]
+                    batch_num = (i // batch_size) + 1
+                    total_batches = (total_chunks + batch_size - 1) // batch_size
+                    
+                    logger.info(f"   Storing batch {batch_num}/{total_batches}: {len(batch)} chunks")
+                    self.vector_store.add_documents(batch)
                 
             elif self.vector_store_config.type == "faiss":
                 # Create FAISS index from documents
@@ -1192,11 +1207,11 @@ class CorpusEmbeddingModule:
             return False
         
         try:
-            # Test embedding generation with oncology-specific content
+            # Test embedding generation with generic content
             test_texts = [
-                "Oncology biomarker analysis for breast cancer",
-                "Melanoma treatment protocol with immunotherapy",
-                "BRCA1 gene mutation screening results"
+                "Document analysis for data processing",
+                "System configuration and deployment protocol",
+                "Database query optimization results"
             ]
             
             for test_text in test_texts:

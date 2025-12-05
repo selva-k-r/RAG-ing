@@ -1,0 +1,55 @@
+{
+  "node_id": "model.anthem_dev.stg_member",
+  "name": "stg_member",
+  "original_file_path": "models\\staging\\stg_member.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "STG_MEMBER",
+  "description": "Member details",
+  "columns": {
+    "MEMBERID": {
+      "name": "MEMBERID",
+      "description": "The primary key for this table",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "FILEPROCESSEDDATETIME": {
+      "name": "FILEPROCESSEDDATETIME",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    }
+  },
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "source.anthem_dev.IC1.CCF",
+      "source.anthem_dev.IC1.MASTEREPISODE",
+      "source.anthem_dev.IC1.MEMBER",
+      "source.anthem_dev.IC1.ATTRIBUTION",
+      "model.anthem_dev.stg_seed_racevalueset"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_member.sql",
+  "file_size": 3602,
+  "line_count": 152
+}

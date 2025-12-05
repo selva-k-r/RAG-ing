@@ -1,0 +1,20 @@
+{
+  "node_id": "model.anthem_dev.stg_client_tin_mapping",
+  "name": "stg_client_tin_mapping",
+  "original_file_path": "models\\staging\\stg_client_tin_mapping.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "stg_client_tin_mapping",
+  "description": "",
+  "columns": {},
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "source.anthem_dev.INTELLIGENCE_WEB.ANTHEM_CLIENT_TIN_MAPPING"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_client_tin_mapping.sql",
+  "file_size": 574,
+  "line_count": 23
+}

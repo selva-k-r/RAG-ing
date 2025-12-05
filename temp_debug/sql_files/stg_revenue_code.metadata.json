@@ -1,0 +1,20 @@
+{
+  "node_id": "model.anthem_dev.stg_revenue_code",
+  "name": "stg_revenue_code",
+  "original_file_path": "models\\staging\\stg_revenue_code.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "stg_revenue_code",
+  "description": "",
+  "columns": {},
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "source.anthem_dev.IC_TO_ANTHEM.CONCEPT"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_revenue_code.sql",
+  "file_size": 126,
+  "line_count": 5
+}

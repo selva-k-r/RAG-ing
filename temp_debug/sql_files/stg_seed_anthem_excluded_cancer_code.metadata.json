@@ -1,0 +1,66 @@
+{
+  "node_id": "model.anthem_dev.stg_seed_anthem_excluded_cancer_code",
+  "name": "stg_seed_anthem_excluded_cancer_code",
+  "original_file_path": "models\\staging\\seed\\stg_seed_anthem_excluded_cancer_code.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "stg_seed_anthem_excluded_cancer_code",
+  "description": "Excluded cancer diagnosis details from Anthem project",
+  "columns": {
+    "CancerCode": {
+      "name": "CancerCode",
+      "description": "The primary key for this table",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "ExclusionStartDate": {
+      "name": "ExclusionStartDate",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "ExclusionEndDate": {
+      "name": "ExclusionEndDate",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    }
+  },
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "seed.anthem_dev.seed_anthem_excluded_cancer_code"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_seed_anthem_excluded_cancer_code.sql",
+  "file_size": 80,
+  "line_count": 3
+}

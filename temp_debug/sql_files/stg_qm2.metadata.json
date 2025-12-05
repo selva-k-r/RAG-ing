@@ -1,0 +1,117 @@
+{
+  "node_id": "model.anthem_dev.stg_qm2",
+  "name": "stg_qm2",
+  "original_file_path": "models\\staging\\stg_qm2.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "stg_qm2",
+  "description": "QM2 Informations",
+  "columns": {
+    "DENOMINATOR": {
+      "name": "DENOMINATOR",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "LOW_RISK_NUMERATOR": {
+      "name": "LOW_RISK_NUMERATOR",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "MODERATE1_RISK_NUMERATOR": {
+      "name": "MODERATE1_RISK_NUMERATOR",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "MODERATE2_RISK_NUMERATOR": {
+      "name": "MODERATE2_RISK_NUMERATOR",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "HIGH_RISK_NUMERATOR": {
+      "name": "HIGH_RISK_NUMERATOR",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "PERF_PERIOD_KEY": {
+      "name": "PERF_PERIOD_KEY",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    }
+  },
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "source.anthem_dev.IC1.CLAIM",
+      "source.anthem_dev.IC1.CLAIMPHARMACY",
+      "source.anthem_dev.IC1.CLAIMLINE",
+      "model.anthem_dev.stg_dates",
+      "model.anthem_dev.stg_episodes",
+      "model.anthem_dev.stg_seed_chemo_w_emeticrisk_codes",
+      "model.anthem_dev.stg_seed_antiemetics"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_qm2.sql",
+  "file_size": 12572,
+  "line_count": 308
+}

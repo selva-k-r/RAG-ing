@@ -1,0 +1,36 @@
+{
+  "node_id": "model.anthem_dev.stg_seed_costcategory",
+  "name": "stg_seed_costcategory",
+  "original_file_path": "models\\staging\\seed\\stg_seed_costcategory.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "stg_seed_costcategory",
+  "description": "List cost categories for dimension table",
+  "columns": {
+    "costcategory": {
+      "name": "costcategory",
+      "description": "The primary key for this table",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    }
+  },
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "model.anthem_dev.stg_seed_place_of_service_mapping"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_seed_costcategory.sql",
+  "file_size": 191,
+  "line_count": 8
+}

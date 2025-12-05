@@ -1,0 +1,66 @@
+{
+  "node_id": "model.anthem_dev.stg_seed_anthem_tins",
+  "name": "stg_seed_anthem_tins",
+  "original_file_path": "models\\staging\\seed\\stg_seed_anthem_tins.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "stg_seed_anthem_tins",
+  "description": "",
+  "columns": {
+    "ATTRIB_TIN": {
+      "name": "ATTRIB_TIN",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "ATTRIB_NAME": {
+      "name": "ATTRIB_NAME",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "ATTRIB_ST": {
+      "name": "ATTRIB_ST",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    }
+  },
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "seed.anthem_dev.seed_anthem_tins"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_seed_anthem_tins.sql",
+  "file_size": 64,
+  "line_count": 3
+}

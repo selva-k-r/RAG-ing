@@ -1,0 +1,68 @@
+{
+  "node_id": "model.anthem_dev.stg_comorbidtiy_diagnosis_hcc",
+  "name": "stg_comorbidtiy_diagnosis_hcc",
+  "original_file_path": "models\\staging\\stg_comorbidtiy_diagnosis_hcc.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "stg_comorbidtiy_diagnosis_hcc",
+  "description": "Dimension table for Comorbidity",
+  "columns": {
+    "Comorbidity_key": {
+      "name": "Comorbidity_key",
+      "description": "The primary key for this table",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "COMORBIDITY": {
+      "name": "COMORBIDITY",
+      "description": "COMORBIDITY name",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "COMORBIDITY_DIAGNOSIS_CODE": {
+      "name": "COMORBIDITY_DIAGNOSIS_CODE",
+      "description": "Diagnosis code for comorbidity ",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    }
+  },
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "model.anthem_dev.stg_seed_comorbidtiy_hcc",
+      "model.anthem_dev.stg_hcc_mapping",
+      "model.anthem_dev.stg_seed_hcc_mapping_hcc_and_rxhcc"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_comorbidtiy_diagnosis_hcc.sql",
+  "file_size": 2994,
+  "line_count": 113
+}

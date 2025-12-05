@@ -68,6 +68,7 @@ class ChunkingConfig(BaseModel):
     strategy: str = Field(default="recursive", description="Strategy: recursive or semantic")
     chunk_size: int = Field(default=1200, gt=0)  # Increased from 512
     overlap: int = Field(default=100, ge=0)  # Increased from 64
+    max_chunks: Optional[int] = Field(default=None, description="Maximum number of chunks to process (for testing)")
     prepend_metadata: bool = Field(default=True, description="Prepend document metadata to chunks")
     chunk_size_includes_metadata: bool = Field(default=False, description="Include metadata in chunk size calculation")
     semantic_boundaries: List[str] = Field(

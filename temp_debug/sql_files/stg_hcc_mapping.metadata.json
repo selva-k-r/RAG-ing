@@ -1,0 +1,81 @@
+{
+  "node_id": "model.anthem_dev.stg_hcc_mapping",
+  "name": "stg_hcc_mapping",
+  "original_file_path": "models\\staging\\stg_hcc_mapping.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "stg_hcc_mapping",
+  "description": "Mapping stg_seed_hcc_mapping_hcc_and_rxhcc  for cms_hcc_v24_2022 and rxhcc_v08_2022 ",
+  "columns": {
+    "DIAGNOSIS_CODE": {
+      "name": "DIAGNOSIS_CODE",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "DESCRIPTION": {
+      "name": "DESCRIPTION",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "HCC_CODES": {
+      "name": "HCC_CODES",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "MODEL_VERSION": {
+      "name": "MODEL_VERSION",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    }
+  },
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "model.anthem_dev.stg_seed_hcc_mapping_hcc_and_rxhcc"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_hcc_mapping.sql",
+  "file_size": 1054,
+  "line_count": 39
+}

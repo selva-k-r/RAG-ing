@@ -197,9 +197,9 @@ class LLMOrchestrationModule:
         template_path = Path(self.llm_config.prompt_template)
         
         if not template_path.exists():
-            # Create default oncology template if none exists
+            # Create default generic template if none exists
             template_path.parent.mkdir(parents=True, exist_ok=True)
-            default_template = self._get_default_oncology_template()
+            default_template = self._get_default_generic_template()
             template_path.write_text(default_template)
             logger.info(f"Created default prompt template at {template_path}")
         
@@ -207,8 +207,8 @@ class LLMOrchestrationModule:
         logger.info(f"Loaded prompt template from {template_path}")
         return self.prompt_template
     
-    def _get_default_oncology_template(self) -> str:
-        """Get default oncology-focused prompt template."""
+    def _get_default_generic_template(self) -> str:
+        """Get default generic prompt template."""
         return '''Context Information:
 {context}
 
@@ -417,21 +417,40 @@ The following information requires careful medical reasoning. Consider:
         
         if estimated_tokens > max_allowed:
             logger.warning(f"Prompt still too long ({estimated_tokens} tokens), applying final truncation")
-            # Emergency truncation - keep query and essential context
+            # Smart truncation - keep system instructions + context + query
             lines = prompt.split('\n')
             truncated_lines = []
             current_tokens = 0
             
-            # Always keep the first few lines (system instruction)
-            for i, line in enumerate(lines[:10]):
-                truncated_lines.append(line)
-                current_tokens += len(line) // 4
+            # Find where context starts (after "Context:" marker)
+            context_start_idx = 0
+            for i, line in enumerate(lines):
+                if 'Context:' in line:
+                    context_start_idx = i
+                    break
             
-            # Add query at the end
-            query_section = f"\n\nQuery: {query}\n\nResponse:"
-            truncated_lines.append(query_section)
+            # Keep everything before context (system instructions)
+            for i in range(context_start_idx + 1):
+                truncated_lines.append(lines[i])
+                current_tokens += len(lines[i]) // 4
+            
+            # Add as much context as possible
+            remaining_tokens = max_allowed - current_tokens - 100  # Reserve 100 for query
+            context_lines = lines[context_start_idx+1:]
+            
+            for line in context_lines:
+                line_tokens = len(line) // 4
+                if current_tokens + line_tokens > max_allowed - 100:
+                    break
+                truncated_lines.append(line)
+                current_tokens += line_tokens
+            
+            # Always add query at the end
+            if not any('Query:' in line for line in truncated_lines[-3:]):
+                truncated_lines.append(f"\n\nQuery: {query}\n\nResponse:")
             
             prompt = '\n'.join(truncated_lines)
+            logger.warning(f"Truncated to {len(truncated_lines)} lines ({current_tokens} tokens)")
         
         logger.debug(f"Final prompt length: {len(prompt)} chars (~{len(prompt)//4} tokens)")
         return prompt

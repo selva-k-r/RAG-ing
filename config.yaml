@@ -6,7 +6,7 @@ data_source:
   # NEW: Multi-source configuration - process all enabled sources simultaneously
   sources:
     - type: "local_file"
-      enabled: true
+      enabled: false  # Disabled - PDFs cause verbose logging
       path: "./data/"
       file_types: [".txt", ".md", ".pdf", ".docx", ".html"]
       description: "Local documents and research papers"
@@ -48,24 +48,20 @@ data_source:
         # Paths use startswith() matching - all files under path are fetched
         include_paths:
           # ========================================
-          # DBT ARTIFACTS (REQUIRED)
+          # DBT ARTIFACTS (LIMITED - Testing with manifest only)
           # Contains ALL SQL code (models, tests, macros) + metadata
-          # Fetches: manifest.json, catalog.json, graph_summary.json
           # ========================================
-          - "/dbt_anthem/target/"                    # Artifacts directory
+          - "/dbt_anthem/target/manifest.json"       # Only manifest.json for testing
           
           # ========================================
-          # DBT PROJECT CONFIG (REQUIRED)
-          # Contains project name, version, profiles
-          # Fetches: dbt_project.yml
+          # DBT PROJECT CONFIG (OPTIONAL - Disabled for testing)
           # ========================================
-          - "/dbt_anthem/dbt_project.yml"            # Project config file
+          # - "/dbt_anthem/dbt_project.yml"          # Disabled for limited testing
           
           # ========================================
-          # DBT SEED FILES (REQUIRED for business data queries)
-          # CSV reference data used by models
+          # DBT SEED FILES (OPTIONAL - Disabled for testing)
           # ========================================
-          - "/dbt_anthem/data/"                      # Seed CSV files directory
+          # - "/dbt_anthem/data/"                    # Disabled for limited testing
           
           # ========================================
           # NON-DBT CONTENT (optional)
@@ -77,6 +73,9 @@ data_source:
           - "/dbt_anthem/target/compiled"            # Skip compiled SQL (already in manifest)
           - "/dbt_anthem/target/run"                 # Skip run artifacts
           - "/dbt_anthem/target/partial_parse.msgpack"  # Skip parser cache
+          - "/dbt_anthem/target/catalog.json"        # Skip catalog - testing manifest only
+          - "/dbt_anthem/target/graph_summary.json"  # Skip graph_summary - testing manifest only
+          - "/dbt_anthem/target/semantic_manifest.json"  # Skip semantic_manifest
 
         
         # FILE TYPE FILTERING
@@ -112,20 +111,21 @@ data_source:
 
 chunking:
   strategy: "recursive"  # recursive | semantic
-  chunk_size: 1200  # Increased from 512 for better context preservation
-  overlap: 100       # Increased from 64 for better continuity
+  chunk_size: 3000  # Increased to 3000 to limit total chunks to ~100
+  overlap: 200       # Increased overlap proportionally
+  max_chunks: 100    # Limit processing to 100 chunks for testing
   
   # Metadata preservation for enhanced retrieval
   prepend_metadata: true
   chunk_size_includes_metadata: false
 
 embedding_model:
-  # SWITCH: Choose embedding provider
-  # Options: "azure_openai" | "local" | "hybrid"
-  provider: "azure_openai"  # ⚠️ SWITCH HERE: azure_openai (API) or local (open-source)
+  # ONLY Azure OpenAI is supported
+  # Open-source models have been removed to ensure consistent embedding dimensions
+  provider: "azure_openai"  # DO NOT CHANGE - only azure_openai is supported
   
   # ============================================================================
-  # AZURE OPENAI CONFIGURATION (provider: "azure_openai")
+  # AZURE OPENAI CONFIGURATION
   # ============================================================================
   azure_openai:
     model: "text-embedding-ada-002"
@@ -136,54 +136,25 @@ embedding_model:
     # Rate limiting to avoid "too many requests" errors
     max_retries: 5
     retry_delay: 2  # seconds
-    requests_per_minute: 60  # Adjust based on your quota
-  
-  # ============================================================================
-  # LOCAL OPEN-SOURCE MODEL CONFIGURATION (provider: "local")
-  # ============================================================================
-  local:
-    model_name: "BAAI/bge-large-en-v1.5"  # Best quality, matches ada-002
-    # Alternatives:
-    #   - "BAAI/bge-base-en-v1.5"     (faster, 768 dims)
-    #   - "intfloat/e5-large-v2"      (comparable quality)
-    #   - "nomic-ai/nomic-embed-text-v1.5"  (long context, 8192 tokens)
-    
-    device: "cpu"  # "cuda" for GPU, "cpu" for CPU-only
-    batch_size: 32  # How many texts to embed at once
-    max_length: 512  # Max tokens per text
-    normalize_embeddings: true  # Normalize to unit length
-    show_progress: true
-    
-    # Performance tuning
-    num_threads: 4  # CPU threads (if device=cpu)
-    cache_folder: "./models/embeddings"  # Where to cache downloaded models
-  
-  # ============================================================================
-  # HYBRID MODE (provider: "hybrid")
-  # Use local for bulk ingestion, Azure for user queries
-  # ============================================================================
-  hybrid:
-    ingestion: "local"  # Use local model for document ingestion (bulk)
-    queries: "azure_openai"  # Use Azure for user queries (low latency)
-    fallback: "local"  # Fallback if Azure fails
+    requests_per_minute: 6000  # Updated: 6000 requests/min with 1M token limit
 
 # Module 2: Enhanced Query Processing & Retrieval Configuration  
 retrieval:
   # Basic retrieval settings
-  top_k: 10                     # Initial retrieval count
+  top_k: 15                     # Increased to capture stg_qm1 (was at position 14)
   strategy: "hybrid"            # hybrid: semantic + BM25 keyword search
   
   # Hybrid search configuration
-  semantic_weight: 0.6          # Weight for semantic similarity search
-  keyword_weight: 0.4           # Weight for BM25 keyword search
+  semantic_weight: 0.5          # Reduced semantic weight slightly
+  keyword_weight: 0.5           # Increased keyword weight for better model name matching
   
   # Reranking with cross-encoder for relevance improvement
   reranking:
     enabled: true
     model: "cross-encoder/ms-marco-MiniLM-L-6-v2"
-    top_k_initial: 20           # Retrieve more docs for reranking
-    top_k_final: 5              # Final number after reranking
-    relevance_threshold: 0.7    # Minimum relevance score
+    top_k_initial: 30           # Increased to ensure stg_qm1 is included
+    top_k_final: 5              # Reduced to prevent context overflow (was 10)
+    relevance_threshold: 0.5    # Lowered threshold to be more inclusive
     
   # Context optimization
   max_context_tokens: 12000     # Increased from GraphRAG defaults
@@ -235,7 +206,12 @@ llm:
   # Local fallback configuration (koboldcpp)
   api_url: "http://localhost:5000/v1"  # For local models
   prompt_template: "./prompts/general.txt"
-  system_instruction: "You are an AI assistant that provides clear, concise answers based STRICTLY on the provided context. CRITICAL: Answer ONLY from the given context - never use external knowledge. If the answer is not in the context, clearly state this and suggest rephrasing based on available information. Give direct answers first, then supporting details. Format responses with clear structure."
+  system_instruction: "/You are an AI assistant that provides clear, 
+                      concise answers based STRICTLY on the provided context. 
+                      CRITICAL: Answer ONLY from the given context - never use external knowledge. 
+                      If the answer is not in the context, clearly state this and suggest rephrasing 
+                      based on available information. Give direct answers first, 
+                      then supporting details. Format responses with clear structure. Avoid giving out codes unless asked explicitly./"
   
   # Response formatting preferences
   response_style: "concise"           # concise | detailed | technical

@@ -1,0 +1,171 @@
+{
+  "node_id": "model.anthem_dev.stg_seed_quality_measures",
+  "name": "stg_seed_quality_measures",
+  "original_file_path": "models\\staging\\seed\\stg_seed_quality_measures.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "stg_seed_quality_measures",
+  "description": "Quality metrics details with targets",
+  "columns": {
+    "QMID": {
+      "name": "QMID",
+      "description": "The primary key for this table",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "QMNAME": {
+      "name": "QMNAME",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "DECSRIPTION": {
+      "name": "DECSRIPTION",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "TARGETSCORE": {
+      "name": "TARGETSCORE",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "MEASURENAME": {
+      "name": "MEASURENAME",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "GROUP1SCORE": {
+      "name": "GROUP1SCORE",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "GROUP2SCORE": {
+      "name": "GROUP2SCORE",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "GROUP3SCORE": {
+      "name": "GROUP3SCORE",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "GROUP4SCORE": {
+      "name": "GROUP4SCORE",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "GROUP5SCORE": {
+      "name": "GROUP5SCORE",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    }
+  },
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "seed.anthem_dev.seed_quality_measures"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_seed_quality_measures.sql",
+  "file_size": 472,
+  "line_count": 34
+}

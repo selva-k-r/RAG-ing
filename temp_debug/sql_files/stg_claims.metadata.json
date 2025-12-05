@@ -1,0 +1,195 @@
+{
+  "node_id": "model.anthem_dev.stg_claims",
+  "name": "stg_claims",
+  "original_file_path": "models\\staging\\stg_claims.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "stg_claims",
+  "description": "Fact Member Quality Measures",
+  "columns": {
+    "MEMBERID": {
+      "name": "MEMBERID",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "PERF_PERIOD_KEY": {
+      "name": "PERF_PERIOD_KEY",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "CLAIMID": {
+      "name": "CLAIMID",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "CLAIMLINENUMBER": {
+      "name": "CLAIMLINENUMBER",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "CLAIMLINESERVICESTARTDATE": {
+      "name": "CLAIMLINESERVICESTARTDATE",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "COSTCATEGORY": {
+      "name": "COSTCATEGORY",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "STATIC_COSTCATEGORY_ORDER": {
+      "name": "STATIC_COSTCATEGORY_ORDER",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "SOURCENAME": {
+      "name": "SOURCENAME",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "RECORDINSERTIONDATE_UTC": {
+      "name": "RECORDINSERTIONDATE_UTC",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "LINEOFBUSINESS": {
+      "name": "LINEOFBUSINESS",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "ISHOSPICEMEMBER": {
+      "name": "ISHOSPICEMEMBER",
+      "description": "Expecting a NOT NULL value, ideally",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    }
+  },
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "model.anthem_dev.stg_claimline",
+      "model.anthem_dev.stg_participating_provider",
+      "model.anthem_dev.stg_cancer_type",
+      "model.anthem_dev.stg_seed_hcpcs",
+      "model.anthem_dev.stg_seed_icd10cm_codes",
+      "model.anthem_dev.stg_claimpharmacy",
+      "model.anthem_dev.stg_member_chemotherapy",
+      "model.anthem_dev.stg_hospice_members",
+      "model.anthem_dev.stg_member_hospice_mapping",
+      "model.anthem_dev.stg_client_tin_mapping"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_claims.sql",
+  "file_size": 12300,
+  "line_count": 315
+}

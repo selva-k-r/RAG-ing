@@ -1,0 +1,67 @@
+{
+  "node_id": "model.anthem_dev.stg_claims_ed_to_ip",
+  "name": "stg_claims_ed_to_ip",
+  "original_file_path": "models\\staging\\stg_claims_ed_to_ip.sql",
+  "database": "dev_dtx_gc",
+  "schema": "staging",
+  "alias": "stg_claims_ed_to_ip",
+  "description": "Derive claims which move from ED to IP with in 24 hrs",
+  "columns": {
+    "memberid": {
+      "name": "memberid",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "claimid": {
+      "name": "claimid",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    },
+    "claimlineid": {
+      "name": "claimlineid",
+      "description": "",
+      "meta": {},
+      "data_type": null,
+      "constraints": [],
+      "quote": null,
+      "config": {
+        "meta": {},
+        "tags": []
+      },
+      "tags": [],
+      "granularity": null,
+      "doc_blocks": []
+    }
+  },
+  "tags": [],
+  "depends_on": {
+    "macros": [],
+    "nodes": [
+      "source.anthem_dev.IC1.CLAIM",
+      "source.anthem_dev.IC1.CLAIMLINE"
+    ]
+  },
+  "sql_file": "temp_debug/sql_files/stg_claims_ed_to_ip.sql",
+  "file_size": 889,
+  "line_count": 46
+}

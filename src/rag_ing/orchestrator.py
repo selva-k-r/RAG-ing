@@ -57,6 +57,11 @@ class RAGOrchestrator:
             self.corpus_embedding.set_llm_client(self.llm_orchestration.client)
             logger.info("[OK] LLM client injected into corpus embedding for summarization")
         
+        # Inject LLM client into query retrieval for query expansion
+        if self.llm_orchestration.client:
+            self.query_retrieval.set_llm_client(self.llm_orchestration.client)
+            logger.info("[OK] LLM client injected into query retrieval for query expansion")
+        
         # Initialize activity logger
         if self.settings.activity_logging.enabled:
             self.activity_logger = ActivityLogger(
