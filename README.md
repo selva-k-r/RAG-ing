@@ -1,35 +1,31 @@
-# RAG-ing: General-Purpose RAG System
+# RAG-ing: Document-Grounded RAG System
 
-A production-ready Retrieval-Augmented Generation (RAG) system for intelligent document search and question answering. Strictly grounds answers in your documents with no hallucination. Connect to Azure DevOps, Confluence, and local files with Azure OpenAI integration.
+A production-ready Retrieval-Augmented Generation (RAG) system for intelligent document search and question answering. Answers are **strictly grounded in your documents** with no hallucination. The current setup focuses on an Azure DevOps dbt project plus local files, with Azure OpenAI for embeddings and generation.
 
-## ✨ Key Features
+## Key Features
 
 ### Strict Document Grounding
 - **Zero Hallucination**: Answers ONLY from provided documents
 - **Helpful Guidance**: Suggests question rephrasing when information unavailable
 - **Source Attribution**: Clear citation of document sources
 
-### Multi-Source Integration
-- **Azure DevOps**: Query your codebase with commit history tracking
-  - Path and file type filtering
-  - Batch processing (configurable batch size)
-  - Incremental updates (track changes, skip unchanged files)
-  - Last N commits per file
-  - **DBT Integration** (beta): Lineage graphs, SQL extraction from artifacts
-- **Confluence**: Wiki pages and documentation (planned)
-- **Local Files**: PDF, Markdown, TXT, HTML
-- **Jira**: Tickets and requirements (planned)
+### Data Sources (Current Focus)
+- **Azure DevOps dbt project**
+  - Uses `dbt_project.yml`, `target/manifest.json`, `/macros/`, and `/data/` from a single repository (e.g. `DBT-ANTHEM`).
+  - DBT artifacts are parsed into separate documents (models, tests, macros, seeds) with rich metadata.
+  - Path and file type filtering, batch processing, and incremental updates via an ingestion tracker.
+- **Local files** (optional)
+  - Text-like formats (Markdown, TXT, etc.) can be added via `config.yaml`.
 
-### Production-Ready
-- **FastAPI Web Interface**: Modern REST API with SSE progress tracking
-- **Hierarchical Storage**: Two-tier retrieval (summaries → detailed chunks)
-  - LLM-generated rich summaries with business context, keywords, topics
-  - Type-specific summarization (SQL, Python, YAML, PDF)
-  - Smart routing based on relevance scores
-- **Hybrid Search**: Semantic vector search + keyword matching
-- **Azure OpenAI Integration**: GPT-4/GPT-4o with fallback providers
-- **Persistent Storage**: ChromaDB vector database with dual collections
-- **Structured Logging**: JSON logs for analysis and monitoring
+Planned/optional connectors such as Confluence or Jira are not required for the current configuration.
+
+### Production-Ready Behavior
+- **FastAPI Web Interface**: REST API plus HTML UI (via `ui/app.py`).
+- **Hierarchical Storage (optional)**: When enabled, uses LLM to summarize long documents and store both summaries and detailed chunks.
+- **Hybrid Search**: Semantic vector search + keyword matching with multi-query expansion.
+- **Azure OpenAI Only**: Azure is the embedding and LLM provider in this branch.
+- **Persistent Storage**: ChromaDB vector database (`vector_store/`) and an ingestion tracker SQLite DB.
+- **Structured Logging**: JSON logs under `logs/` and user-activity logs under `logs/user_activity/`.
 
 ### Code Quality
 - **ASCII-Safe**: No emoji encoding issues (Windows compatible)
@@ -38,7 +34,7 @@ A production-ready Retrieval-Augmented Generation (RAG) system for intelligent d
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Python 3.8+
@@ -69,22 +65,13 @@ pip install -e .
 # Azure OpenAI (Required)
 AZURE_OPENAI_API_KEY=your_key_here
 AZURE_OPENAI_ENDPOINT=https://your-endpoint.openai.azure.com/
-AZURE_OPENAI_API_VERSION=2024-02-15-preview
+AZURE_OPENAI_API_VERSION=2024-05-01-preview
 
-# Azure OpenAI Embedding (Required)
-AZURE_OPENAI_EMBEDDING_API_KEY=your_embedding_key
-AZURE_OPENAI_EMBEDDING_ENDPOINT=https://your-endpoint.openai.azure.com/
-
-# Azure DevOps (Optional - for code intelligence)
+# Azure DevOps (Required for dbt ingestion)
 AZURE_DEVOPS_ORG=your_organization
 AZURE_DEVOPS_PROJECT=your_project
 AZURE_DEVOPS_PAT=your_personal_access_token
-AZURE_DEVOPS_REPO=your_repository
-
-# Confluence (Optional - planned feature)
-CONFLUENCE_BASE_URL=https://your-domain.atlassian.net/wiki
-CONFLUENCE_TOKEN=your_token
-CONFLUENCE_SPACE_KEY=YOUR_SPACE
+AZURE_DEVOPS_REPO=DBT-ANTHEM
 ```
 
 **2. Configure `config.yaml`:**

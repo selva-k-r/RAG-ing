@@ -165,7 +165,7 @@ class CorpusEmbeddingModule:
                 "processing_time": processing_time,
                 "validation_success": validation_success,
                 "sources_processed": len(self.data_source_config.get_enabled_sources()),
-                "embedding_model": self.embedding_config.name,
+                "embedding_model": "azure_openai_text-embedding-ada-002",
                 "vector_store_type": self.vector_store_config.type
             })
             
@@ -685,54 +685,25 @@ class CorpusEmbeddingModule:
         logger.info("Setting up embedding model")
         
         try:
-            # Create embedding provider from config
-            # Extract azure_openai config
-            azure_config = getattr(self.embedding_config, 'azure_openai', None)
-            if azure_config:
-                azure_dict = {
-                    'model': azure_config.model,
-                    'endpoint': azure_config.endpoint or self.config.azure_openai_embedding_endpoint or self.config.azure_openai_endpoint,
-                    'api_key': azure_config.api_key or self.config.azure_openai_embedding_api_key or self.config.azure_openai_api_key,
-                    'api_version': azure_config.api_version or self.config.azure_openai_embedding_api_version,
-                    'deployment_name': azure_config.deployment_name,
-                    'max_retries': azure_config.max_retries,
-                    'retry_delay': azure_config.retry_delay,
-                    'requests_per_minute': azure_config.requests_per_minute
-                }
-            else:
-                # Fallback to legacy fields
-                azure_dict = {
-                    'model': self.embedding_config.azure_model,
-                    'endpoint': self.config.azure_openai_embedding_endpoint or self.config.azure_openai_endpoint,
-                    'api_key': self.config.azure_openai_embedding_api_key or self.config.azure_openai_api_key,
-                    'api_version': self.config.azure_openai_embedding_api_version,
-                    'deployment_name': self.embedding_config.azure_deployment_name,
-                    'max_retries': 5,
-                    'retry_delay': 2,
-                    'requests_per_minute': 60
-                }
-            
-            # Extract local config
-            local_config = getattr(self.embedding_config, 'local', None)
-            local_dict = local_config.model_dump() if local_config else {
-                'model_name': 'BAAI/bge-large-en-v1.5',
-                'device': getattr(self.embedding_config, 'device', 'cpu'),
-                'batch_size': 32,
-                'normalize_embeddings': True
+            # Create Azure OpenAI embedding provider from config
+            azure_config = self.embedding_config.azure_openai
+            azure_dict = {
+                'model': azure_config.model,
+                'endpoint': azure_config.endpoint or self.config.azure_openai_embedding_endpoint or self.config.azure_openai_endpoint,
+                'api_key': azure_config.api_key or self.config.azure_openai_embedding_api_key or self.config.azure_openai_api_key,
+                'api_version': azure_config.api_version or self.config.azure_openai_embedding_api_version,
+                'deployment_name': azure_config.deployment_name,
+                'max_retries': azure_config.max_retries,
+                'retry_delay': azure_config.retry_delay,
+                'requests_per_minute': azure_config.requests_per_minute
             }
-            
-            # Extract hybrid config
-            hybrid_config = getattr(self.embedding_config, 'hybrid', None)
-            hybrid_dict = hybrid_config.model_dump() if hybrid_config else {}
             
             embedding_config_dict = {
-                'provider': self.embedding_config.provider,
+                'provider': 'azure_openai',
                 'azure_openai': azure_dict,
-                'local': local_dict,
-                'hybrid': hybrid_dict
             }
             
-            # Create unified provider
+            # Create unified provider (Azure OpenAI only)
             self.embedding_model = get_embedding_model(embedding_config_dict)
             self.embedding_provider = create_embedding_provider(embedding_config_dict)
             
@@ -741,12 +712,11 @@ class CorpusEmbeddingModule:
             self._stats["vector_size"] = len(test_embedding)
             
             logger.info(f"[OK] Embedding model initialized")
-            logger.info(f"     Provider: {self.embedding_provider.get_provider_name()}")
+            logger.info(f"     Provider: Azure OpenAI")
             logger.info(f"     Vector dimension: {len(test_embedding)}")
             
         except Exception as e:
             logger.error(f"[X] Failed to setup embedding model: {e}")
-            logger.error(f"     Provider: {self.embedding_config.provider}")
             import traceback
             logger.error(f"     Traceback: {traceback.format_exc()}")
             raise IngestionError(f"Embedding model setup failed: {e}")
@@ -756,15 +726,6 @@ class CorpusEmbeddingModule:
         Use the unified embedding provider in _load_embedding_model() instead.
         """
         logger.warning("[!] _load_azure_embedding_model() is deprecated")
-        logger.warning("    Using unified embedding provider system instead")
-        # Fallback to unified system
-        self._load_embedding_model()
-    
-    def _load_open_source_embedding_model(self) -> None:
-        """DEPRECATED: This method is kept for backward compatibility.
-        Use the unified embedding provider in _load_embedding_model() instead.
-        """
-        logger.warning("[!] _load_open_source_embedding_model() is deprecated")
         logger.warning("    Using unified embedding provider system instead")
         # Fallback to unified system
         self._load_embedding_model()
@@ -1254,7 +1215,7 @@ class CorpusEmbeddingModule:
             "data_source_type": self.data_source_config.type,
             "data_source_path": self.data_source_config.path,
             "chunking_strategy": self.chunking_config.strategy,
-            "embedding_model_name": self.embedding_config.name,
+            "embedding_model_name": self.embedding_config.azure_openai.model,
             "enabled_sources": len(self.data_source_config.get_enabled_sources())
         }
     

@@ -307,10 +307,8 @@ def create_embedding_provider(config: Dict[str, Any]) -> BaseEmbeddingProvider:
         
     Example:
         config = {
-            'provider': 'local',  # or 'azure_openai' or 'hybrid'
-            'local': {...},
-            'azure_openai': {...},
-            'hybrid': {...}
+            'provider': 'azure_openai',
+            'azure_openai': {...}
         }
     """
     provider_type = config.get('provider', 'azure_openai')
@@ -319,15 +317,8 @@ def create_embedding_provider(config: Dict[str, Any]) -> BaseEmbeddingProvider:
     
     if provider_type == 'azure_openai':
         return AzureOpenAIEmbeddingProvider(config.get('azure_openai', {}))
-    
-    elif provider_type == 'local':
-        return LocalEmbeddingProvider(config.get('local', {}))
-    
-    elif provider_type == 'hybrid':
-        return HybridEmbeddingProvider(config.get('hybrid', {}), config)
-    
     else:
-        raise ValueError(f"Unknown embedding provider: {provider_type}")
+        raise ValueError(f"Only 'azure_openai' provider is supported. Got: {provider_type}")
 
 
 # Convenience function for backward compatibility

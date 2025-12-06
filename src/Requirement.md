@@ -3,6 +3,30 @@
 ## Overview
 This document outlines the **completed implementation** of a modular RAG (Retrieval-Augmented Generation) system focused on oncology documentation. The system is fully implemented as **5 independent modules** with YAML-driven configuration, comprehensive evaluation metrics, and enterprise-grade Azure OpenAI integration.
 
+## Current Development Phase (December 2025)
+
+**Phase: Advanced Multi-Query Retrieval for Healthcare Data Platforms**
+
+### New Requirements (In Progress)
+
+**Target Domain**: Healthcare data platforms (Anthem, UPMC, PopHealth) - analyzing dbt codebases across multiple Azure DevOps repositories
+
+**Key Features to Implement**:
+
+1. **Multi-Query Expansion**: Generate 9 alternative question variations for comprehensive retrieval
+2. **Project-Aware Search**: Automatically detect which project/repository a question relates to
+3. **Advanced Aggregation**: Score chunks by frequency × relevance across query variations
+4. **Hybrid Context Assembly**: Combine 70% semantic + 30% keyword results
+5. **Rich Formatting**: Tables, comparisons, bold formatting (code shown only on request)
+6. **Multi-Repository Support**: Handle multiple projects from different repos (Anthem, UPMC, PopHealth)
+
+**Target Questions**:
+- "Is J1434 available in qm2 emetic risk classification?" (Code lookup in Anthem)
+- "Define IP qualification condition in Anthem" (Business rule documentation)
+- "How is in-network and out-of-network spend identified?" (Metric calculation logic)
+
+**See**: `docs/TODAYS_GOAL_MULTI_QUERY_RETRIEVAL.md` for detailed implementation plan
+
 ## Dependency Management & Version Control
 
 **Last Updated:** November 11, 2025

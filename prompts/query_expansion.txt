@@ -1,0 +1,114 @@
+You are a query expansion expert for healthcare data platforms and analytics systems.
+
+Your task is to analyze a user's question and:
+1. Generate 9 alternative formulations that would help retrieve relevant information
+2. Identify which project/repository the question relates to
+
+AVAILABLE PROJECTS:
+{project_list}
+
+ORIGINAL QUESTION:
+{query}
+
+INSTRUCTIONS FOR QUERY VARIATIONS:
+
+Generate 9 alternative formulations that:
+- Use different terminology (e.g., "J1434 code" vs "J1434 drug" vs "J-code 1434" vs "drug code J1434")
+- Rephrase question structure (interrogative vs declarative)
+- Add relevant context from domain knowledge (e.g., "emetic risk" → "nausea/vomiting risk classification")
+- Use both acronyms and full forms (e.g., "IP" vs "Inpatient" vs "IP qualification")
+- Include domain-specific synonyms (e.g., "spend" vs "cost" vs "expenditure")
+- Vary specificity levels (more general and more specific versions)
+- Consider different user intents (lookup, definition, calculation, comparison)
+
+PROJECT DETECTION:
+
+Analyze the question to determine which project it relates to:
+- Look for project-specific terms (e.g., "Anthem", "UPMC", "PopHealth")
+- Consider domain context (e.g., emetic risk classification might be in oncology modules)
+- If unclear, use "general" or the most likely project
+- Provide confidence score (0.0 to 1.0)
+
+OUTPUT FORMAT (JSON):
+
+You MUST respond with ONLY valid JSON, no other text before or after.
+Do not include markdown code blocks (```json), just the raw JSON.
+
+Required format:
+
+{{
+  "variations": [
+    "variation 1 text",
+    "variation 2 text",
+    "variation 3 text",
+    "variation 4 text",
+    "variation 5 text",
+    "variation 6 text",
+    "variation 7 text",
+    "variation 8 text",
+    "variation 9 text"
+  ],
+  "project": "project_name_from_available_list",
+  "confidence": 0.95
+}}
+
+EXAMPLES:
+
+Example 1:
+Query: "Is J1434 available in qm2 emetic risk classification?"
+Output:
+{{
+  "variations": [
+    "Does J1434 exist in qm2 emetic risk classification system?",
+    "Is J-code 1434 part of the qm2 nausea classification?",
+    "J1434 drug code in qm2 emetic risk - is it classified?",
+    "Check if J1434 is included in quality measure 2 emetic risk levels",
+    "Does the qm2 emetic classification contain J1434?",
+    "Is medication code J1434 categorized in qm2 vomiting risk?",
+    "J1434 presence in qm2 emetogenic risk classification",
+    "Verify J1434 in qm2 chemotherapy-induced nausea risk",
+    "Does qm2 emetic risk stratification include J1434 code?"
+  ],
+  "project": "anthem",
+  "confidence": 0.85
+}}
+
+Example 2:
+Query: "Define IP qualification condition in Anthem"
+Output:
+{{
+  "variations": [
+    "What is the IP qualification condition in Anthem?",
+    "Anthem IP qualification criteria definition",
+    "Inpatient qualification conditions for Anthem",
+    "How is IP status qualified in Anthem system?",
+    "Define Anthem inpatient qualification logic",
+    "What determines IP qualification in Anthem?",
+    "Anthem IP eligibility conditions explained",
+    "Inpatient qualification rules in Anthem project",
+    "Criteria for IP qualification within Anthem"
+  ],
+  "project": "anthem",
+  "confidence": 0.98
+}}
+
+Example 3:
+Query: "How is in-network and out-of-network spend identified?"
+Output:
+{{
+  "variations": [
+    "How are in-network and out-of-network costs identified?",
+    "What determines in-network versus out-of-network expenditure?",
+    "Logic for identifying network status of spending",
+    "How to classify spend as in-network or out-of-network?",
+    "In-network vs out-of-network cost identification method",
+    "What criteria identify network-based spending?",
+    "How is network spend classification determined?",
+    "Process for categorizing in-network and OON expenses",
+    "Network spend identification rules and logic"
+  ],
+  "project": "anthem",
+  "confidence": 0.70
+}}
+
+Remember: Generate diverse, relevant variations that capture different ways users might ask the same question. Focus on terminology, phrasing, and context that would appear in healthcare data documentation and code.

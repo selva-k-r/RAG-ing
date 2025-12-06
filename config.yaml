@@ -43,30 +43,28 @@ data_source:
         repo_name: "${AZURE_DEVOPS_REPO}"  # dbt-pophealth
         branch: "spike/rag_search"  # Default branch
         
-        # PATH FILTERING - Load only specific folders
-        # NOTE: Azure DevOps API requires DIRECTORY paths (not individual files)
-        # Paths use startswith() matching - all files under path are fetched
+        # PATH FILTERING - Load from manifest.json (contains all models, tests, macros)
+        # Manifest.json is the single source of truth with all compiled SQL code
         include_paths:
           # ========================================
-          # DBT ARTIFACTS (LIMITED - Testing with manifest only)
-          # Contains ALL SQL code (models, tests, macros) + metadata
+          # DBT PROJECT FILE - Required for DBT detection
           # ========================================
-          - "/dbt_anthem/target/manifest.json"       # Only manifest.json for testing
+          - "/dbt_anthem/dbt_project.yml"       # DBT project configuration (REQUIRED)
           
           # ========================================
-          # DBT PROJECT CONFIG (OPTIONAL - Disabled for testing)
+          # DBT MANIFEST - Complete project metadata + SQL code
           # ========================================
-          # - "/dbt_anthem/dbt_project.yml"          # Disabled for limited testing
+          - "/dbt_anthem/target/manifest.json"  # All models, tests, macros with SQL code
           
           # ========================================
-          # DBT SEED FILES (OPTIONAL - Disabled for testing)
+          # DBT MACROS - Source files for Jinja macros (optional)
           # ========================================
-          # - "/dbt_anthem/data/"                    # Disabled for limited testing
+          - "/dbt_anthem/macros/"        # Jinja macro source files
           
           # ========================================
-          # NON-DBT CONTENT (optional)
+          # DBT SEEDS - Reference data (optional)
           # ========================================
-          # - "/Analytics 2.0/TabularModels/"       # Power BI models (if needed)
+          - "/dbt_anthem/data/"          # CSV seed files
         
         exclude_paths:
           - "/dbt_anthem/tests/fixtures"             # Skip test fixture data
@@ -80,13 +78,9 @@ data_source:
         
         # FILE TYPE FILTERING
         include_file_types:
-          - ".json"    # DBT artifacts (manifest, catalog, graph_summary)
-          - ".yml"     # DBT project config
-          - ".yaml"    # Alternative YAML extension
-          - ".csv"     # Seed reference data files
-          # - ".sql"   # Not needed - SQL code is in manifest.json
-          # - ".md"    # Not needed unless separate docs wanted
-          # - ".py"    # Not needed unless Python models exist
+          - ".json"    # DBT manifest (primary source)
+          - ".sql"     # Macro SQL if needed
+          - ".csv"     # Seed data files
         
         exclude_file_types:
           - ".pbix"       # Power BI binaries
@@ -111,22 +105,18 @@ data_source:
 
 chunking:
   strategy: "recursive"  # recursive | semantic
-  chunk_size: 3000  # Increased to 3000 to limit total chunks to ~100
+  chunk_size: 3000  # Increased to 3000 for better context
   overlap: 200       # Increased overlap proportionally
-  max_chunks: 100    # Limit processing to 100 chunks for testing
+  max_chunks: null    # No limit - process all chunks for production
   
   # Metadata preservation for enhanced retrieval
   prepend_metadata: true
   chunk_size_includes_metadata: false
 
+# ============================================================================
+# EMBEDDING MODEL - Azure OpenAI Only
+# ============================================================================
 embedding_model:
-  # ONLY Azure OpenAI is supported
-  # Open-source models have been removed to ensure consistent embedding dimensions
-  provider: "azure_openai"  # DO NOT CHANGE - only azure_openai is supported
-  
-  # ============================================================================
-  # AZURE OPENAI CONFIGURATION
-  # ============================================================================
   azure_openai:
     model: "text-embedding-ada-002"
     endpoint: "${AZURE_OPENAI_EMBEDDING_ENDPOINT}"
@@ -144,7 +134,32 @@ retrieval:
   top_k: 15                     # Increased to capture stg_qm1 (was at position 14)
   strategy: "hybrid"            # hybrid: semantic + BM25 keyword search
   
-  # Hybrid search configuration
+  # NEW: Multi-query expansion settings
+  query_expansion:
+    enabled: true                           # Enable multi-query expansion
+    num_variations: 9                       # Generate 9 alternative questions
+    use_project_detection: true             # Detect project from query
+    expansion_prompt: "./prompts/query_expansion.txt"
+    llm_temperature: 0.3                    # Low temperature for consistent variations
+    cache_expansions: true                  # Cache expansions for similar queries
+    cache_ttl: 3600                         # Cache for 1 hour (seconds)
+  
+  # NEW: Multi-query retrieval settings
+  multi_query:
+    enabled: true                           # Enable multi-query retrieval
+    k_per_query: 10                         # Fetch top 10 chunks per query variation
+    aggregation_method: "frequency_relevance"  # Options: frequency_relevance | max_score | avg_score
+    parallel_execution: true                # Fetch embeddings/queries in parallel
+    min_frequency_threshold: 2              # Chunk must appear in at least 2 queries
+  
+  # NEW: Hybrid context assembly (semantic + keyword split)
+  hybrid_context:
+    semantic_weight: 0.7                    # 70% from semantic multi-query results
+    keyword_weight: 0.3                     # 30% from keyword BM25 results
+    total_chunks: 10                        # Total chunks to pass to LLM
+    deduplication: true                     # Remove duplicate chunks
+  
+  # Hybrid search configuration (existing - used for keyword component)
   semantic_weight: 0.5          # Reduced semantic weight slightly
   keyword_weight: 0.5           # Increased keyword weight for better model name matching
   
@@ -189,7 +204,7 @@ llm:
   provider: "azure_openai"  # Options: azure_openai | koboldcpp
 
   # Standard settings for your deployed model
-  max_tokens: 4096  # Reduced from 16384 
+  max_tokens: 10000  # Increased from 4096 for comprehensive answers with rich formatting
   temperature: 0.2   # Lower for more focused responses
   
   # Token management
@@ -206,6 +221,11 @@ llm:
   # Local fallback configuration (koboldcpp)
   api_url: "http://localhost:5000/v1"  # For local models
   prompt_template: "./prompts/general.txt"
+  
+  # NEW: Enhanced answer formatting prompt
+  answer_formatting_prompt: "./prompts/enhanced_answer_formatting.txt"
+  use_json_mode: true  # Enable for structured output (query expansion)
+  
   system_instruction: "/You are an AI assistant that provides clear, 
                       concise answers based STRICTLY on the provided context. 
                       CRITICAL: Answer ONLY from the given context - never use external knowledge. 
@@ -214,10 +234,12 @@ llm:
                       then supporting details. Format responses with clear structure. Avoid giving out codes unless asked explicitly./"
   
   # Response formatting preferences
-  response_style: "concise"           # concise | detailed | technical
-  max_response_length: 300           # Target response length in words
+  response_style: "detailed"          # Changed from "concise" to support rich formatting
+  max_response_length: 1000          # Increased from 300 words for comprehensive answers
   prioritize_direct_answers: true    # Put direct answers first
   include_source_references: true    # Show source documents
+  rich_formatting: true              # NEW: Enable rich markdown formatting
+  show_code_by_default: false        # NEW: Hide code unless explicitly requested
 
 # Module 4: UI Layer Configuration
 ui:

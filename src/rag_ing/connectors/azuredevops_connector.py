@@ -371,10 +371,17 @@ class AzureDevOpsConnector:
             # Get repository ID first
             repo_id = self._get_repo_id(repo_name)
             
-            # List items in the repository
-            items = self._list_repo_items(repo_id, branch, path, recursive)
+            # Check if path is a specific file or directory
+            is_single_file = path and not path.endswith('/') and ('.' in path.split('/')[-1])
             
-            logger.info(f"Found {len(items)} items in repository - processing in batches")
+            if is_single_file:
+                # Direct file fetch
+                logger.info(f"Detected single file path: {path}")
+                items = [{"gitObjectType": "blob", "path": path}]
+            else:
+                # List items in the repository
+                items = self._list_repo_items(repo_id, branch, path, recursive)
+                logger.info(f"Found {len(items)} items in repository - processing in batches")
             
             # Process files in batches
             batch = []

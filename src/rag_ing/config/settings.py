@@ -89,70 +89,13 @@ class AzureOpenAIEmbeddingConfig(BaseModel):
     requests_per_minute: int = Field(default=60, description="Rate limit (requests per minute)")
 
 
-class LocalEmbeddingConfig(BaseModel):
-    """Local open-source embedding configuration."""
-    model_name: str = Field(default="BAAI/bge-large-en-v1.5", description="HuggingFace model name")
-    device: str = Field(default="cpu", description="Device: cpu or cuda")
-    batch_size: int = Field(default=32, description="Batch size for encoding")
-    max_length: int = Field(default=512, description="Maximum token length")
-    normalize_embeddings: bool = Field(default=True, description="Normalize embeddings")
-    show_progress: bool = Field(default=True, description="Show progress bar")
-    num_threads: int = Field(default=4, description="Number of CPU threads")
-    cache_folder: str = Field(default="./models/embeddings", description="Model cache folder")
-
-
-class HybridEmbeddingConfig(BaseModel):
-    """Hybrid embedding configuration using different models for different operations."""
-    ingestion: str = Field(default="local", description="Provider for bulk ingestion: local or azure_openai")
-    queries: str = Field(default="azure_openai", description="Provider for user queries: local or azure_openai")
-    fallback: str = Field(default="local", description="Fallback provider on errors")
-
-
 class EmbeddingModelConfig(BaseModel):
-    """Enhanced embedding model configuration with flexible provider switching.
+    """Azure OpenAI embedding model configuration (simplified).
     
-    Supports:
-    - Azure OpenAI (text-embedding-ada-002) with rate limiting
-    - Local open-source models (BGE-large, E5, etc.) - no rate limits
-    - Hybrid mode (local for ingestion, Azure for queries)
+    Only supports Azure OpenAI for consistent, production-ready embeddings.
     """
-    # Provider selection: azure_openai | local | hybrid
-    provider: str = Field(default="local", description="Provider: azure_openai, local, or hybrid")
-    
-    # Provider-specific configurations
+    # Azure OpenAI configuration (only supported provider)
     azure_openai: AzureOpenAIEmbeddingConfig = Field(default_factory=AzureOpenAIEmbeddingConfig)
-    local: LocalEmbeddingConfig = Field(default_factory=LocalEmbeddingConfig)
-    hybrid: HybridEmbeddingConfig = Field(default_factory=HybridEmbeddingConfig)
-    
-    # DEPRECATED: Legacy fields kept for backward compatibility
-    use_azure_primary: bool = Field(default=False, description="DEPRECATED: Use provider='azure_openai' instead")
-    azure_model: str = Field(default="text-embedding-ada-002", description="DEPRECATED: Use azure_openai.model")
-    azure_endpoint: Optional[str] = Field(default=None, description="DEPRECATED: Use azure_openai.endpoint")
-    azure_api_key: Optional[str] = Field(default=None, description="DEPRECATED: Use azure_openai.api_key")
-    azure_api_version: str = Field(default="2023-05-15", description="DEPRECATED: Use azure_openai.api_version")
-    azure_deployment_name: str = Field(default="text-embedding-ada-002", description="DEPRECATED: Use azure_openai.deployment_name")
-    name: str = Field(default="all-MiniLM-L6-v2", description="DEPRECATED: Use local.model_name")
-    device: str = Field(default="cpu", description="DEPRECATED: Use local.device")
-    model_path: Optional[str] = Field(default=None, description="DEPRECATED: Not used")
-    
-    @field_validator('provider')
-    @classmethod
-    def validate_provider(cls, v):
-        """Validate provider selection."""
-        supported_providers = ['azure_openai', 'local', 'hybrid']
-        if v not in supported_providers:
-            raise ValueError(f"Provider '{v}' not supported. Use: {supported_providers}")
-        return v
-    
-    def get_primary_provider(self) -> str:
-        """Get the primary embedding provider to use."""
-        if self.use_azure_primary and self.provider == "azure_openai":
-            return "azure_openai"
-        return self.provider
-    
-    def get_fallback_model(self) -> str:
-        """Get fallback model name for open source embeddings."""
-        return self.local.model_name or self.name
 
 
 class RerankingConfig(BaseModel):
@@ -164,12 +107,70 @@ class RerankingConfig(BaseModel):
     relevance_threshold: float = Field(default=0.7, description="Minimum relevance score")
 
 
+class QueryExpansionConfig(BaseModel):
+    """Query expansion configuration for multi-query retrieval."""
+    enabled: bool = Field(default=True, description="Enable query expansion")
+    num_variations: int = Field(default=9, ge=1, le=20, description="Number of query variations to generate")
+    use_project_detection: bool = Field(default=True, description="Detect project from query")
+    expansion_prompt: str = Field(default="./prompts/query_expansion.txt", description="Prompt template for expansion")
+    llm_temperature: float = Field(default=0.3, ge=0.0, le=1.0, description="Temperature for LLM expansion")
+    cache_expansions: bool = Field(default=True, description="Cache query expansions")
+    cache_ttl: int = Field(default=3600, description="Cache TTL in seconds")
+
+
+class MultiQueryConfig(BaseModel):
+    """Multi-query retrieval configuration."""
+    enabled: bool = Field(default=True, description="Enable multi-query retrieval")
+    k_per_query: int = Field(default=10, gt=0, description="Top K chunks per query variation")
+    aggregation_method: str = Field(
+        default="frequency_relevance",
+        description="Aggregation method: frequency_relevance, max_score, or avg_score"
+    )
+    parallel_execution: bool = Field(default=True, description="Execute queries in parallel")
+    min_frequency_threshold: int = Field(default=2, ge=1, description="Minimum appearances across queries")
+    
+    @field_validator('aggregation_method')
+    @classmethod
+    def validate_aggregation_method(cls, v):
+        """Validate aggregation method."""
+        allowed = ['frequency_relevance', 'max_score', 'avg_score']
+        if v not in allowed:
+            raise ValueError(f"Aggregation method '{v}' not supported. Use: {allowed}")
+        return v
+
+
+class HybridContextConfig(BaseModel):
+    """Hybrid context assembly configuration (semantic + keyword)."""
+    semantic_weight: float = Field(default=0.7, ge=0.0, le=1.0, description="Weight for semantic results (70%)")
+    keyword_weight: float = Field(default=0.3, ge=0.0, le=1.0, description="Weight for keyword results (30%)")
+    total_chunks: int = Field(default=10, gt=0, description="Total chunks to pass to LLM")
+    deduplication: bool = Field(default=True, description="Remove duplicate chunks")
+    
+    @field_validator('keyword_weight')
+    @classmethod
+    def validate_weights_sum(cls, v, info):
+        """Ensure semantic and keyword weights sum to 1.0."""
+        if info.data and 'semantic_weight' in info.data:
+            semantic_weight = info.data['semantic_weight']
+            total = semantic_weight + v
+            if abs(total - 1.0) > 0.01:  # Small tolerance for floating point
+                raise ValueError(
+                    f"semantic_weight ({semantic_weight}) + keyword_weight ({v}) = {total}, must sum to 1.0"
+                )
+        return v
+
+
 class RetrievalConfig(BaseModel):
     """Enhanced query processing and retrieval configuration with hybrid search."""
     top_k: int = Field(default=10, gt=0)
     strategy: str = Field(default="hybrid", description="Strategy: similarity, keyword, or hybrid")
     
-    # Hybrid search weights
+    # NEW: Multi-query retrieval configurations
+    query_expansion: QueryExpansionConfig = Field(default_factory=QueryExpansionConfig)
+    multi_query: MultiQueryConfig = Field(default_factory=MultiQueryConfig)
+    hybrid_context: HybridContextConfig = Field(default_factory=HybridContextConfig)
+    
+    # Hybrid search weights (used for keyword component in hybrid context)
     semantic_weight: float = Field(default=0.6, ge=0.0, le=1.0)
     keyword_weight: float = Field(default=0.4, ge=0.0, le=1.0)
     
@@ -204,15 +205,6 @@ class RetrievalConfig(BaseModel):
         default={"ontology_match": True, "date_range": "last_12_months"},
         description="Retrieval filters"
     )
-    
-    @field_validator('keyword_weight')
-    def validate_weights_sum(cls, v, info):
-        """Ensure semantic and keyword weights sum to 1.0."""
-        if info.data and 'semantic_weight' in info.data:
-            semantic_weight = info.data['semantic_weight']
-            if abs(semantic_weight + v - 1.0) > 0.01:  # Small tolerance for floating point
-                raise ValueError(f"semantic_weight ({semantic_weight}) + keyword_weight ({v}) must sum to 1.0")
-        return v
 
 
 class LLMConfig(BaseModel):
@@ -221,7 +213,7 @@ class LLMConfig(BaseModel):
     provider: str = Field(default="azure_openai", description="Provider: azure_openai or koboldcpp only")
     
     # Model configuration  
-    max_tokens: int = Field(default=4096, description="Maximum tokens")
+    max_tokens: int = Field(default=10000, description="Maximum tokens (increased for rich formatting)")
     temperature: float = Field(default=0.1, ge=0.0, le=2.0)
     
     # Token management
@@ -237,6 +229,16 @@ class LLMConfig(BaseModel):
     azure_deployment_name: str = Field(default="gpt-5-nano", description="Azure deployment name")
     
     prompt_template: str = Field(default="./prompts/oncology.txt")
+    
+    # NEW: Enhanced answer formatting
+    answer_formatting_prompt: str = Field(
+        default="./prompts/enhanced_answer_formatting.txt",
+        description="Prompt for rich formatted answers"
+    )
+    use_json_mode: bool = Field(default=True, description="Enable JSON mode for structured output")
+    rich_formatting: bool = Field(default=True, description="Enable rich markdown formatting")
+    show_code_by_default: bool = Field(default=False, description="Show code only when explicitly requested")
+    
     system_instruction: str = Field(
         default="You are an AI-powered enterprise search assistant specializing in oncology, clinical documentation, and technical systems with enhanced RAG capabilities."
     )

@@ -7,6 +7,7 @@ Objective: Convert user query to embedding and retrieve relevant chunks.
 import logging
 import time
 import hashlib
+import asyncio
 from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
 from langchain_core.documents import Document
@@ -14,6 +15,12 @@ from langchain_core.embeddings import Embeddings
 from langchain_core.vectorstores import VectorStore
 from ..config.settings import Settings, RetrievalConfig
 from ..utils.exceptions import RetrievalError
+from ..retrieval import (
+    QueryExpansionEngine,
+    MultiQueryRetriever,
+    ResultAggregator,
+    HybridContextBuilder
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +44,12 @@ class QueryRetrievalModule:
         # LLM client for query expansion (injected by orchestrator)
         self.llm_client = None
         
+        # NEW: Multi-query retrieval components (initialized after LLM client is set)
+        self.query_expansion_engine = None
+        self.multi_query_retriever = None
+        self.result_aggregator = None
+        self.hybrid_context_builder = None
+        
         # Query cache for performance
         self._query_cache = {}
         self._cache_ttl = 300  # 5 minutes
@@ -53,7 +66,9 @@ class QueryRetrievalModule:
             "hybrid_queries": 0,
             "reranked_queries": 0,
             "medical_boosted_queries": 0,
-            "hierarchical_queries": 0
+            "hierarchical_queries": 0,
+            "multi_query_expansions": 0,  # NEW
+            "multi_query_retrievals": 0   # NEW
         }
     
     def set_llm_client(self, llm_client):
@@ -64,6 +79,55 @@ class QueryRetrievalModule:
         """
         self.llm_client = llm_client
         logger.info("LLM client set for query expansion")
+        
+        # Initialize multi-query retrieval components now that LLM client is available
+        self._initialize_multi_query_components()
+    
+    def _initialize_multi_query_components(self):
+        """Initialize multi-query retrieval components.
+        
+        Called after LLM client is set, since QueryExpansionEngine requires it.
+        """
+        if not self.retrieval_config.query_expansion.enabled:
+            logger.info("Multi-query expansion disabled in configuration")
+            return
+        
+        try:
+            logger.info("[...] Initializing multi-query retrieval components")
+            
+            # Initialize query expansion engine
+            self.query_expansion_engine = QueryExpansionEngine(
+                config=self.config,
+                llm_client=self.llm_client
+            )
+            
+            # Initialize multi-query retriever
+            self.multi_query_retriever = MultiQueryRetriever(
+                config=self.config,
+                vector_store=self.vector_store,
+                embedding_model=self.embedding_model
+            )
+            
+            # Initialize result aggregator
+            self.result_aggregator = ResultAggregator(
+                config=self.config
+            )
+            
+            # Initialize hybrid context builder
+            self.hybrid_context_builder = HybridContextBuilder(
+                config=self.config
+            )
+            
+            logger.info("[OK] Multi-query retrieval components initialized successfully")
+            
+        except Exception as e:
+            logger.error(f"[X] Failed to initialize multi-query components: {e}")
+            logger.warning("[!] Multi-query retrieval will not be available")
+            # Don't fail completely - system can still use standard retrieval
+            self.query_expansion_engine = None
+            self.multi_query_retriever = None
+            self.result_aggregator = None
+            self.hybrid_context_builder = None
     
     def _initialize_components(self):
         """Initialize vector store and embedding model based on configuration."""
@@ -128,23 +192,15 @@ class QueryRetrievalModule:
             self.vector_store = None
     
     def _initialize_embedding_model(self):
-        """Initialize embedding model - Azure OpenAI only."""
-        embedding_config = self.config.embedding_model
-        provider = embedding_config.get_primary_provider()
+        """Initialize Azure OpenAI embedding model."""
+        logger.info("Initializing Azure OpenAI embedding model...")
         
-        logger.info(f"Initializing embedding model with provider: {provider}")
-        
-        # ALWAYS use Azure OpenAI - no fallback
-        if provider == "azure_openai":
-            try:
-                self._load_azure_embedding_model()
-                logger.info("Azure OpenAI embedding model loaded successfully")
-                return
-            except Exception as e:
-                logger.error(f"Azure embedding model failed: {e}")
-                raise RuntimeError(f"Failed to initialize Azure OpenAI embeddings. Please check credentials and configuration.") from e
-        else:
-            raise RuntimeError(f"Only azure_openai provider is supported. Current provider: {provider}")
+        try:
+            self._load_azure_embedding_model()
+            logger.info("Azure OpenAI embedding model loaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize Azure OpenAI embeddings: {e}")
+            raise RuntimeError(f"Failed to initialize Azure OpenAI embeddings. Please check credentials and configuration.") from e
     
     def _load_azure_embedding_model(self):
         """Load Azure OpenAI embedding model for query processing."""
@@ -207,11 +263,11 @@ class QueryRetrievalModule:
         
         self.embedding_model = AzureEmbeddingWrapper(
             client=azure_client,
-            model_name=embedding_config.azure_model,
-            deployment_name=embedding_config.azure_deployment_name
+            model_name=embedding_config.azure_openai.model,
+            deployment_name=embedding_config.azure_openai.deployment_name
         )
         
-        logger.info(f"Azure embedding model loaded for queries: {embedding_config.azure_model}")
+        logger.info(f"Azure embedding model loaded for queries: {embedding_config.azure_openai.model}")
     
     def _create_mock_vector_store(self):
         """Create a simple mock vector store for demonstration purposes."""
@@ -284,6 +340,216 @@ class QueryRetrievalModule:
         except Exception as e:
             logger.error(f"Enhanced query processing failed: {e}")
             raise RetrievalError(f"Failed to process query: {e}")
+    
+    async def process_query_with_multi_query_expansion(
+        self,
+        query: str,
+        filters: Optional[Dict[str, Any]] = None,
+        use_project_detection: bool = True
+    ) -> Dict[str, Any]:
+        """Enhanced query processing with multi-query expansion and aggregation.
+        
+        This is the NEW method that implements the advanced retrieval workflow:
+        1. Query Expansion: Generate 9 alternative questions + detect project
+        2. Multi-Query Retrieval: Fetch top 10 chunks per variation
+        3. Smart Aggregation: Score by frequency × relevance
+        4. Hybrid Context: Combine semantic (70%) + keyword (30%)
+        5. Return enriched context for LLM
+        
+        Args:
+            query: User's original question
+            filters: Optional metadata filters
+            use_project_detection: Enable project detection from query
+            
+        Returns:
+            Dictionary with context, metadata, and statistics
+        """
+        logger.info(f"[NEW] Processing query with multi-query expansion: {query[:50]}...")
+        start_time = time.time()
+        
+        try:
+            # Check if components are initialized
+            if not self._multi_query_components_ready():
+                logger.warning("[!] Multi-query components not ready, falling back to standard retrieval")
+                return self.process_query(query, filters)
+            
+            # Step 1: Query Expansion + Project Detection
+            logger.info("[Step 1/5] Query expansion and project detection")
+            available_projects = self._get_available_projects()
+            
+            expansion_result = await self.query_expansion_engine.expand_query_with_project(
+                query=query,
+                available_projects=available_projects if use_project_detection else None
+            )
+            
+            self._metrics["multi_query_expansions"] += 1
+            
+            logger.info(
+                f"[OK] Generated {len(expansion_result.variations)} variations, "
+                f"detected project: {expansion_result.detected_project} "
+                f"(confidence={expansion_result.confidence:.2f})"
+            )
+            
+            # Step 2: Multi-Query Retrieval
+            logger.info(f"[Step 2/5] Multi-query retrieval ({len(expansion_result.all_queries)} queries)")
+            
+            # Temporarily disable project filtering until metadata is properly configured
+            # TODO: Add project_tag metadata during ingestion or map detected project to actual fields
+            project_filter = None
+            # if use_project_detection and expansion_result.confidence > 0.7:
+            #     project_filter = expansion_result.detected_project
+            #     logger.info(f"[...] Applying project filter: {project_filter}")
+            
+            if expansion_result.detected_project and expansion_result.detected_project != 'general':
+                logger.info(
+                    f"[INFO] Detected project '{expansion_result.detected_project}' "
+                    f"(confidence={expansion_result.confidence:.2f}) but project filtering "
+                    f"disabled until metadata is configured"
+                )
+            
+            multi_query_result = await self.multi_query_retriever.retrieve_multi_query(
+                query_variations=expansion_result.all_queries,
+                project_filter=project_filter,
+                k_per_query=self.retrieval_config.multi_query.k_per_query
+            )
+            
+            self._metrics["multi_query_retrievals"] += 1
+            
+            logger.info(
+                f"[OK] Retrieved {multi_query_result.total_chunks} total chunks "
+                f"({multi_query_result.unique_chunks} unique)"
+            )
+            
+            # Step 3: Aggregate Results
+            logger.info("[Step 3/5] Aggregating results by frequency × relevance")
+            
+            aggregated_results = self.result_aggregator.aggregate_by_frequency_relevance(
+                multi_query_results=multi_query_result.query_results,
+                top_k=10  # Top 10 for semantic component
+            )
+            
+            logger.info(f"[OK] Aggregated to {len(aggregated_results)} top chunks")
+            
+            # Step 4: Get Keyword Results (for hybrid context)
+            logger.info("[Step 4/5] Fetching keyword search results")
+            
+            keyword_docs = self._get_keyword_results(query, k=10)
+            
+            logger.info(f"[OK] Retrieved {len(keyword_docs)} keyword results")
+            
+            # Step 5: Build Hybrid Context (70% semantic, 30% keyword)
+            logger.info("[Step 5/5] Building hybrid context (70/30 split)")
+            
+            semantic_docs = self.result_aggregator.convert_to_documents(aggregated_results)
+            
+            hybrid_result = self.hybrid_context_builder.build_hybrid_context(
+                semantic_results=semantic_docs,
+                keyword_results=keyword_docs
+            )
+            
+            logger.info(
+                f"[OK] Hybrid context built: {hybrid_result.semantic_count} semantic + "
+                f"{hybrid_result.keyword_count} keyword = {hybrid_result.total_count} total"
+            )
+            
+            # Package results
+            retrieval_time = time.time() - start_time
+            
+            result = {
+                "context": self.hybrid_context_builder.build_context_string(
+                    hybrid_result.documents,
+                    include_metadata=True
+                ),
+                "documents": hybrid_result.documents,
+                "query": query,
+                "retrieval_time": retrieval_time,
+                "num_docs": len(hybrid_result.documents),
+                
+                # NEW: Multi-query expansion metadata
+                "query_expansion": {
+                    "original_query": expansion_result.original_query,
+                    "variations": expansion_result.variations,
+                    "detected_project": expansion_result.detected_project,
+                    "confidence": expansion_result.confidence
+                },
+                
+                # NEW: Aggregation statistics
+                "aggregation_stats": self.result_aggregator.get_aggregation_stats(aggregated_results),
+                
+                # NEW: Hybrid context statistics
+                "hybrid_stats": self.hybrid_context_builder.get_context_stats(hybrid_result),
+                
+                # Existing metadata
+                "method": "multi_query_expansion",
+                "total_queries_executed": len(expansion_result.all_queries),
+                "total_chunks_retrieved": multi_query_result.total_chunks,
+                "unique_chunks": multi_query_result.unique_chunks
+            }
+            
+            logger.info(
+                f"[OK] Multi-query retrieval complete in {retrieval_time:.2f}s "
+                f"({len(expansion_result.all_queries)} queries, {hybrid_result.total_count} final chunks)"
+            )
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"[X] Multi-query retrieval failed: {type(e).__name__}: {e}")
+            import traceback
+            logger.debug(f"Traceback: {traceback.format_exc()}")
+            logger.warning("[!] Falling back to standard retrieval")
+            # Fallback to standard retrieval
+            return self.process_query(query, filters)
+    
+    def _multi_query_components_ready(self) -> bool:
+        """Check if multi-query components are initialized.
+        
+        Returns:
+            True if all components are ready
+        """
+        return all([
+            self.query_expansion_engine is not None,
+            self.multi_query_retriever is not None,
+            self.result_aggregator is not None,
+            self.hybrid_context_builder is not None,
+            self.llm_client is not None
+        ])
+    
+    def _get_available_projects(self) -> List[str]:
+        """Get list of available project tags from vector store.
+        
+        Returns:
+            List of project tags
+        """
+        if self.query_expansion_engine:
+            return self.query_expansion_engine.get_available_projects(self.vector_store)
+        return ['anthem', 'upmc', 'pophealth', 'general']
+    
+    def _get_keyword_results(self, query: str, k: int = 10) -> List[Document]:
+        """Get keyword search results using BM25.
+        
+        Args:
+            query: Search query
+            k: Number of results
+            
+        Returns:
+            List of Document objects
+        """
+        try:
+            # Try to use hybrid retriever's BM25 if available
+            from ..retrieval.hybrid_retrieval import HybridRetriever
+            
+            # Use existing vector store
+            if self.vector_store:
+                # Simple similarity search as fallback
+                docs = self.vector_store.similarity_search(query, k=k)
+                return docs
+            
+            return []
+            
+        except Exception as e:
+            logger.warning(f"[!] Keyword search failed: {e}")
+            return []
     
     def _normalize_query(self, query: str) -> str:
         """Normalize and clean query text."""

@@ -260,15 +260,29 @@ Please provide a clear, direct answer based on the context above.'''
     
     def _construct_prompt(self, query: str, context: str, audience: str) -> str:
         """Construct prompt using template and context with smart truncation for GPT-4o nano."""
-        if not self.prompt_template:
+        # Try to use enhanced formatting prompt if configured and available
+        prompt_template_to_use = self.prompt_template
+        
+        if hasattr(self.llm_config, 'answer_formatting_prompt') and self.llm_config.answer_formatting_prompt:
+            formatting_prompt_path = Path(self.llm_config.answer_formatting_prompt)
+            if formatting_prompt_path.exists():
+                try:
+                    prompt_template_to_use = formatting_prompt_path.read_text(encoding='utf-8')
+                    logger.debug(f"Using enhanced formatting prompt from {formatting_prompt_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to load enhanced formatting prompt: {e}, using default")
+        
+        if not prompt_template_to_use:
             self.load_prompt_template()
+            prompt_template_to_use = self.prompt_template
         
         # Apply smart context truncation for GPT-4o nano's 12K token limit
-        if self.llm_config.use_smart_truncation and self.llm_config.max_tokens >= 10000:
+        # Always apply truncation if max_tokens is high (10K+) to avoid token limit errors
+        if self.llm_config.use_smart_truncation and self.llm_config.max_tokens >= 8000:
             context = self._apply_smart_context_truncation(context, query, audience)
         
         # Format the prompt template (only context and query now)
-        prompt = self.prompt_template.format(
+        prompt = prompt_template_to_use.format(
             context=context,
             query=query
         )

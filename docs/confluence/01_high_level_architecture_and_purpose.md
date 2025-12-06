@@ -2,31 +2,30 @@
 
 ## Executive Summary
 
-**RAG-ing** is a production-ready, general-purpose Retrieval-Augmented Generation (RAG) system that enables organizations to build intelligent question-answering applications over their document repositories. The system ingests documents from multiple sources, creates searchable embeddings, and answers questions **strictly based on provided documents** with no hallucination.
+**RAG-ing** is a production-ready Retrieval-Augmented Generation (RAG) system that enables you to ask natural-language questions over your own documents and receive answers that are **strictly grounded in those documents**.
 
-**Version**: 1.0 (Production-Ready)  
-**Last Updated**: November 2025  
-**Technology Stack**: Python 3.9+, FastAPI, ChromaDB, Azure OpenAI, LangChain
+In the current configuration, RAG-ing focuses on:
+- A dbt project stored in Azure DevOps (project configuration, manifest, macros, and seed data)
+- Optional local files
+- Azure OpenAI for both embeddings and generation
 
----
+Answers are always drawn from retrieved context; if the information is not present, the system explains that it cannot answer and suggests better queries instead of hallucinating.
 
-## What is RAG-ing?
+**Technology Stack (current)**
+- Python 3.10+
+- FastAPI (UI and API)
+- ChromaDB (vector store)
+- Azure OpenAI (embeddings + LLM)
+- LangChain-style document objects and chunking utilities
 
-RAG-ing is an enterprise-grade system that combines:
-- **Multi-source document ingestion** (Azure DevOps, Confluence, local files, Jira)
-- **Vector embedding storage** with ChromaDB or FAISS
-- **Hybrid retrieval** (semantic + keyword search)
-- **LLM-powered answer generation** with strict document grounding
-- **Continuous evaluation** with performance metrics tracking
+### Key Differentiator: Strict Grounding
 
-### Key Differentiator: Zero Hallucination
+RAG-ing **only answers from ingested documents**. The prompt templates enforce that behavior:
+1. If context is sufficient, answer using only that context.
+2. If context is missing, explain that the answer cannot be found.
+3. Suggest related topics and better-formulated questions to help the user.
 
-Unlike general-purpose LLMs, RAG-ing **ONLY answers from ingested documents**. If information isn't in the corpus, the system:
-1. Explicitly states it cannot find the information
-2. Suggests related topics that ARE in the documents
-3. Proposes rephrased questions that might yield results
-
-This makes RAG-ing ideal for compliance-sensitive, accuracy-critical domains.
+This makes RAG-ing suitable for accuracy-critical scenarios where traceability to source documents is required.
 
 ---
 
@@ -56,108 +55,142 @@ This makes RAG-ing ideal for compliance-sensitive, accuracy-critical domains.
 
 ## System Architecture
 
-### Five-Module Design
+### Five-Module Design (Current Implementation)
+
+The core of the system is implemented in `src/rag_ing/` and orchestrated by `RAGOrchestrator`.
 
 #### Module 1: Corpus & Embedding Lifecycle
-**Purpose**: Ingest documents and create searchable embeddings
+**Purpose**: Ingest documents and create searchable embeddings.
 
-**Components**:
-- Multi-source connectors (Azure DevOps, Confluence, local files, Jira)
-- Document chunking (recursive, semantic, code-aware)
-- Embedding generation (Azure OpenAI text-embedding-ada-002)
-- Vector store writer (ChromaDB/FAISS)
-- Ingestion tracker (SQLite database)
-
-**Output**: 1,536-dimensional embeddings stored in vector database
+**Key responsibilities**:
+- Read configuration from `config.yaml` and environment variables via `Settings`.
+- Ingest from enabled sources (currently focused on Azure DevOps and optional local files).
+- Perform DBT-aware processing when a dbt project is detected (using `dbt_project.yml` and `target/manifest.json`).
+- Chunk documents into manageable segments.
+- Generate embeddings using Azure OpenAI.
+- Store embeddings and metadata in ChromaDB and record ingestion in an SQLite tracker.
 
 #### Module 2: Query Processing & Retrieval
-**Purpose**: Find most relevant documents for user queries
+**Purpose**: Find and rank relevant document chunks for a user query.
 
-**Components**:
-- Query embedding
-- Hybrid retrieval (60% semantic + 40% keyword)
-- Cross-encoder reranking (ms-marco-MiniLM)
-- Domain-specific boosting
-- Metadata filtering
-
-**Output**: Top-k documents ranked by relevance
+**Key responsibilities**:
+- Embed the incoming query with the same Azure embedding model used during ingestion.
+- Perform semantic vector search in ChromaDB.
+- Optionally expand the query into multiple variations using the LLM module (multi-query retrieval).
+- Build a hybrid context (semantic + keyword) when configured.
+- Return a set of `Document` objects and retrieval statistics.
 
 #### Module 3: LLM Orchestration
-**Purpose**: Generate accurate answers from retrieved context
+**Purpose**: Turn retrieved context into a grounded answer.
 
-**Components**:
-- Azure OpenAI client (gpt-4, gpt-4o)
-- KoboldCpp fallback (local LLM)
-- Strict grounding prompts
-- Smart context truncation
-- Response formatting
-
-**Output**: Natural language answer with source citations
+**Key responsibilities**:
+- Initialize Azure OpenAI client based on configuration.
+- Load strict-grounding prompt templates from `prompts/`.
+- Expose a `generate_response(query, context)` method used by the orchestrator and retrieval module.
+- Apply smart truncation to avoid exceeding token limits.
+- Return response text and metadata (model used, token usage if available).
 
 #### Module 4: UI Layer
-**Purpose**: Web interface for user interaction
+**Purpose**: Provide a simple web and API interface.
 
-**Components**:
-- FastAPI application (REST API)
-- HTML/CSS templates
-- Search result pages
-- Health check endpoints
-- Static asset serving
-
-**Output**: Web UI at http://localhost:8000
+**Key responsibilities**:
+- Run a FastAPI app (`ui/app.py`) exposing endpoints for search and health checks.
+- Render HTML templates from `ui/templates/` and serve static assets from `ui/static/`.
+- Shape responses (answer text + sources + metadata) into UI-friendly structures using `ui/enhanced_response.py`.
 
 #### Module 5: Evaluation & Logging
-**Purpose**: Track system performance and quality
+**Purpose**: Track system performance and support analysis.
 
-**Components**:
-- RAGAS-style retrieval metrics (hit rate, precision)
-- Generation metrics (safety score, clarity)
-- JSONL logging (structured logs)
-- Performance tracking
-- User feedback correlation
-
-**Output**: Metrics in `logs/*.jsonl` files
+**Key responsibilities**:
+- Record each query as a structured event in JSONL logs.
+- Compute retrieval and generation metrics per query.
+- Maintain system-level metrics (success counts, processing times).
+- Optionally log user activity in a separate log stream for later analysis.
 
 ---
 
 ## Data Flow
 
-### Ingestion Flow (Setup Phase)
+### 1. Configuration and Startup
+
+1. Environment variables (e.g. Azure keys, Azure DevOps PAT) are provided via `.env` or the host environment.
+2. `config.yaml` references these variables using `${VAR}` syntax and defines:
+  - Data sources (Azure DevOps repo paths, local folders)
+  - Embedding and LLM provider settings (Azure OpenAI)
+  - Vector store path and collection name
+  - Retrieval parameters (k, hybrid weights, multi-query options)
+  - UI and logging options.
+3. On startup, `RAGOrchestrator` loads `Settings.from_yaml("./config.yaml")` and constructs all five modules.
+
+Result: a single orchestrator instance that other entry points (CLI and UI) use.
+
+### 2. Ingestion Flow (Setup / Refresh)
+
+Simplified diagram:
+
 ```
-Documents → Connectors → Chunking → Embedding → Vector Store
-                                              ↓
-                                    Ingestion Tracker DB
+Azure DevOps / Local Files
+   ↓
+ Connectors (e.g. AzureDevOpsConnector)
+   ↓
+ CorpusEmbeddingModule
+   ↓ (optionally: DBTArtifactParser for manifest + project)
+ Chunking → Embeddings → ChromaDB
+                  ↓
+            Ingestion Tracker DB
 ```
 
-**Steps**:
-1. Configure sources in `config.yaml`
-2. Run: `python main.py --ingest`
-3. System fetches documents from enabled sources
-4. Documents chunked into 1,200-character segments
-5. Azure OpenAI generates embeddings
-6. Embeddings stored in ChromaDB
-7. Metadata logged in `ingestion_tracking.db`
+High-level steps:
+1. Operator runs `python main.py --ingest`.
+2. `main.py` creates `RAGOrchestrator` and calls `ingest_corpus()`.
+3. Module 1 (corpus embedding) reads enabled sources from settings and:
+  - Streams files from Azure DevOps that match `include_paths` and `include_file_types`.
+  - For dbt projects, collects:
+    - `/dbt_anthem/dbt_project.yml`
+    - `/dbt_anthem/target/manifest.json`
+    - Seed CSVs under `/dbt_anthem/data/`.
+  - Passes these into `_process_dbt_artifacts`, which uses `DBTArtifactParser` to create synthetic model/test/macro/seed documents with metadata such as `dbt_type`, `dbt_name`, `dbt_tags`, and lineage.
+4. The module then chunks all documents according to the configured strategy.
+5. Each chunk is embedded using Azure OpenAI and written to ChromaDB with its metadata.
+6. The ingestion tracker SQLite database is updated so that subsequent runs can be incremental.
 
-**Result**: Searchable knowledge base ready for queries
+Result: the vector store contains DBT-aware document chunks and any additional ingested files, ready to serve queries.
 
-### Query Flow (Runtime)
+### 3. Query Flow (Runtime)
+
+Simplified diagram:
+
 ```
-User Query → Embedding → Hybrid Retrieval → Reranking → LLM → Answer + Sources
-                                                           ↓
-                                                  Metrics Logging
+User / Client
+  ↓
+FastAPI UI / API
+  ↓
+RAGOrchestrator
+  ↓
+QueryRetrievalModule → LLMOrchestrationModule
+  ↓                         ↓
+EvaluationLoggingModule (metrics + logs)
 ```
 
-**Steps**:
-1. User enters question in UI
-2. Query embedded with same model as documents
-3. Hybrid search finds relevant chunks (semantic + keyword)
-4. Cross-encoder reranks results by relevance
-5. Top-k documents assembled into context
-6. LLM generates answer with strict grounding
-7. Response returned with source citations
-8. Metrics logged for evaluation
+High-level steps:
+1. A user sends a query via the UI or API.
+2. The FastAPI route calls `RAGOrchestrator.query_documents_with_multi_query(...)` (or the basic `query_documents` method).
+3. Retrieval module:
+  - Embeds the query using Azure embeddings.
+  - Optionally asks the LLM module to generate query variations (multi-query) to capture different phrasings.
+  - Performs multiple vector searches in ChromaDB and aggregates results.
+  - Builds a hybrid context (semantic + keyword) when enabled.
+4. LLM orchestration module:
+  - Receives the query and assembled context.
+  - Calls Azure OpenAI with a strict-grounding prompt.
+  - Returns a grounded answer plus any relevant metadata.
+5. Evaluation and logging module:
+  - Computes retrieval and generation metrics.
+  - Writes a structured `QueryEvent` to JSONL logs.
+6. UI layer:
+  - Formats the answer and sources for display (HTML) or JSON API response.
 
-**Result**: Accurate answer backed by document sources
+Result: the user sees an answer along with the underlying sources and relevant metadata.
 
 ---
 

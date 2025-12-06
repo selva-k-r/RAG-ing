@@ -1,32 +1,12 @@
-# RAG-ing System - Developer Guide
+# RAG-ing Developer Guide
 
-> **Developer Navigation, Architecture, & Feature Development Guide**  
-> For developers working on the RAG system
+Developer-facing overview of how the system is structured today, how configuration flows into runtime objects, and how ingestion/query pipelines are wired.
 
-## 🚀 Current Branch: feature/using-dbt-artifacts
-
-**Branch Purpose**: Implement project-aware RAG with DBT artifacts integration  
-**Base Branch**: main  
-**Created**: December 4, 2025  
-**Status**: In Development
-
-### Recent Changes (Committed to main)
-- ✅ Hierarchical storage with rich LLM-generated summaries
-- ✅ DocumentSummarizer with type-specific prompts (SQL, Python, YAML, PDF)
-- ✅ Enhanced retrieval with metadata boosting and smart routing
-- ✅ Comprehensive Confluence documentation (94KB, 5 pages)
-- ✅ UI cleanup (removed unused 'audience' parameter)
-- ✅ Better duplicate detection logging
-
-### Cleanup Performed
-- ✅ Removed `temp_helper_codes/` (test files, old summaries)
-- ✅ Kept `debug_tools/` (production validators, useful for ops)
-- ✅ Updated README.md with hierarchical storage + DBT roadmap
-- ✅ Updated requirement.md with v0.3 DBT artifacts specification
+This guide only describes the **current state** of the project on `feature/using-dbt-artifacts`.
 
 ---
 
-## 📁 Directory Overview
+## Directory Overview
 
 ```
 RAG-ing/
@@ -59,7 +39,7 @@ RAG-ing/
 └── tests/                 # Unit tests
 ```
 
-## 🎯 Core Components (Ready for Review)
+## Core Components
 
 ### 1. Entry Points
 - **main.py** - CLI interface
