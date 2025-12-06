@@ -68,6 +68,7 @@ class ChunkingConfig(BaseModel):
     strategy: str = Field(default="recursive", description="Strategy: recursive or semantic")
     chunk_size: int = Field(default=1200, gt=0)  # Increased from 512
     overlap: int = Field(default=100, ge=0)  # Increased from 64
+    max_chunks: Optional[int] = Field(default=None, description="Maximum number of chunks to process (for testing)")
     prepend_metadata: bool = Field(default=True, description="Prepend document metadata to chunks")
     chunk_size_includes_metadata: bool = Field(default=False, description="Include metadata in chunk size calculation")
     semantic_boundaries: List[str] = Field(
@@ -76,55 +77,25 @@ class ChunkingConfig(BaseModel):
     )
 
 
+class AzureOpenAIEmbeddingConfig(BaseModel):
+    """Azure OpenAI embedding configuration."""
+    model: str = Field(default="text-embedding-ada-002", description="Azure embedding model")
+    endpoint: Optional[str] = Field(default=None, description="Azure OpenAI endpoint")
+    api_key: Optional[str] = Field(default=None, description="Azure OpenAI API key")
+    api_version: str = Field(default="2023-05-15", description="Azure API version")
+    deployment_name: str = Field(default="text-embedding-ada-002", description="Azure deployment name")
+    max_retries: int = Field(default=5, description="Maximum retry attempts")
+    retry_delay: int = Field(default=2, description="Base retry delay in seconds")
+    requests_per_minute: int = Field(default=60, description="Rate limit (requests per minute)")
+
+
 class EmbeddingModelConfig(BaseModel):
-    """Enhanced embedding model configuration with Azure and open source support."""
-    # Provider selection
-    provider: str = Field(default="huggingface", description="Provider: azure_openai or huggingface")
-    use_azure_primary: bool = Field(default=False, description="Use Azure as primary, fallback to open source")
+    """Azure OpenAI embedding model configuration (simplified).
     
-    # Azure OpenAI embedding configuration
-    azure_model: str = Field(default="text-embedding-ada-002", description="Azure embedding model")
-    azure_endpoint: Optional[str] = Field(default=None, description="Azure OpenAI endpoint")
-    azure_api_key: Optional[str] = Field(default=None, description="Azure OpenAI API key")
-    azure_api_version: str = Field(default="2023-05-15", description="Azure API version")
-    azure_deployment_name: str = Field(default="text-embedding-ada-002", description="Azure deployment name")
-    
-    # Open source model configuration (fallback)
-    name: str = Field(default="all-MiniLM-L6-v2", description="Fallback model: all-MiniLM-L6-v2, all-mpnet-base-v2")
-    device: str = Field(default="cpu", description="Device: cpu or cuda")
-    model_path: Optional[str] = Field(default=None, description="Custom model path")
-    
-    @field_validator('azure_model')
-    @classmethod
-    def validate_azure_embedding_models(cls, v):
-        """Validate that only standard Azure OpenAI embedding models are used."""
-        standard_embedding_models = [
-            'text-embedding-ada-002', 'text-embedding-3-large', 'text-embedding-3-small'
-        ]
-        if v not in standard_embedding_models:
-            raise ValueError(f"Azure embedding model '{v}' is not standard. Supported: {standard_embedding_models}")
-        return v
-    
-    @field_validator('name')
-    @classmethod
-    def validate_fallback_models(cls, v):
-        """Validate fallback embedding models."""
-        supported_models = [
-            'all-MiniLM-L6-v2', 'all-mpnet-base-v2', 'sentence-transformers/all-MiniLM-L6-v2'
-        ]
-        if v not in supported_models:
-            raise ValueError(f"Fallback model '{v}' not supported. Use: {supported_models}")
-        return v
-    
-    def get_primary_provider(self) -> str:
-        """Get the primary embedding provider to use."""
-        if self.use_azure_primary and self.provider == "azure_openai":
-            return "azure_openai"
-        return "huggingface"
-    
-    def get_fallback_model(self) -> str:
-        """Get fallback model name for open source embeddings."""
-        return self.name
+    Only supports Azure OpenAI for consistent, production-ready embeddings.
+    """
+    # Azure OpenAI configuration (only supported provider)
+    azure_openai: AzureOpenAIEmbeddingConfig = Field(default_factory=AzureOpenAIEmbeddingConfig)
 
 
 class RerankingConfig(BaseModel):
@@ -136,12 +107,70 @@ class RerankingConfig(BaseModel):
     relevance_threshold: float = Field(default=0.7, description="Minimum relevance score")
 
 
+class QueryExpansionConfig(BaseModel):
+    """Query expansion configuration for multi-query retrieval."""
+    enabled: bool = Field(default=True, description="Enable query expansion")
+    num_variations: int = Field(default=9, ge=1, le=20, description="Number of query variations to generate")
+    use_project_detection: bool = Field(default=True, description="Detect project from query")
+    expansion_prompt: str = Field(default="./prompts/query_expansion.txt", description="Prompt template for expansion")
+    llm_temperature: float = Field(default=0.3, ge=0.0, le=1.0, description="Temperature for LLM expansion")
+    cache_expansions: bool = Field(default=True, description="Cache query expansions")
+    cache_ttl: int = Field(default=3600, description="Cache TTL in seconds")
+
+
+class MultiQueryConfig(BaseModel):
+    """Multi-query retrieval configuration."""
+    enabled: bool = Field(default=True, description="Enable multi-query retrieval")
+    k_per_query: int = Field(default=10, gt=0, description="Top K chunks per query variation")
+    aggregation_method: str = Field(
+        default="frequency_relevance",
+        description="Aggregation method: frequency_relevance, max_score, or avg_score"
+    )
+    parallel_execution: bool = Field(default=True, description="Execute queries in parallel")
+    min_frequency_threshold: int = Field(default=2, ge=1, description="Minimum appearances across queries")
+    
+    @field_validator('aggregation_method')
+    @classmethod
+    def validate_aggregation_method(cls, v):
+        """Validate aggregation method."""
+        allowed = ['frequency_relevance', 'max_score', 'avg_score']
+        if v not in allowed:
+            raise ValueError(f"Aggregation method '{v}' not supported. Use: {allowed}")
+        return v
+
+
+class HybridContextConfig(BaseModel):
+    """Hybrid context assembly configuration (semantic + keyword)."""
+    semantic_weight: float = Field(default=0.7, ge=0.0, le=1.0, description="Weight for semantic results (70%)")
+    keyword_weight: float = Field(default=0.3, ge=0.0, le=1.0, description="Weight for keyword results (30%)")
+    total_chunks: int = Field(default=10, gt=0, description="Total chunks to pass to LLM")
+    deduplication: bool = Field(default=True, description="Remove duplicate chunks")
+    
+    @field_validator('keyword_weight')
+    @classmethod
+    def validate_weights_sum(cls, v, info):
+        """Ensure semantic and keyword weights sum to 1.0."""
+        if info.data and 'semantic_weight' in info.data:
+            semantic_weight = info.data['semantic_weight']
+            total = semantic_weight + v
+            if abs(total - 1.0) > 0.01:  # Small tolerance for floating point
+                raise ValueError(
+                    f"semantic_weight ({semantic_weight}) + keyword_weight ({v}) = {total}, must sum to 1.0"
+                )
+        return v
+
+
 class RetrievalConfig(BaseModel):
     """Enhanced query processing and retrieval configuration with hybrid search."""
     top_k: int = Field(default=10, gt=0)
     strategy: str = Field(default="hybrid", description="Strategy: similarity, keyword, or hybrid")
     
-    # Hybrid search weights
+    # NEW: Multi-query retrieval configurations
+    query_expansion: QueryExpansionConfig = Field(default_factory=QueryExpansionConfig)
+    multi_query: MultiQueryConfig = Field(default_factory=MultiQueryConfig)
+    hybrid_context: HybridContextConfig = Field(default_factory=HybridContextConfig)
+    
+    # Hybrid search weights (used for keyword component in hybrid context)
     semantic_weight: float = Field(default=0.6, ge=0.0, le=1.0)
     keyword_weight: float = Field(default=0.4, ge=0.0, le=1.0)
     
@@ -176,15 +205,6 @@ class RetrievalConfig(BaseModel):
         default={"ontology_match": True, "date_range": "last_12_months"},
         description="Retrieval filters"
     )
-    
-    @field_validator('keyword_weight')
-    def validate_weights_sum(cls, v, info):
-        """Ensure semantic and keyword weights sum to 1.0."""
-        if info.data and 'semantic_weight' in info.data:
-            semantic_weight = info.data['semantic_weight']
-            if abs(semantic_weight + v - 1.0) > 0.01:  # Small tolerance for floating point
-                raise ValueError(f"semantic_weight ({semantic_weight}) + keyword_weight ({v}) must sum to 1.0")
-        return v
 
 
 class LLMConfig(BaseModel):
@@ -193,7 +213,7 @@ class LLMConfig(BaseModel):
     provider: str = Field(default="azure_openai", description="Provider: azure_openai or koboldcpp only")
     
     # Model configuration  
-    max_tokens: int = Field(default=4096, description="Maximum tokens")
+    max_tokens: int = Field(default=10000, description="Maximum tokens (increased for rich formatting)")
     temperature: float = Field(default=0.1, ge=0.0, le=2.0)
     
     # Token management
@@ -209,6 +229,16 @@ class LLMConfig(BaseModel):
     azure_deployment_name: str = Field(default="gpt-5-nano", description="Azure deployment name")
     
     prompt_template: str = Field(default="./prompts/oncology.txt")
+    
+    # NEW: Enhanced answer formatting
+    answer_formatting_prompt: str = Field(
+        default="./prompts/enhanced_answer_formatting.txt",
+        description="Prompt for rich formatted answers"
+    )
+    use_json_mode: bool = Field(default=True, description="Enable JSON mode for structured output")
+    rich_formatting: bool = Field(default=True, description="Enable rich markdown formatting")
+    show_code_by_default: bool = Field(default=False, description="Show code only when explicitly requested")
+    
     system_instruction: str = Field(
         default="You are an AI-powered enterprise search assistant specializing in oncology, clinical documentation, and technical systems with enhanced RAG capabilities."
     )

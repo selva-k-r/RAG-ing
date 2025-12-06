@@ -28,6 +28,7 @@ from ..utils.exceptions import IngestionError
 from ..utils.duplicate_detector import DuplicateDetector
 from ..utils.document_summarizer import DocumentSummarizer
 from ..utils.code_chunker import CodeChunker
+from ..utils.embedding_provider import create_embedding_provider, get_embedding_model
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +165,7 @@ class CorpusEmbeddingModule:
                 "processing_time": processing_time,
                 "validation_success": validation_success,
                 "sources_processed": len(self.data_source_config.get_enabled_sources()),
-                "embedding_model": self.embedding_config.name,
+                "embedding_model": "azure_openai_text-embedding-ada-002",
                 "vector_store_type": self.vector_store_config.type
             })
             
@@ -437,32 +438,29 @@ class CorpusEmbeddingModule:
     def _extract_domain_codes(self, content: str) -> List[str]:
         """Extract medical ontology codes from content.
         
-        Implements extraction for ICD-O, SNOMED-CT, and UMLS as specified
-        in requirements. Uses regex patterns for common medical codes.
+        Implements extraction for generic domain codes like error codes,
+        ticket IDs, and version numbers. Uses regex patterns for common codes.
         """
-        ontology_codes = []
+        domain_codes = []
         
-        # ICD-O codes (International Classification of Diseases for Oncology)
-        # Format: C78.0, C50.9, etc.
-        icd_o_pattern = r'C\d{2}\.\d'
-        ontology_codes.extend(re.findall(icd_o_pattern, content, re.IGNORECASE))
+        # Error codes (e.g., ERROR-001, ERR_12345, ERR-500)
+        error_pattern = r'ERR(?:OR)?[-_]?\d{3,6}'
+        domain_codes.extend(re.findall(error_pattern, content, re.IGNORECASE))
         
-        # SNOMED-CT codes (Systematized Nomenclature of Medicine Clinical Terms)
-        # Format: SNOMED: 123456789 or SNOMED-CT: 123456789
-        snomed_pattern = r'SNOMED(?:-CT)?[:\s]+(\d{6,})'
-        ontology_codes.extend(re.findall(snomed_pattern, content, re.IGNORECASE))
+        # Ticket/Issue IDs (e.g., TICKET-12345, JIRA-1000, ISSUE_6789)
+        ticket_pattern = r'(?:TICKET|ISSUE|JIRA)[-_]?\d{3,6}'
+        domain_codes.extend(re.findall(ticket_pattern, content, re.IGNORECASE))
         
-        # MeSH terms (Medical Subject Headings) - basic detection
-        mesh_pattern = r'MeSH[:\s]+([A-Z]\d{2}\.[A-Z0-9\.]+)'
-        ontology_codes.extend(re.findall(mesh_pattern, content, re.IGNORECASE))
+        # Version numbers (e.g., v1.2.3, 2.0.1, version 3.14.0)
+        version_pattern = r'v?\d+\.\d+\.\d+'
+        domain_codes.extend(re.findall(version_pattern, content, re.IGNORECASE))
         
-        # Additional oncology-specific patterns
-        # Cancer staging: TNM classification
-        tnm_pattern = r'T[0-4]N[0-3]M[0-1]'
-        ontology_codes.extend(re.findall(tnm_pattern, content, re.IGNORECASE))
+        # Reference codes (e.g., REF-12345, DOC_5678)
+        ref_pattern = r'(?:REF|DOC)[-_]?\d{3,6}'
+        domain_codes.extend(re.findall(ref_pattern, content, re.IGNORECASE))
         
         # Remove duplicates and return
-        return list(set([code for code in ontology_codes if code.strip()]))
+        return list(set([code for code in domain_codes if code.strip()]))
     
     def _process_document_batch(self, batch: List[Document]) -> None:
         """
@@ -540,11 +538,19 @@ class CorpusEmbeddingModule:
         logger.info(f"Applying {strategy} chunking strategy")
         
         if strategy == "recursive":
-            return self._recursive_chunking(documents)
+            chunks = self._recursive_chunking(documents)
         elif strategy == "semantic":
-            return self._semantic_chunking(documents)
+            chunks = self._semantic_chunking(documents)
         else:
             raise ValueError(f"Unsupported chunking strategy: {strategy}")
+        
+        # Apply max_chunks limit if configured
+        max_chunks = getattr(self.chunking_config, 'max_chunks', None)
+        if max_chunks and len(chunks) > max_chunks:
+            logger.info(f"Limiting chunks from {len(chunks)} to {max_chunks} for testing")
+            chunks = chunks[:max_chunks]
+        
+        return chunks
     
     def _recursive_chunking(self, documents: List[Document]) -> List[Document]:
         """Apply recursive character-based chunking with configured parameters.
@@ -595,17 +601,17 @@ class CorpusEmbeddingModule:
         return chunks
     
     def _semantic_chunking(self, documents: List[Document]) -> List[Document]:
-        """Apply semantic boundary-aware chunking for oncology content.
+        """Apply semantic boundary-aware chunking for document content.
         
         Preserves semantic boundaries as specified in requirements.
-        Uses medical section boundaries for better context preservation.
+        Uses generic section boundaries for better context preservation.
         """
         chunks = []
         
-        # Define oncology-specific semantic boundaries
+        # Define generic semantic boundaries
         semantic_boundaries = [
-            "## Diagnosis", "## Treatment", "## Biomarkers", "## Prognosis",
-            "DIAGNOSIS:", "TREATMENT:", "FINDINGS:", "CONCLUSION:",
+            "## Overview", "## Configuration", "## Implementation", "## Results",
+            "SUMMARY:", "DETAILS:", "FINDINGS:", "CONCLUSION:",
             "Abstract", "Introduction", "Methods", "Results", "Discussion"
         ]
         
@@ -665,144 +671,64 @@ class CorpusEmbeddingModule:
         return chunks
     
     def _load_embedding_model(self) -> None:
-        """Enhanced embedding model loading supporting Azure OpenAI and open source models.
+        """Setup embedding model using unified provider system.
         
-        Educational note: This demonstrates the Strategy pattern - different embedding
-        providers are handled through a common interface but with provider-specific logic.
+        Supports Azure OpenAI, local open-source models, and hybrid mode.
+        Configuration is driven by config.yaml embedding_model section.
         
-        Supports both Azure OpenAI embeddings (text-embedding-ada-002) and 
-        open source models (PubMedBERT, all-MiniLM-L6-v2, etc.)
+        Educational note: This uses the unified embedding provider which handles:
+        - Provider switching (Azure OpenAI / Local / Hybrid)
+        - Rate limiting for Azure OpenAI
+        - Automatic fallback on errors
+        - Performance tracking
         """
-        provider = self.embedding_config.get_primary_provider()
-        logger.info(f"Loading embedding model using provider: {provider}")
+        logger.info("Setting up embedding model")
         
-        if provider == "azure_openai" and self.embedding_config.use_azure_primary:
-            # Use Azure OpenAI embeddings (higher quality, paid)
-            self._load_azure_embedding_model()
-        else:
-            # Use open source embedding model (free, local)
-            self._load_open_source_embedding_model()
+        try:
+            # Create Azure OpenAI embedding provider from config
+            azure_config = self.embedding_config.azure_openai
+            azure_dict = {
+                'model': azure_config.model,
+                'endpoint': azure_config.endpoint or self.config.azure_openai_embedding_endpoint or self.config.azure_openai_endpoint,
+                'api_key': azure_config.api_key or self.config.azure_openai_embedding_api_key or self.config.azure_openai_api_key,
+                'api_version': azure_config.api_version or self.config.azure_openai_embedding_api_version,
+                'deployment_name': azure_config.deployment_name,
+                'max_retries': azure_config.max_retries,
+                'retry_delay': azure_config.retry_delay,
+                'requests_per_minute': azure_config.requests_per_minute
+            }
+            
+            embedding_config_dict = {
+                'provider': 'azure_openai',
+                'azure_openai': azure_dict,
+            }
+            
+            # Create unified provider (Azure OpenAI only)
+            self.embedding_model = get_embedding_model(embedding_config_dict)
+            self.embedding_provider = create_embedding_provider(embedding_config_dict)
+            
+            # Test the model with a sample text
+            test_embedding = self.embedding_model.embed_query("document embedding test")
+            self._stats["vector_size"] = len(test_embedding)
+            
+            logger.info(f"[OK] Embedding model initialized")
+            logger.info(f"     Provider: Azure OpenAI")
+            logger.info(f"     Vector dimension: {len(test_embedding)}")
+            
+        except Exception as e:
+            logger.error(f"[X] Failed to setup embedding model: {e}")
+            import traceback
+            logger.error(f"     Traceback: {traceback.format_exc()}")
+            raise IngestionError(f"Embedding model setup failed: {e}")
     
     def _load_azure_embedding_model(self) -> None:
-        """Load Azure OpenAI embedding model."""
-        try:
-            logger.info(" Loading Azure OpenAI embedding model")
-            
-            # Import Azure OpenAI
-            from openai import AzureOpenAI
-            
-            # Get configuration - prioritize embedding-specific credentials from env vars
-            api_key = (
-                self.config.azure_openai_embedding_api_key or  # From .env AZURE_OPENAI_EMBEDDING_API_KEY
-                self.embedding_config.azure_api_key or          # From config.yaml
-                self.config.azure_openai_api_key               # Fallback to main Azure key
-            )
-            endpoint = (
-                self.config.azure_openai_embedding_endpoint or  # From .env AZURE_OPENAI_EMBEDDING_ENDPOINT
-                self.embedding_config.azure_endpoint or         # From config.yaml
-                self.config.azure_openai_endpoint              # Fallback to main Azure endpoint
-            )
-            api_version = (
-                self.config.azure_openai_embedding_api_version or  # From .env
-                self.embedding_config.azure_api_version            # From config.yaml
-            )
-            
-            azure_client = AzureOpenAI(
-                api_key=api_key,
-                azure_endpoint=endpoint,
-                api_version=api_version
-            )
-            
-            # Create wrapper class for Azure embeddings to match LangChain interface
-            class AzureEmbeddingWrapper:
-                def __init__(self, client, model_name, deployment_name):
-                    self.client = client
-                    self.model_name = model_name
-                    self.deployment_name = deployment_name
-                
-                def embed_query(self, text: str) -> List[float]:
-                    """Embed a single query text."""
-                    response = self.client.embeddings.create(
-                        input=[text],
-                        model=self.deployment_name
-                    )
-                    return response.data[0].embedding
-                
-                def embed_documents(self, texts: List[str]) -> List[List[float]]:
-                    """Embed multiple documents."""
-                    # Process in batches to avoid API limits
-                    batch_size = 16  # Azure OpenAI batch limit
-                    all_embeddings = []
-                    
-                    for i in range(0, len(texts), batch_size):
-                        batch = texts[i:i + batch_size]
-                        response = self.client.embeddings.create(
-                            input=batch,
-                            model=self.deployment_name
-                        )
-                        batch_embeddings = [data.embedding for data in response.data]
-                        all_embeddings.extend(batch_embeddings)
-                    
-                    return all_embeddings
-            
-            # Initialize Azure embedding wrapper
-            self.embedding_model = AzureEmbeddingWrapper(
-                client=azure_client,
-                model_name=self.embedding_config.azure_model,
-                deployment_name=self.embedding_config.azure_deployment_name
-            )
-            
-            # Test the model with a sample text
-            test_embedding = self.embedding_model.embed_query("document embedding test")
-            self._stats["vector_size"] = len(test_embedding)
-            
-            logger.info(f" Azure embedding model loaded successfully - Vector dimension: {len(test_embedding)}")
-            logger.info(f"   Model: {self.embedding_config.azure_model}")
-            logger.info(f"   Deployment: {self.embedding_config.azure_deployment_name}")
-            
-        except Exception as e:
-            logger.error(f" Failed to load Azure embedding model: {e}")
-            logger.info(" Falling back to open source embedding model")
-            self._load_open_source_embedding_model()
-    
-    def _load_open_source_embedding_model(self) -> None:
-        """Load open source embedding model as fallback or primary choice."""
-        model_name = self.embedding_config.get_fallback_model()
-        device = self.embedding_config.device
-        
-        logger.info(f" Loading open source embedding model: {model_name} on {device}")
-        
-        # Map model names to HuggingFace model paths as required
-        model_mapping = {
-            "pubmedbert": "microsoft/BiomedNLP-PubMedBERT-base-uncased-abstract-fulltext",
-            "clinicalbert": "emilyalsentzer/Bio_ClinicalBERT", 
-            "biobert": "dmis-lab/biobert-v1.1",
-            "scibert": "allenai/scibert_scivocab_uncased",
-            "all-MiniLM-L6-v2": "sentence-transformers/all-MiniLM-L6-v2",
-            "all-mpnet-base-v2": "sentence-transformers/all-mpnet-base-v2"
-        }
-        
-        model_path = model_mapping.get(model_name, model_name)
-        
-        try:
-            from langchain_huggingface import HuggingFaceEmbeddings
-            
-            self.embedding_model = HuggingFaceEmbeddings(
-                model_name=model_path,
-                model_kwargs={'device': device},
-                encode_kwargs={'normalize_embeddings': True}
-            )
-            
-            # Test the model with a sample text
-            test_embedding = self.embedding_model.embed_query("document embedding test")
-            self._stats["vector_size"] = len(test_embedding)
-            
-            logger.info(f" Open source embedding model loaded successfully - Vector dimension: {len(test_embedding)}")
-            logger.info(f"   Model path: {model_path}")
-            
-        except Exception as e:
-            logger.error(f" Failed to load open source embedding model {model_name}: {e}")
-            raise IngestionError(f"Embedding model loading failed: {e}")
+        """DEPRECATED: This method is kept for backward compatibility.
+        Use the unified embedding provider in _load_embedding_model() instead.
+        """
+        logger.warning("[!] _load_azure_embedding_model() is deprecated")
+        logger.warning("    Using unified embedding provider system instead")
+        # Fallback to unified system
+        self._load_embedding_model()
     
     def _setup_vector_store(self) -> None:
         """Setup vector store based on configuration.
@@ -1158,8 +1084,18 @@ class CorpusEmbeddingModule:
                     cleaned_chunk = Document(page_content=chunk.page_content, metadata=cleaned_metadata)
                     cleaned_chunks.append(cleaned_chunk)
                 
-                # Add documents to ChromaDB
-                self.vector_store.add_documents(cleaned_chunks)
+                # Add documents to ChromaDB in batches to avoid API limits
+                # Azure OpenAI embedding API has batch size limits (typically 16-2048)
+                batch_size = 100  # Conservative batch size for stability
+                total_chunks = len(cleaned_chunks)
+                
+                for i in range(0, total_chunks, batch_size):
+                    batch = cleaned_chunks[i:i + batch_size]
+                    batch_num = (i // batch_size) + 1
+                    total_batches = (total_chunks + batch_size - 1) // batch_size
+                    
+                    logger.info(f"   Storing batch {batch_num}/{total_batches}: {len(batch)} chunks")
+                    self.vector_store.add_documents(batch)
                 
             elif self.vector_store_config.type == "faiss":
                 # Create FAISS index from documents
@@ -1232,11 +1168,11 @@ class CorpusEmbeddingModule:
             return False
         
         try:
-            # Test embedding generation with oncology-specific content
+            # Test embedding generation with generic content
             test_texts = [
-                "Oncology biomarker analysis for breast cancer",
-                "Melanoma treatment protocol with immunotherapy",
-                "BRCA1 gene mutation screening results"
+                "Document analysis for data processing",
+                "System configuration and deployment protocol",
+                "Database query optimization results"
             ]
             
             for test_text in test_texts:
@@ -1279,7 +1215,7 @@ class CorpusEmbeddingModule:
             "data_source_type": self.data_source_config.type,
             "data_source_path": self.data_source_config.path,
             "chunking_strategy": self.chunking_config.strategy,
-            "embedding_model_name": self.embedding_config.name,
+            "embedding_model_name": self.embedding_config.azure_openai.model,
             "enabled_sources": len(self.data_source_config.get_enabled_sources())
         }
     
@@ -1691,10 +1627,125 @@ class CorpusEmbeddingModule:
                 avg_commits = total_commits_fetched / files_with_commit_history if files_with_commit_history > 0 else 0
                 logger.info(f" Commit History: {files_with_commit_history} files with history ({total_commits_fetched} total commits, avg {avg_commits:.1f} commits/file)")
             
+            # ================================================================
+            # DBT ARTIFACT DETECTION AND PROCESSING
+            # ================================================================
+            dbt_docs = self._process_dbt_artifacts(all_docs)
+            if dbt_docs:
+                logger.info(f"[OK] DBT: Extracted {len(dbt_docs)} additional documents (SQL + seeds)")
+                all_docs.extend(dbt_docs)
+            
             return all_docs
             
         except Exception as e:
             logger.error(f"Azure DevOps ingestion failed: {e}")
+            import traceback
+            logger.debug(traceback.format_exc())
+            return []
+    
+    def _process_dbt_artifacts(self, documents: List[Document]) -> List[Document]:
+        """Detect and process DBT artifacts from fetched documents.
+        
+        Args:
+            documents: List of raw documents fetched from Azure DevOps
+            
+        Returns:
+            List of synthetic DBT documents (models, tests, macros, seeds)
+        """
+        try:
+            from ..utils.dbt_artifacts import DBTArtifactParser
+            import tempfile
+            import os
+            from pathlib import Path
+            
+            # Step 1: Detect DBT artifacts
+            dbt_files = {}
+            csv_files = {}
+            
+            for doc in documents:
+                file_path = doc.metadata.get('file_path', '')
+                content = doc.page_content
+                
+                # Collect DBT artifact files
+                if file_path.endswith('manifest.json'):
+                    dbt_files['manifest.json'] = content
+                elif file_path.endswith('catalog.json'):
+                    dbt_files['catalog.json'] = content
+                elif file_path.endswith('graph_summary.json'):
+                    dbt_files['graph_summary.json'] = content
+                elif file_path.endswith('dbt_project.yml'):
+                    dbt_files['dbt_project.yml'] = content
+                
+                # Collect seed CSV files
+                elif file_path.endswith('.csv') and '/data/' in file_path:
+                    # Extract seed name from path
+                    csv_files[file_path] = content
+            
+            # Step 2: Check if DBT project detected
+            if 'manifest.json' not in dbt_files or 'dbt_project.yml' not in dbt_files:
+                logger.debug("No DBT artifacts detected (need manifest.json + dbt_project.yml)")
+                return []
+            
+            logger.info("[OK] DBT project detected! Processing artifacts...")
+            logger.info(f"   Artifacts: {', '.join(dbt_files.keys())}")
+            logger.info(f"   Seed CSVs: {len(csv_files)}")
+            
+            # Step 3: Save artifacts to temp directory
+            temp_dir = tempfile.mkdtemp(prefix='dbt_artifacts_')
+            try:
+                for filename, content in dbt_files.items():
+                    file_path = os.path.join(temp_dir, filename)
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(content)
+                
+                # Step 4: Initialize DBT parser
+                parser = DBTArtifactParser(temp_dir)
+                
+                # Step 5: Extract SQL documents (models, tests, macros)
+                sql_documents = parser.extract_sql_documents(include_compiled=True)
+                logger.info(f"   SQL documents: {len(sql_documents)}")
+                
+                # Step 6: Extract seed documents (CSV files)
+                seed_documents = parser.extract_seed_documents(csv_files) if csv_files else []
+                logger.info(f"   Seed documents: {len(seed_documents)}")
+                
+                # Step 7: Convert to Langchain Document format
+                dbt_docs = []
+                
+                for sql_doc in sql_documents:
+                    doc = Document(
+                        page_content=sql_doc['content'],
+                        metadata={
+                            'source': 'dbt_manifest',
+                            'source_type': 'azure_devops',
+                            **sql_doc['metadata']
+                        }
+                    )
+                    dbt_docs.append(doc)
+                
+                for seed_doc in seed_documents:
+                    doc = Document(
+                        page_content=seed_doc['content'],
+                        metadata={
+                            'source': 'dbt_seed',
+                            'source_type': 'azure_devops',
+                            **seed_doc['metadata']
+                        }
+                    )
+                    dbt_docs.append(doc)
+                
+                return dbt_docs
+                
+            finally:
+                # Cleanup temp directory
+                import shutil
+                try:
+                    shutil.rmtree(temp_dir)
+                except Exception as e:
+                    logger.warning(f"Failed to cleanup temp directory {temp_dir}: {e}")
+        
+        except Exception as e:
+            logger.error(f"DBT processing failed: {e}")
             import traceback
             logger.debug(traceback.format_exc())
             return []

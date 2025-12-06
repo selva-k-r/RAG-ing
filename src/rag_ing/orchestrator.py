@@ -10,6 +10,7 @@ This module coordinates all 5 core modules to provide a complete RAG system:
 
 import time
 import hashlib
+import asyncio
 from typing import Dict, List, Any, Optional
 import logging
 
@@ -56,6 +57,12 @@ class RAGOrchestrator:
         if self.settings.hierarchical_storage.enabled and self.llm_orchestration.client:
             self.corpus_embedding.set_llm_client(self.llm_orchestration.client)
             logger.info("[OK] LLM client injected into corpus embedding for summarization")
+        
+        # Inject LLM ORCHESTRATION MODULE (not raw client) into query retrieval for query expansion
+        # Query expansion needs the full module with generate_response() method
+        if self.llm_orchestration:
+            self.query_retrieval.set_llm_client(self.llm_orchestration)
+            logger.info("[OK] LLM orchestration module injected into query retrieval for query expansion")
         
         # Initialize activity logger
         if self.settings.activity_logging.enabled:
@@ -224,6 +231,172 @@ class RAGOrchestrator:
             self.evaluation_logging.update_system_metrics(success=False)
             logger.error(f"Query processing failed: {e}")
             raise RAGError(f"Query processing failed: {e}")
+    
+    async def query_documents_with_multi_query(
+        self,
+        query: str,
+        user_context: Optional[Dict[str, Any]] = None,
+        use_project_detection: bool = True
+    ) -> Dict[str, Any]:
+        """Complete query processing pipeline with multi-query expansion.
+        
+        This is the NEW method that uses advanced multi-query retrieval:
+        - Query expansion with 9 variations
+        - Project detection
+        - Multi-query retrieval and aggregation
+        - Hybrid context assembly (70% semantic + 30% keyword)
+        - Enhanced LLM response with rich formatting
+        
+        Args:
+            query: User query
+            user_context: Additional user context
+            use_project_detection: Enable project-based filtering
+            
+        Returns:
+            Complete response with enhanced metadata
+        """
+        start_time = time.time()
+        query_hash = hashlib.md5(query.encode()).hexdigest()[:8]
+        
+        logger.info(f"[NEW] Processing query with multi-query expansion [{query_hash}]: {query[:100]}...")
+        
+        try:
+            # Module 2: Enhanced Query Processing & Retrieval with Multi-Query
+            retrieval_start = time.time()
+            
+            retrieval_result = await self.query_retrieval.process_query_with_multi_query_expansion(
+                query=query,
+                use_project_detection=use_project_detection
+            )
+            
+            retrieval_time = time.time() - retrieval_start
+            
+            retrieved_docs = retrieval_result["documents"]
+            
+            # Calculate retrieval metrics (Module 5)
+            retrieval_metrics = self.evaluation_logging.calculate_retrieval_metrics(
+                query=query,
+                retrieved_docs=retrieved_docs,
+                retrieval_time=retrieval_time
+            )
+            
+            # Module 3: LLM Orchestration with Enhanced Formatting
+            generation_start = time.time()
+            
+            # Use pre-formatted context from hybrid builder
+            # Handle both multi-query and standard retrieval results
+            if "context" in retrieval_result:
+                context = retrieval_result["context"]
+            else:
+                # Build context from documents (standard retrieval fallback)
+                context = "\n\n".join([
+                    f"Source: {doc.metadata.get('source', 'unknown')}\n{doc.page_content}"
+                    for doc in retrieved_docs
+                ])
+            
+            llm_response = self.llm_orchestration.generate_response(
+                query=query,
+                context=context
+            )
+            generation_time = time.time() - generation_start
+            
+            # Calculate generation metrics (Module 5)
+            generation_metrics = self.evaluation_logging.calculate_generation_metrics(
+                response=llm_response["response"],
+                sources=retrieved_docs,
+                generation_time=generation_time,
+                model_name=llm_response.get("model") or llm_response.get("model_used", "unknown")
+            )
+            
+            # Calculate safety score
+            safety_score = self.evaluation_logging.calculate_safety_score(
+                response=llm_response["response"],
+                query=query
+            )
+            generation_metrics.safety_score = safety_score
+            
+            # Total processing time
+            total_time = time.time() - start_time
+            
+            # Create complete response with enhanced metadata
+            complete_response = {
+                "query": query,
+                "query_hash": query_hash,
+                "response": llm_response["response"],
+                "sources": retrieved_docs,
+                
+                # Enhanced metadata from multi-query retrieval
+                "query_expansion": retrieval_result.get("query_expansion", {}),
+                "aggregation_stats": retrieval_result.get("aggregation_stats", {}),
+                "hybrid_stats": retrieval_result.get("hybrid_stats", {}),
+                
+                # Standard metadata
+                "metadata": {
+                    "method": "multi_query_expansion",
+                    "total_queries_executed": retrieval_result.get("total_queries_executed", 1),
+                    "total_chunks_retrieved": retrieval_result.get("total_chunks_retrieved", 0),
+                    "unique_chunks": retrieval_result.get("unique_chunks", 0),
+                    "generation_stats": llm_response.get("stats", {}),
+                    "total_processing_time": total_time,
+                    "retrieval_time": retrieval_time,
+                    "generation_time": generation_time,
+                    "safety_score": safety_score,
+                    "model_used": llm_response.get("model_used"),
+                    "detected_project": retrieval_result.get("query_expansion", {}).get("detected_project"),
+                    "project_confidence": retrieval_result.get("query_expansion", {}).get("confidence")
+                },
+                "timestamp": time.time()
+            }
+            
+            # Log complete query event (Module 5)
+            query_event = QueryEvent(
+                timestamp=time.strftime("%Y-%m-%d %H:%M:%S"),
+                query=query,
+                query_hash=query_hash,
+                retrieval_metrics=retrieval_metrics,
+                generation_metrics=generation_metrics,
+                system_metadata={
+                    "method": "multi_query_expansion",
+                    "total_processing_time": total_time,
+                    "retrieval_time": retrieval_time,
+                    "generation_time": generation_time,
+                    "queries_executed": retrieval_result.get("total_queries_executed", 1)
+                }
+            )
+            
+            self.evaluation_logging.log_query_event(query_event)
+            self.evaluation_logging.update_system_metrics(
+                success=True,
+                processing_time=total_time
+            )
+            
+            # Log user activity for analytics
+            if self.activity_logger:
+                import uuid
+                session_id = (user_context or {}).get('session_id', str(uuid.uuid4()))
+                self.activity_logger.log_search(
+                    query=query,
+                    results=retrieved_docs,
+                    session_id=session_id,
+                    retrieval_time=retrieval_time,
+                    generation_time=generation_time,
+                    user_context=user_context
+                )
+            
+            logger.info(
+                f"[OK] Query [{query_hash}] processed with multi-query expansion in {total_time:.2f}s "
+                f"({retrieval_result.get('total_queries_executed', 1)} queries, "
+                f"{retrieval_result.get('unique_chunks', 0)} unique chunks)"
+            )
+            
+            return complete_response
+            
+        except Exception as e:
+            self.evaluation_logging.update_system_metrics(success=False)
+            logger.error(f"[X] Multi-query processing failed: {e}")
+            # Fallback to standard query processing
+            logger.warning("[!] Falling back to standard query processing")
+            return self.query_documents(query, user_context)
     
     def collect_feedback(self, query_hash: str, feedback: Dict[str, Any]) -> None:
         """Collect user feedback for a query.

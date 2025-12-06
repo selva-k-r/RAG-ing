@@ -1,9 +1,12 @@
-# iConnect RAG System - Developer Guide
+# RAG-ing Developer Guide
 
-> **Internal Developer Navigation & Code Review Guide**  
-> For iConnect team members working on the RAG system
+Developer-facing overview of how the system is structured today, how configuration flows into runtime objects, and how ingestion/query pipelines are wired.
 
-## 📁 Directory Overview
+This guide only describes the **current state** of the project on `feature/using-dbt-artifacts`.
+
+---
+
+## Directory Overview
 
 ```
 RAG-ing/
@@ -36,7 +39,7 @@ RAG-ing/
 └── tests/                 # Unit tests
 ```
 
-## 🎯 Core Components (Ready for Review)
+## Core Components
 
 ### 1. Entry Points
 - **main.py** - CLI interface

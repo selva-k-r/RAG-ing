@@ -1,30 +1,31 @@
-# RAG-ing: General-Purpose RAG System
+# RAG-ing: Document-Grounded RAG System
 
-A production-ready Retrieval-Augmented Generation (RAG) system for intelligent document search and question answering. Strictly grounds answers in your documents with no hallucination. Connect to Azure DevOps, Confluence, and local files with Azure OpenAI integration.
+A production-ready Retrieval-Augmented Generation (RAG) system for intelligent document search and question answering. Answers are **strictly grounded in your documents** with no hallucination. The current setup focuses on an Azure DevOps dbt project plus local files, with Azure OpenAI for embeddings and generation.
 
-## ✨ Key Features
+## Key Features
 
 ### Strict Document Grounding
 - **Zero Hallucination**: Answers ONLY from provided documents
 - **Helpful Guidance**: Suggests question rephrasing when information unavailable
 - **Source Attribution**: Clear citation of document sources
 
-### Multi-Source Integration
-- **Azure DevOps**: Query your codebase with commit history tracking
-  - Path and file type filtering
-  - Batch processing (configurable batch size)
-  - Incremental updates (track changes, skip unchanged files)
-  - Last N commits per file
-- **Confluence**: Wiki pages and documentation (planned)
-- **Local Files**: PDF, Markdown, TXT, HTML
-- **Jira**: Tickets and requirements (planned)
+### Data Sources (Current Focus)
+- **Azure DevOps dbt project**
+  - Uses `dbt_project.yml`, `target/manifest.json`, `/macros/`, and `/data/` from a single repository (e.g. `DBT-ANTHEM`).
+  - DBT artifacts are parsed into separate documents (models, tests, macros, seeds) with rich metadata.
+  - Path and file type filtering, batch processing, and incremental updates via an ingestion tracker.
+- **Local files** (optional)
+  - Text-like formats (Markdown, TXT, etc.) can be added via `config.yaml`.
 
-### Production-Ready
-- **FastAPI Web Interface**: Modern REST API with SSE progress tracking
-- **Hybrid Search**: Semantic vector search + keyword matching
-- **Azure OpenAI Integration**: GPT-4/GPT-4o with fallback providers
-- **Persistent Storage**: ChromaDB vector database
-- **Structured Logging**: JSON logs for analysis and monitoring
+Planned/optional connectors such as Confluence or Jira are not required for the current configuration.
+
+### Production-Ready Behavior
+- **FastAPI Web Interface**: REST API plus HTML UI (via `ui/app.py`).
+- **Hierarchical Storage (optional)**: When enabled, uses LLM to summarize long documents and store both summaries and detailed chunks.
+- **Hybrid Search**: Semantic vector search + keyword matching with multi-query expansion.
+- **Azure OpenAI Only**: Azure is the embedding and LLM provider in this branch.
+- **Persistent Storage**: ChromaDB vector database (`vector_store/`) and an ingestion tracker SQLite DB.
+- **Structured Logging**: JSON logs under `logs/` and user-activity logs under `logs/user_activity/`.
 
 ### Code Quality
 - **ASCII-Safe**: No emoji encoding issues (Windows compatible)
@@ -33,7 +34,7 @@ A production-ready Retrieval-Augmented Generation (RAG) system for intelligent d
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 - Python 3.8+
@@ -64,22 +65,13 @@ pip install -e .
 # Azure OpenAI (Required)
 AZURE_OPENAI_API_KEY=your_key_here
 AZURE_OPENAI_ENDPOINT=https://your-endpoint.openai.azure.com/
-AZURE_OPENAI_API_VERSION=2024-02-15-preview
+AZURE_OPENAI_API_VERSION=2024-05-01-preview
 
-# Azure OpenAI Embedding (Required)
-AZURE_OPENAI_EMBEDDING_API_KEY=your_embedding_key
-AZURE_OPENAI_EMBEDDING_ENDPOINT=https://your-endpoint.openai.azure.com/
-
-# Azure DevOps (Optional - for code intelligence)
+# Azure DevOps (Required for dbt ingestion)
 AZURE_DEVOPS_ORG=your_organization
 AZURE_DEVOPS_PROJECT=your_project
 AZURE_DEVOPS_PAT=your_personal_access_token
-AZURE_DEVOPS_REPO=your_repository
-
-# Confluence (Optional - planned feature)
-CONFLUENCE_BASE_URL=https://your-domain.atlassian.net/wiki
-CONFLUENCE_TOKEN=your_token
-CONFLUENCE_SPACE_KEY=YOUR_SPACE
+AZURE_DEVOPS_REPO=DBT-ANTHEM
 ```
 
 **2. Configure `config.yaml`:**
@@ -207,6 +199,28 @@ Supported formats: PDF, Markdown, TXT, HTML
 Wiki pages and documentation import.
 
 **Status**: Connector code exists, needs testing and configuration.
+
+### DBT Integration (Beta)
+
+Query DBT project metadata, lineage, and SQL code.
+
+**Capabilities**:
+- **Lineage Graphs**: In-memory graph traversal for model dependencies
+- **SQL Extraction**: Parse manifest.json to extract 1,478+ SQL documents (models, tests, macros)
+- **Seed Data**: CSV reference data with automatic linking to models
+- **Business Queries**: "Does QM2 include J1434 for NK1 high emetic risk?"
+
+**Configuration**:
+```yaml
+azure_devops:
+  include_paths:
+    - "/dbt_anthem/target/"         # Artifacts (manifest, catalog, graph)
+    - "/dbt_anthem/dbt_project.yml" # Project config
+    - "/dbt_anthem/data/"           # Seed CSV files
+```
+
+**Status**: Core processing complete, streaming configuration pending (30 min setup)  
+**Documentation**: See `docs/DBT_INTEGRATION_STATUS.md`
 
 ### Jira (Planned)
 
@@ -498,11 +512,48 @@ docker-compose -f docker-compose.minimal.yml up --build
 - General-purpose RAG (domain-agnostic)
 - Strict document grounding (zero hallucination)
 - Azure OpenAI integration (GPT-4/GPT-4o)
-- ChromaDB vector storage
+- ChromaDB vector storage with hierarchical collections
 - FastAPI web interface
 - Structured logging
 
-**Azure DevOps Integration**:
+**Hierarchical Storage** (✅ Complete):
+- Two-tier retrieval: summaries for high-level search, chunks for details
+- LLM-generated rich summaries with:
+  - Business context and purpose
+  - Searchable keywords and topics (10-15 per doc)
+  - Document type classification
+  - Technical details (tables, functions, dependencies)
+- Type-specific summarization:
+  - SQL: Business logic, data transformations, key metrics
+  - Python: Functionality, classes, external dependencies
+  - YAML: Configuration settings, relationships
+  - PDF: Key entities, document category, sections
+- Smart routing: Top 15 summary candidates → metadata boosting → top 5 detailed results
+### 🎯 Next Release: Project-Aware RAG with DBT Artifacts (v0.2.0)
+
+**DBT Artifacts Integration** (In Development - Q1 2026):
+- [ ] **DBT Manifest Parser**: Parse manifest.json, catalog.json, dbt_project.yml
+- [ ] **Project Detection**: Identify DBT projects from folder structure
+- [ ] **Rich Metadata Extraction**:
+  - Model descriptions and documentation
+  - Column-level lineage and descriptions
+  - Tags, meta properties, owners
+  - Dependency graphs (upstream/downstream)
+  - Test definitions and results
+- [ ] **Project-Aware Filtering**: 
+  - Query understanding layer (detect project mentions)
+  - Metadata-based filtering (project tags)
+  - Multi-project comparison queries
+- [ ] **Enhanced Search**:
+  - "What is QM2 logic in Anthem project?" (project-scoped)
+  - "Compare QM1 across EOM, Anthem, and UPMC" (multi-project)
+  - "Show all models in staging layer" (structural queries)
+- [ ] **Knowledge Graph Integration**:
+  - DBT lineage → graph relationships
+  - Model-to-model dependencies
+  - Table-to-column mappings
+
+**Enhanced Azure DevOps** (Q1 2026):
 - Multi-repository support
 - Commit history tracking (last N commits per file)
 - Path and file type filtering
